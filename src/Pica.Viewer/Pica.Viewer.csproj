@@ -5,7 +5,7 @@
     <Version>$(PicaVersion)</Version>
     <PackageVersion>$(PicaPackageVersion)</PackageVersion>
     <PackageId>Pica.Viewer</PackageId>
-    <Description>Встраиваемый просмотрщик изображений Pica для Avalonia.</Description>
+    <Description>Embeddable Pica image viewer for Avalonia applications.</Description>
   </PropertyGroup>
 
   <ItemGroup>
