@@ -1,0 +1,26 @@
+<Project DefaultTargets="Pack">
+  <Import Project="..\src\Pica.Build.props" />
+
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts\publication\$(PicaPackageVersion)</PackageOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackProject Include="$(MSBuildThisFileDirectory)..\src\Pica.Protocol\Pica.Protocol.csproj" />
+    <PackProject Include="$(MSBuildThisFileDirectory)..\src\Pica.Viewer\Pica.Viewer.csproj" />
+  </ItemGroup>
+
+  <Target Name="Restore">
+    <MSBuild Projects="@(PackProject)"
+             Targets="Restore"
+             BuildInParallel="true" />
+  </Target>
+
+  <Target Name="Pack" DependsOnTargets="Restore">
+    <MSBuild Projects="@(PackProject)"
+             Targets="Pack"
+             BuildInParallel="false"
+             Properties="Configuration=$(Configuration);PackageOutputPath=$(PackageOutputPath)" />
+  </Target>
+</Project>
