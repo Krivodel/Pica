@@ -6,6 +6,6 @@
     <Version>$(PicaVersion)</Version>
     <PackageVersion>$(PicaPackageVersion)</PackageVersion>
     <PackageId>Pica.Protocol</PackageId>
-    <Description>Communication contracts shared between Pica and host applications.</Description>
+    <Description>Communication contracts between Pica and calling applications.</Description>
   </PropertyGroup>
 </Project>
