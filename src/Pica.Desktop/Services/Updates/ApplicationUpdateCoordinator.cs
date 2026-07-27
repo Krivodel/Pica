@@ -1,8 +1,9 @@
-using Avalonia.Controls;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 
-using Pica.Desktop.Views;
+using SukiUI.Controls;
+
+using Pica.Desktop.Views.Updates;
 
 namespace Pica.Desktop.Services.Updates;
 
@@ -11,26 +12,31 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(30d);
 
     private readonly IApplicationUpdateService _updateService;
+    private readonly ApplicationUpdateToastPresenter _presenter;
     private readonly ILogger<ApplicationUpdateCoordinator> _logger;
     private readonly CancellationTokenSource _lifetimeCancellationSource = new();
     private Func<PicaApplicationUpdate, Task>? _restartApplication;
-    private ApplicationUpdateWindow? _window;
-    private Window? _owner;
+    private PicaApplicationUpdate? _presentedUpdate;
+    private SukiWindow? _owner;
     private string? _dismissedVersion;
     private bool _isDisposed;
     private bool _isMonitoring;
 
     public ApplicationUpdateCoordinator(
         IApplicationUpdateService updateService,
+        ApplicationUpdateToastPresenter presenter,
         ILogger<ApplicationUpdateCoordinator> logger)
     {
         _updateService = updateService
             ?? throw new ArgumentNullException(nameof(updateService));
+        _presenter = presenter ?? throw new ArgumentNullException(nameof(presenter));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _presenter.UpdateRequested += OnUpdateRequested;
+        _presenter.LaterRequested += OnLaterRequested;
     }
 
     public void StartMonitoring(
-        Window owner,
+        SukiWindow owner,
         Func<PicaApplicationUpdate, Task> restartApplication)
     {
         ArgumentNullException.ThrowIfNull(owner);
@@ -46,6 +52,7 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
         _isMonitoring = true;
         _owner = owner;
         _restartApplication = restartApplication;
+        _presenter.Attach(owner);
         _ = MonitorAsync(_lifetimeCancellationSource.Token);
     }
 
@@ -59,7 +66,8 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
         _lifetimeCancellationSource.Cancel();
         _owner = null;
         _restartApplication = null;
-        CloseWindow();
+        _presentedUpdate = null;
+        _presenter.Detach();
     }
 
     public void Dispose()
@@ -70,6 +78,8 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
         }
 
         StopMonitoring();
+        _presenter.UpdateRequested -= OnUpdateRequested;
+        _presenter.LaterRequested -= OnLaterRequested;
         _isDisposed = true;
         _lifetimeCancellationSource.Dispose();
     }
@@ -141,43 +151,27 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
     {
         if ((_owner is null)
             || !_owner.IsVisible
-            || (_window is not null))
+            || (_presentedUpdate is not null))
         {
             return;
         }
 
-        ApplicationUpdateWindow window = new(update.Version);
-        window.UpdateRequested += (_, _) => _ = InstallUpdateAsync(window, update);
-        window.LaterRequested += (_, _) =>
-        {
-            _dismissedVersion = update.Version;
-            window.Close();
-        };
-        window.Closed += (_, _) =>
-        {
-            if (ReferenceEquals(_window, window))
-            {
-                _window = null;
-            }
-        };
-        _window = window;
-        window.Show(_owner);
+        _presentedUpdate = update;
+        _presenter.ShowAvailable(update.Version);
     }
 
-    private async Task InstallUpdateAsync(
-        ApplicationUpdateWindow window,
-        PicaApplicationUpdate update)
+    private async Task InstallUpdateAsync(PicaApplicationUpdate update)
     {
         try
         {
-            window.ShowDownloadProgress(0);
-            Progress<int> progress = new(window.ShowDownloadProgress);
+            _presenter.ShowDownloadProgress(0);
+            Progress<int> progress = new(_presenter.ShowDownloadProgress);
             await _updateService
                 .DownloadUpdateAsync(
                     update,
                     progress,
                     _lifetimeCancellationSource.Token);
-            window.ShowInstalling();
+            _presenter.ShowInstalling();
 
             Func<PicaApplicationUpdate, Task> restartApplication =
                 _restartApplication
@@ -195,26 +189,33 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
                 ex,
                 "Pica update {UpdateVersion} could not be installed.",
                 update.Version);
-            window.ShowInstallFailure();
+            _presenter.ShowInstallFailure();
         }
     }
 
-    private void CloseWindow()
+    private void OnUpdateRequested(object? sender, EventArgs e)
     {
-        if (_window is null)
+        _ = sender;
+        _ = e;
+
+        if (_presentedUpdate is { } update)
+        {
+            _ = InstallUpdateAsync(update);
+        }
+    }
+
+    private void OnLaterRequested(object? sender, EventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        if (_presentedUpdate is not { } update)
         {
             return;
         }
 
-        ApplicationUpdateWindow window = _window;
-        _window = null;
-
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            window.CloseForShutdown();
-            return;
-        }
-
-        Dispatcher.UIThread.Post(window.CloseForShutdown);
+        _dismissedVersion = update.Version;
+        _presentedUpdate = null;
+        _presenter.Dismiss();
     }
 }

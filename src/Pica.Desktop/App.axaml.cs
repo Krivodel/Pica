@@ -6,9 +6,12 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using SukiUI.Toasts;
+
 using Pica.Desktop.Services;
 using Pica.Desktop.Services.Updates;
 using Pica.Desktop.Views;
+using Pica.Desktop.Views.Updates;
 using Pica.Viewer;
 using Pica.Viewer.Services;
 using Pica.Viewer.Views;
@@ -55,7 +58,9 @@ public sealed partial class App : Application
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Information));
         services.AddPicaViewer();
         services.AddSingleton<PicaStartupRequestFactory>();
+        services.AddSingleton<ISukiToastManager, SukiToastManager>();
         services.AddSingleton<IApplicationUpdateService, VelopackApplicationUpdateService>();
+        services.AddSingleton<ApplicationUpdateToastPresenter>();
         services.AddSingleton<ApplicationUpdateCoordinator>();
         _serviceProvider = services.BuildServiceProvider();
         _logger = _serviceProvider.GetRequiredService<ILogger<App>>();
