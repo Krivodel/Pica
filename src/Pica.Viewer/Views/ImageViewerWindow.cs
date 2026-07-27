@@ -357,7 +357,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         Background = Brushes.Black;
         CanResize = false;
         CanFullScreen = true;
-        CanPin = false;
+        CanPin = true;
         Cursor = ViewerCursors.Arrow;
         Icon = LoadWindowIcon(AppIconAssetUri);
         IsMenuVisible = false;
