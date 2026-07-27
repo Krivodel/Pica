@@ -64,33 +64,63 @@ public sealed class ImagePreviewLoaderTests
         });
     }
 
-    [Fact]
-    public async Task LoadAsync_WithHeicSource_DecodesSmallPreviewAndPreservesSourceDimensions()
+    [Theory]
+    [InlineData(
+        PicaImageFormats.AvifExtension,
+        AvifImageTestData.Width,
+        AvifImageTestData.Height)]
+    [InlineData(
+        PicaImageFormats.HeicExtension,
+        HeicImageTestData.Width,
+        HeicImageTestData.Height)]
+    [InlineData(
+        PicaImageFormats.HeifExtension,
+        HeicImageTestData.Width,
+        HeicImageTestData.Height)]
+    public async Task LoadAsync_WithHeifFamilySource_DecodesPreview(
+        string extension,
+        int expectedWidth,
+        int expectedHeight)
     {
         await DispatchAsync(async () =>
         {
-            using ImagePreviewTestContext context = new(".heic");
+            using ImagePreviewTestContext context = new(extension);
 
             DecodedImagePreview preview = await context.LoadAsync(CancellationToken.None);
 
             preview.SourcePixelSize.Should().Be(
-                new PixelSize(HeicImageTestData.Width, HeicImageTestData.Height));
+                new PixelSize(expectedWidth, expectedHeight));
             preview.Bitmap.PixelSize.Width.Should().BePositive();
             preview.Bitmap.PixelSize.Height.Should().BePositive();
             preview.Bitmap.Dispose();
         });
     }
 
-    [Fact]
-    public async Task FullResolutionLoadAsync_WithHeicSource_DecodesFullResolutionBitmap()
+    [Theory]
+    [InlineData(
+        PicaImageFormats.AvifExtension,
+        AvifImageTestData.Width,
+        AvifImageTestData.Height)]
+    [InlineData(
+        PicaImageFormats.HeicExtension,
+        HeicImageTestData.Width,
+        HeicImageTestData.Height)]
+    [InlineData(
+        PicaImageFormats.HeifExtension,
+        HeicImageTestData.Width,
+        HeicImageTestData.Height)]
+    public async Task FullResolutionLoadAsync_WithHeifFamilySource_DecodesBitmap(
+        string extension,
+        int expectedWidth,
+        int expectedHeight)
     {
         await DispatchAsync(async () =>
         {
             using PicaTemporaryDirectory temporaryDirectory = new();
             string imagePath = Path.Combine(
                 temporaryDirectory.DirectoryPath,
-                "source.heic");
-            HeicImageTestData.Create(imagePath);
+                Path.ChangeExtension(SourceFileName, extension));
+            CreateHeifFamilyImage(imagePath, extension);
             FullResolutionImageLoader loader = new(new ImageFormatRegistry());
 
             using Bitmap bitmap = await loader.LoadAsync(
@@ -98,7 +128,7 @@ public sealed class ImagePreviewLoaderTests
                 CancellationToken.None);
 
             bitmap.PixelSize.Should().Be(
-                new PixelSize(HeicImageTestData.Width, HeicImageTestData.Height));
+                new PixelSize(expectedWidth, expectedHeight));
         });
     }
 
@@ -164,6 +194,20 @@ public sealed class ImagePreviewLoaderTests
         data.SaveTo(stream);
     }
 
+    private static void CreateHeifFamilyImage(string path, string extension)
+    {
+        if (string.Equals(
+            extension,
+            PicaImageFormats.AvifExtension,
+            StringComparison.Ordinal))
+        {
+            AvifImageTestData.Create(path);
+            return;
+        }
+
+        HeicImageTestData.Create(path);
+    }
+
     private sealed class ImagePreviewTestContext : IDisposable
     {
         public string DirectoryPath => _temporaryDirectory.DirectoryPath;
@@ -183,9 +227,11 @@ public sealed class ImagePreviewLoaderTests
                 DirectoryPath,
                 Path.ChangeExtension(SourceFileName, extension));
 
-            if (string.Equals(extension, PicaImageFormats.HeicExtension, StringComparison.Ordinal))
+            if (extension is PicaImageFormats.AvifExtension
+                or PicaImageFormats.HeicExtension
+                or PicaImageFormats.HeifExtension)
             {
-                HeicImageTestData.Create(SourcePath);
+                CreateHeifFamilyImage(SourcePath, extension);
             }
             else if (string.Equals(
                 extension,

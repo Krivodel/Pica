@@ -16,8 +16,14 @@ public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderRes
             [".bmp"] = new("image/bmp", DefaultDecoder),
             [".gif"] = new("image/gif", DefaultDecoder),
             [".ico"] = new("image/x-icon", DefaultDecoder),
+            [PicaImageFormats.AvifExtension] = new(
+                PicaImageFormats.AvifContentType,
+                MagickDecoder),
             [PicaImageFormats.HeicExtension] = new(
                 PicaImageFormats.HeicContentType,
+                MagickDecoder),
+            [PicaImageFormats.HeifExtension] = new(
+                PicaImageFormats.HeifContentType,
                 MagickDecoder),
             [PicaImageFormats.TifExtension] = new(
                 PicaImageFormats.TiffContentType,

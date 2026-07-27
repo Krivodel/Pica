@@ -145,10 +145,12 @@ public sealed class PicaStartupRequestFactoryTests
     }
 
     [Theory]
+    [InlineData(PicaImageFormats.AvifExtension)]
     [InlineData(PicaImageFormats.HeicExtension)]
+    [InlineData(PicaImageFormats.HeifExtension)]
     [InlineData(PicaImageFormats.TifExtension)]
     [InlineData(PicaImageFormats.TiffExtension)]
-    public async Task CreateAsync_WithAdjacentHeicOrTiff_IncludesImage(string extension)
+    public async Task CreateAsync_WithAdjacentExtendedFormat_IncludesImage(string extension)
     {
         using PicaTemporaryDirectory temporaryDirectory = new();
         string selectedImagePath = Path.Combine(temporaryDirectory.DirectoryPath, "01.png");

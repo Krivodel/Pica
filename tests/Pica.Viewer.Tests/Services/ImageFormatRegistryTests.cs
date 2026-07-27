@@ -10,36 +10,16 @@ public sealed class ImageFormatRegistryTests
     private readonly ImageFormatRegistry _registry = new();
 
     [Theory]
+    [InlineData("image.avif")]
     [InlineData("image.heic")]
+    [InlineData("image.heif")]
+    [InlineData("image.tif")]
+    [InlineData("image.tiff")]
+    [InlineData("IMAGE.AVIF")]
     [InlineData("IMAGE.HEIC")]
-    public void IsSupportedFileName_WithHeicExtension_ReturnsTrue(string fileName)
-    {
-        bool isSupported = _registry.IsSupportedFileName(fileName);
-
-        isSupported.Should().BeTrue();
-    }
-
-    [Fact]
-    public void GetContentType_WithHeicExtension_ReturnsHeicContentType()
-    {
-        string contentType = _registry.GetContentType("image.heic");
-
-        contentType.Should().Be(PicaImageFormats.HeicContentType);
-    }
-
-    [Fact]
-    public void Resolve_WithHeicExtension_ReturnsMagickDecoder()
-    {
-        IImageDecoder decoder = ((IImageDecoderResolver)_registry).Resolve("image.heic");
-
-        decoder.Should().BeOfType<MagickImageDecoder>();
-    }
-
-    [Theory]
-    [InlineData("image.tif")]
-    [InlineData("image.tiff")]
+    [InlineData("IMAGE.HEIF")]
     [InlineData("IMAGE.TIFF")]
-    public void IsSupportedFileName_WithTiffExtension_ReturnsTrue(string fileName)
+    public void IsSupportedFileName_WithMagickExtension_ReturnsTrue(string fileName)
     {
         bool isSupported = _registry.IsSupportedFileName(fileName);
 
@@ -47,19 +27,27 @@ public sealed class ImageFormatRegistryTests
     }
 
     [Theory]
-    [InlineData("image.tif")]
-    [InlineData("image.tiff")]
-    public void GetContentType_WithTiffExtension_ReturnsTiffContentType(string fileName)
+    [InlineData("image.avif", PicaImageFormats.AvifContentType)]
+    [InlineData("image.heic", PicaImageFormats.HeicContentType)]
+    [InlineData("image.heif", PicaImageFormats.HeifContentType)]
+    [InlineData("image.tif", PicaImageFormats.TiffContentType)]
+    [InlineData("image.tiff", PicaImageFormats.TiffContentType)]
+    public void GetContentType_WithMagickExtension_ReturnsExpectedContentType(
+        string fileName,
+        string expectedContentType)
     {
         string contentType = _registry.GetContentType(fileName);
 
-        contentType.Should().Be(PicaImageFormats.TiffContentType);
+        contentType.Should().Be(expectedContentType);
     }
 
     [Theory]
+    [InlineData("image.avif")]
+    [InlineData("image.heic")]
+    [InlineData("image.heif")]
     [InlineData("image.tif")]
     [InlineData("image.tiff")]
-    public void Resolve_WithTiffExtension_ReturnsMagickDecoder(string fileName)
+    public void Resolve_WithMagickExtension_ReturnsMagickDecoder(string fileName)
     {
         IImageDecoder decoder = ((IImageDecoderResolver)_registry).Resolve(fileName);
 
