@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Pica-win-Setup</AssemblyName>
+    <AssemblyTitle>Pica Installer Bootstrapper</AssemblyTitle>
+    <RootNamespace>Pica.Installer</RootNamespace>
+    <ApplicationIcon>..\..\src\Pica.Viewer\Assets\AppIcon.ico</ApplicationIcon>
+    <ApplicationManifest>Pica.Installer.manifest</ApplicationManifest>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <OutputPath>$(InstallerOutputDirectory)\</OutputPath>
+    <Version>$(InstallerVersion)</Version>
+    <FileVersion>$(InstallerVersion).0</FileVersion>
+    <AssemblyVersion>$(InstallerVersion).0</AssemblyVersion>
+    <InformationalVersion>$(InstallerVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>Pica Installer</Product>
+    <Description>Pica Installer Bootstrapper</Description>
+    <Company>Krivodeling</Company>
+    <Copyright>Krivodeling</Copyright>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(VelopackSetupPath)"
+                      Condition="'$(VelopackSetupPath)' != ''"
+                      LogicalName="PicaVelopackSetup.exe" />
+    <EmbeddedResource Include="THIRD-PARTY-NOTICES.txt"
+                      LogicalName="THIRD-PARTY-NOTICES.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"
+                      PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48"
+                      PrivateAssets="all" />
+    <PackageReference Include="Ookii.Dialogs.WinForms"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="EmbedInstallerDependencies" AfterTargets="ResolveReferences">
+    <ItemGroup>
+      <EmbeddedResource Include="@(ReferenceCopyLocalPaths)"
+                        Condition="'%(ReferenceCopyLocalPaths.Extension)' == '.dll'"
+                        LogicalName="%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ValidateInstallerBuildProperties" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(InstallerOutputDirectory)' == ''"
+           Text="InstallerOutputDirectory is required." />
+    <Error Condition="'$(InstallerVersion)' == ''"
+           Text="InstallerVersion is required." />
+    <Error Condition="'$(VelopackSetupPath)' == '' or !Exists('$(VelopackSetupPath)')"
+           Text="VelopackSetupPath must reference an existing Velopack setup executable." />
+  </Target>
+</Project>

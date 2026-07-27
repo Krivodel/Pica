@@ -17,8 +17,22 @@
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <PicaLocalPublishDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\bin\Release\net9.0\publish'))</PicaLocalPublishDirectory>
+    <PicaGitHubPublishDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\publish\Pica.Desktop\WindowsGitHub'))</PicaGitHubPublishDirectory>
+    <PicaNormalizedPublishDirectory Condition="'$(PublishDir)' != ''">$([System.IO.Path]::GetFullPath('$(PublishDir)').TrimEnd('\'))</PicaNormalizedPublishDirectory>
+    <IsPicaFolderPublish Condition="'$(IsPicaFolderPublish)' == '' and '$(PicaNormalizedPublishDirectory)' == '$(PicaLocalPublishDirectory)'">true</IsPicaFolderPublish>
+    <IsPicaGitHubPublish Condition="'$(IsPicaGitHubPublish)' == '' and '$(PicaNormalizedPublishDirectory)' == '$(PicaGitHubPublishDirectory)'">true</IsPicaGitHubPublish>
+  </PropertyGroup>
+
   <Import Project="Properties\PublishProfiles\SingleFilePublishSettings.props"
           Condition="'$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' != ''" />
+
+  <PropertyGroup Condition="'$(IsPicaFolderPublish)' == 'true' or '$(IsPicaGitHubPublish)' == 'true'">
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Pica.Protocol\Pica.Protocol.csproj" />
@@ -33,6 +47,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SukiUI" />
+    <PackageReference Include="Velopack" />
   </ItemGroup>
 
   <ItemGroup>
@@ -57,6 +72,30 @@
     <XmlPoke XmlInputPath="$(PublishDir)../Info.plist"
              Query="/plist/dict/key[.='CFBundleShortVersionString']/following-sibling::string[1]"
              Value="$(PicaVersion)" />
+  </Target>
+
+  <Target Name="ValidateGitHubReleaseEnvironment"
+          BeforeTargets="PrepareForPublish"
+          Condition="'$(IsPicaGitHubPublish)' == 'true'">
+    <Error Condition="'$(Configuration)' != 'Release'"
+           Text="The WindowsGitHub publish profile requires the Release configuration." />
+    <Error Condition="'$(PICA_CERTIFICATE_THUMBPRINT)' == ''"
+           Text="PICA_CERTIFICATE_THUMBPRINT is required for the WindowsGitHub publish profile." />
+    <Error Condition="'$(GITHUB_TOKEN)' == ''"
+           Text="GITHUB_TOKEN is required for the WindowsGitHub publish profile." />
+  </Target>
+
+  <Target Name="ValidateFolderPublishConfiguration"
+          BeforeTargets="PrepareForPublish"
+          Condition="'$(IsPicaFolderPublish)' == 'true'">
+    <Error Condition="'$(Configuration)' != 'Release'"
+           Text="The Folder publish profile requires the Release configuration. Use the shared WindowsLocal Rider configuration." />
+  </Target>
+
+  <Target Name="PublishPicaGitHubRelease"
+          AfterTargets="Publish"
+          Condition="'$(IsPicaGitHubPublish)' == 'true'">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\eng\Publish-PicaRelease.ps1&quot; -Version &quot;$(Version)&quot; -CertificateThumbprint &quot;$(PICA_CERTIFICATE_THUMBPRINT)&quot; -PreparedApplicationDirectory &quot;$(PublishDir)&quot; -PublishToGitHub" />
   </Target>
 
 </Project>

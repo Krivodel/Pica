@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using Pica.Desktop.Services;
+using Pica.Desktop.Services.Updates;
 using Pica.Desktop.Views;
 using Pica.Viewer;
 using Pica.Viewer.Services;
@@ -18,7 +19,12 @@ public sealed partial class App : Application
 {
     private ServiceProvider? _serviceProvider;
     private PicaHostConnection? _hostConnection;
+    private ApplicationUpdateCoordinator? _updateCoordinator;
+    private PicaApplicationUpdate? _pendingUpdate;
+    private IReadOnlyList<string> _updateRestartArguments = [];
     private ILogger<App>? _logger;
+    private bool _isShutdownStarted;
+    private bool _shouldRestartAfterUpdate;
 
     public override void Initialize()
     {
@@ -49,6 +55,8 @@ public sealed partial class App : Application
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Information));
         services.AddPicaViewer();
         services.AddSingleton<PicaStartupRequestFactory>();
+        services.AddSingleton<IApplicationUpdateService, VelopackApplicationUpdateService>();
+        services.AddSingleton<ApplicationUpdateCoordinator>();
         _serviceProvider = services.BuildServiceProvider();
         _logger = _serviceProvider.GetRequiredService<ILogger<App>>();
     }
@@ -83,6 +91,17 @@ public sealed partial class App : Application
                 CancellationToken.None);
 
             ShowMainWindow(desktopLifetime, window);
+            _shouldRestartAfterUpdate = _hostConnection is null;
+            _updateRestartArguments = _shouldRestartAfterUpdate
+                ? desktopLifetime.Args ?? []
+                : [];
+            _updateCoordinator = GetRequiredService<ApplicationUpdateCoordinator>();
+            _updateCoordinator.StartMonitoring(
+                window,
+                update => RequestUpdateRestartAsync(
+                    desktopLifetime,
+                    update));
+
             _logger?.LogInformation(
                 "Pica viewer window opened with {ItemCount} images",
                 startupRequest.ViewerRequest.Items.Count);
@@ -104,6 +123,25 @@ public sealed partial class App : Application
         window.Show();
     }
 
+    private Task RequestUpdateRestartAsync(
+        IClassicDesktopStyleApplicationLifetime desktopLifetime,
+        PicaApplicationUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        _pendingUpdate = update;
+        Window? mainWindow = desktopLifetime.MainWindow;
+
+        if (mainWindow is null)
+        {
+            throw new InvalidOperationException(
+                "Pica main window is unavailable for an update restart.");
+        }
+
+        mainWindow.Close();
+        return Task.CompletedTask;
+    }
+
     private TService GetRequiredService<TService>()
         where TService : notnull
     {
@@ -117,8 +155,17 @@ public sealed partial class App : Application
 
     private async void OnMainWindowClosed(object? sender, EventArgs e)
     {
+        if (_isShutdownStarted)
+        {
+            return;
+        }
+
+        _isShutdownStarted = true;
         _logger?.LogInformation("Pica main window closed; starting graceful shutdown");
+        _ = sender;
         _ = e;
+        _updateCoordinator?.StopMonitoring();
+        _updateCoordinator = null;
 
         if (_serviceProvider is not null)
         {
@@ -131,6 +178,32 @@ public sealed partial class App : Application
         {
             await _hostConnection.DisposeAsync();
             _hostConnection = null;
+        }
+
+        if ((_pendingUpdate is not null) && (_serviceProvider is not null))
+        {
+            try
+            {
+                IApplicationUpdateService updateService =
+                    _serviceProvider.GetRequiredService<IApplicationUpdateService>();
+                if (_shouldRestartAfterUpdate)
+                {
+                    updateService.ApplyUpdateAndRestart(
+                        _pendingUpdate,
+                        _updateRestartArguments);
+                }
+                else
+                {
+                    updateService.ApplyUpdateAndExit(_pendingUpdate);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "Pica update {UpdateVersion} could not be applied after shutdown.",
+                    _pendingUpdate.Version);
+            }
         }
 
         _serviceProvider?.Dispose();

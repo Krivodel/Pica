@@ -7,12 +7,13 @@
     <Authors>Krivodeling</Authors>
     <Copyright>Copyright © 2026 Krivodel</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/Krivodel/Pica</PackageProjectUrl>
+    <PicaRepositoryUrl>https://github.com/Krivodel/Pica</PicaRepositoryUrl>
+    <PackageProjectUrl>$(PicaRepositoryUrl)</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageTags>pica;image-viewer;image;view;viewer;avalonia</PackageTags>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/Krivodel/Pica.git</RepositoryUrl>
+    <RepositoryUrl>$(PicaRepositoryUrl).git</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>

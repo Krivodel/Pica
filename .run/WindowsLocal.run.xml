@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="WindowsLocal" type="DotNetFolderPublish" factoryName="Publish to folder">
+    <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" ready_to_run="true" target_folder="$PROJECT_DIR$/src/Pica.Desktop/bin/Release/net9.0/publish" target_framework="net9.0" uuid_high="-4780568531025442360" uuid_low="-8303867982598011685">
+      <runtimes>
+        <item value="win-x64" />
+      </runtimes>
+    </riderPublish>
+    <method v="2" />
+  </configuration>
+</component>
