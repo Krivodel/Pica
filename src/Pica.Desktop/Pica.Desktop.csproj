@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Pica.Build.props" />
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RuntimeIdentifiers>$(PicaRuntimeIdentifiers)</RuntimeIdentifiers>
+    <AssemblyName>$(PicaApplicationName)</AssemblyName>
+    <Version>$(PicaVersion)</Version>
+    <ApplicationIcon>..\Pica.Viewer\Assets\AppIcon.ico</ApplicationIcon>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun Condition="'$(RuntimeIdentifier)' != ''">true</PublishReadyToRun>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <Import Project="Properties\PublishProfiles\SingleFilePublishSettings.props"
+          Condition="'$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' != ''" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pica.Protocol\Pica.Protocol.csproj" />
+    <ProjectReference Include="..\Pica.Viewer\Pica.Viewer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SukiUI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\Info.plist">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="RemovePublishedSymbols" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release' and '$(PublishSingleFile)' == 'true'">
+    <ItemGroup>
+      <PublishedSymbolFiles Include="$(PublishDir)*.pdb" />
+    </ItemGroup>
+    <Delete Files="@(PublishedSymbolFiles)" />
+  </Target>
+
+  <Target Name="CreateMacAppBundleMetadata" AfterTargets="Publish" Condition="'$(PicaIsMacRuntime)' == 'true'">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/Assets/Info.plist"
+          DestinationFolder="$(PublishDir).." />
+    <XmlPoke XmlInputPath="$(PublishDir)../Info.plist"
+             Query="/plist/dict/key[.='CFBundleExecutable']/following-sibling::string[1]"
+             Value="$(PicaApplicationName)" />
+    <XmlPoke XmlInputPath="$(PublishDir)../Info.plist"
+             Query="/plist/dict/key[.='CFBundleShortVersionString']/following-sibling::string[1]"
+             Value="$(PicaVersion)" />
+  </Target>
+
+</Project>

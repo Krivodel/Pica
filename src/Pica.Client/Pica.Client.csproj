@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Pica.Build.props" />
+
+  <PropertyGroup>
+    <Version>$(PicaVersion)</Version>
+    <PackageVersion>$(PicaPackageVersion)</PackageVersion>
+    <PackageId>Pica.Client</PackageId>
+    <Description>Клиент для запуска установленной Pica из сторонних приложений.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pica.Protocol\Pica.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+</Project>

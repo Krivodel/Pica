@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Pica.Build.props" />
+
+  <PropertyGroup>
+    <Version>$(PicaVersion)</Version>
+    <PackageVersion>$(PicaPackageVersion)</PackageVersion>
+    <PackageId>Pica.Viewer</PackageId>
+    <Description>Встраиваемый просмотрщик изображений Pica для Avalonia.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pica.Protocol\Pica.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SukiUI" />
+    <PackageReference Include="System.Drawing.Common" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\AppIcon.ico" />
+  </ItemGroup>
+</Project>

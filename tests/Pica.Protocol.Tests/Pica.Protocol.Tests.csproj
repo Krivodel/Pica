@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Pica.Protocol\Pica.Protocol.csproj" />
+  </ItemGroup>
+
+</Project>

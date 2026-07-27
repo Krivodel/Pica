@@ -1,0 +1,83 @@
+<Styles xmlns="https://github.com/avaloniaui">
+    <Style Selector="Window">
+        <Setter Property="FontFamily"
+                Value="{DynamicResource DefaultFontFamily}" />
+    </Style>
+
+    <Style Selector="Button">
+        <Setter Property="Cursor"
+                Value="Hand" />
+    </Style>
+
+    <Style Selector="MenuItem">
+        <Setter Property="Cursor"
+                Value="Hand" />
+    </Style>
+
+    <Style Selector="ComboBox">
+        <Setter Property="Cursor"
+                Value="Hand" />
+    </Style>
+
+    <Style Selector="CheckBox">
+        <Setter Property="Cursor"
+                Value="Hand" />
+    </Style>
+
+    <Style Selector=":is(Border).modal-glass-panel">
+        <Setter Property="Padding"
+                Value="0" />
+        <Setter Property="Background"
+                Value="{DynamicResource SukiPopupBackground}" />
+        <Setter Property="BorderBrush"
+                Value="{DynamicResource SukiMenuBorderBrush}" />
+        <Setter Property="BoxShadow"
+                Value="{DynamicResource SukiPopupShadow}" />
+        <Setter Property="ClipToBounds"
+                Value="True" />
+    </Style>
+
+    <Style Selector="Button.Icon">
+        <Setter Property="Padding"
+                Value="{StaticResource ZeroThickness}" />
+        <Setter Property="Background"
+                Value="Transparent" />
+        <Setter Property="BorderThickness"
+                Value="{StaticResource ZeroThickness}" />
+        <Setter Property="Foreground"
+                Value="{DynamicResource SukiText}" />
+        <Setter Property="HorizontalContentAlignment"
+                Value="Center" />
+        <Setter Property="VerticalContentAlignment"
+                Value="Center" />
+    </Style>
+
+    <Style Selector="Button.Icon:pointerover">
+        <Setter Property="Background"
+                Value="{DynamicResource SukiPrimaryColor5}" />
+    </Style>
+
+    <Style Selector="Button.Icon:pressed">
+        <Setter Property="Background"
+                Value="{DynamicResource SukiPrimaryColor0}" />
+    </Style>
+
+    <Style Selector="Button.Icon PathIcon">
+        <Setter Property="Width"
+                Value="{StaticResource TitleButtonIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource TitleButtonIconSize}" />
+    </Style>
+
+    <Style Selector="PathIcon.settings-icon">
+        <Setter Property="Data"
+                Value="{StaticResource AppSettingsIcon}" />
+    </Style>
+
+    <Style Selector="Button.title-action">
+        <Setter Property="MinWidth"
+                Value="{StaticResource TitleButtonSize}" />
+        <Setter Property="MinHeight"
+                Value="{StaticResource TitleButtonSize}" />
+    </Style>
+</Styles>

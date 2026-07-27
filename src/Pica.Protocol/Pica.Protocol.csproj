@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Pica.Build.props" />
+
+  <PropertyGroup>
+    <AssemblyTitle>$(PicaApplicationName)</AssemblyTitle>
+    <Version>$(PicaVersion)</Version>
+    <PackageVersion>$(PicaPackageVersion)</PackageVersion>
+    <PackageId>Pica.Protocol</PackageId>
+    <Description>Контракты взаимодействия между Pica и вызывающими приложениями.</Description>
+  </PropertyGroup>
+</Project>

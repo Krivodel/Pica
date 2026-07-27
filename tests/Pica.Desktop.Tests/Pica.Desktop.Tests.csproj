@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Pica.Desktop\Pica.Desktop.csproj" />
+    <ProjectReference Include="..\Pica.Tests.Common\Pica.Tests.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" />
+  </ItemGroup>
+</Project>

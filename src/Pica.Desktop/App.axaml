@@ -1,0 +1,22 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="using:SukiUI"
+             x:Class="Pica.Desktop.App"
+             RequestedThemeVariant="Dark">
+    <Application.Resources>
+        <Color x:Key="SukiPopupBackground">#172133</Color>
+        <Color x:Key="SukiMenuBorderBrush">#2A4F80</Color>
+        <FontFamily x:Key="DefaultFontFamily">$Default</FontFamily>
+        <x:Double x:Key="TitleButtonSize">32</x:Double>
+        <x:Double x:Key="TitleButtonIconSize">16</x:Double>
+        <Thickness x:Key="ZeroThickness">0</Thickness>
+        <StreamGeometry x:Key="AppSettingsIcon">M12,8.4 A3.6,3.6 0 1 0 12,15.6 A3.6,3.6 0 1 0 12,8.4 M12,2 L14,2.7 L14.4,5 L16.3,6.1 L18.5,5.3 L20.5,8.7 L18.8,10.2 L18.8,12.4 L20.5,13.9 L18.5,17.3 L16.3,16.5 L14.4,17.6 L14,20 L10,20 L9.6,17.6 L7.7,16.5 L5.5,17.3 L3.5,13.9 L5.2,12.4 L5.2,10.2 L3.5,8.7 L5.5,5.3 L7.7,6.1 L9.6,5 L10,2 Z</StreamGeometry>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <suki:SukiTheme ThemeColor="Blue" />
+        <StyleInclude Source="/Resources/ComboBoxStyles.axaml" />
+        <StyleInclude Source="/Resources/PicaStyles.axaml" />
+    </Application.Styles>
+</Application>
