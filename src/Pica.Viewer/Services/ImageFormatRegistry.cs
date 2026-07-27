@@ -3,6 +3,7 @@ namespace Pica.Viewer.Services;
 public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderResolver
 {
     private static readonly IImageDecoder DefaultDecoder = new AvaloniaBitmapDecoder();
+    private static readonly IImageDecoder MagickDecoder = new MagickImageDecoder();
     private static readonly IReadOnlyDictionary<string, ImageFormatDefinition> FormatsByExtension =
         new Dictionary<string, ImageFormatDefinition>(StringComparer.OrdinalIgnoreCase)
         {
@@ -17,7 +18,13 @@ public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderRes
             [".ico"] = new("image/x-icon", DefaultDecoder),
             [PicaImageFormats.HeicExtension] = new(
                 PicaImageFormats.HeicContentType,
-                new MagickHeicImageDecoder())
+                MagickDecoder),
+            [PicaImageFormats.TifExtension] = new(
+                PicaImageFormats.TiffContentType,
+                MagickDecoder),
+            [PicaImageFormats.TiffExtension] = new(
+                PicaImageFormats.TiffContentType,
+                MagickDecoder)
         };
 
     public bool IsSupportedFileName(string fileName)

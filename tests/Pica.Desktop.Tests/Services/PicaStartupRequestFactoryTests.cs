@@ -144,15 +144,20 @@ public sealed class PicaStartupRequestFactoryTests
         }
     }
 
-    [Fact]
-    public async Task CreateAsync_WithAdjacentHeic_IncludesHeicImage()
+    [Theory]
+    [InlineData(PicaImageFormats.HeicExtension)]
+    [InlineData(PicaImageFormats.TifExtension)]
+    [InlineData(PicaImageFormats.TiffExtension)]
+    public async Task CreateAsync_WithAdjacentHeicOrTiff_IncludesImage(string extension)
     {
         using PicaTemporaryDirectory temporaryDirectory = new();
         string selectedImagePath = Path.Combine(temporaryDirectory.DirectoryPath, "01.png");
-        string heicImagePath = Path.Combine(temporaryDirectory.DirectoryPath, "02.heic");
+        string adjacentImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "02" + extension);
         await CreateImageAsync(selectedImagePath, [1]);
-        await CreateImageAsync(heicImagePath, [2]);
-        SetLastWriteTimesNewestFirst(selectedImagePath, heicImagePath);
+        await CreateImageAsync(adjacentImagePath, [2]);
+        SetLastWriteTimesNewestFirst(selectedImagePath, adjacentImagePath);
         PicaStartupRequestFactory factory = CreateFactory();
 
         PicaStartupRequest request = await factory.CreateAsync(
@@ -161,7 +166,7 @@ public sealed class PicaStartupRequestFactoryTests
 
         request.ViewerRequest.Items.Select(item => item.FileName)
             .Should()
-            .Equal("01.png", "02.heic");
+            .Equal("01.png", "02" + extension);
     }
 
     private static async Task CreateImageAsync(string path, byte[] content)

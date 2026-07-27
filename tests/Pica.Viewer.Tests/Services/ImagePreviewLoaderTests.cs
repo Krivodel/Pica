@@ -102,6 +102,44 @@ public sealed class ImagePreviewLoaderTests
         });
     }
 
+    [Fact]
+    public async Task LoadAsync_WithMultiPageTiffSource_DecodesFirstPagePreview()
+    {
+        await DispatchAsync(async () =>
+        {
+            using ImagePreviewTestContext context = new(PicaImageFormats.TiffExtension);
+
+            DecodedImagePreview preview = await context.LoadAsync(CancellationToken.None);
+
+            preview.SourcePixelSize.Should().Be(
+                new PixelSize(TiffImageTestData.Width, TiffImageTestData.Height));
+            preview.Bitmap.PixelSize.Width.Should().BePositive();
+            preview.Bitmap.PixelSize.Height.Should().BePositive();
+            preview.Bitmap.Dispose();
+        });
+    }
+
+    [Fact]
+    public async Task FullResolutionLoadAsync_WithMultiPageTiffSource_DecodesFirstPage()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = Path.Combine(
+                temporaryDirectory.DirectoryPath,
+                "source.tiff");
+            TiffImageTestData.Create(imagePath);
+            FullResolutionImageLoader loader = new(new ImageFormatRegistry());
+
+            using Bitmap bitmap = await loader.LoadAsync(
+                imagePath,
+                CancellationToken.None);
+
+            bitmap.PixelSize.Should().Be(
+                new PixelSize(TiffImageTestData.Width, TiffImageTestData.Height));
+        });
+    }
+
     private static void AssertSourcePixelSize(DecodedImagePreview preview)
     {
         preview.SourcePixelSize.Should().Be(new PixelSize(SourceWidth, SourceHeight));
@@ -148,6 +186,13 @@ public sealed class ImagePreviewLoaderTests
             if (string.Equals(extension, PicaImageFormats.HeicExtension, StringComparison.Ordinal))
             {
                 HeicImageTestData.Create(SourcePath);
+            }
+            else if (string.Equals(
+                extension,
+                PicaImageFormats.TiffExtension,
+                StringComparison.Ordinal))
+            {
+                TiffImageTestData.Create(SourcePath);
             }
             else
             {

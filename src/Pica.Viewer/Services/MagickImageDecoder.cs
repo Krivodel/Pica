@@ -7,7 +7,7 @@ using ImageMagick;
 
 namespace Pica.Viewer.Services;
 
-internal sealed class MagickHeicImageDecoder : IImageDecoder
+internal sealed class MagickImageDecoder : IImageDecoder
 {
     private const int BytesPerPixel = 4;
     private const double DefaultDpi = 96d;
@@ -59,7 +59,7 @@ internal sealed class MagickHeicImageDecoder : IImageDecoder
     {
         if ((sourceWidth == 0) || (sourceHeight == 0))
         {
-            throw new InvalidDataException("The HEIC image dimensions must be positive.");
+            throw new InvalidDataException("The image dimensions must be positive.");
         }
 
         double scaledHeight = (double)sourceHeight * targetWidth / sourceWidth;
@@ -98,7 +98,7 @@ internal sealed class MagickHeicImageDecoder : IImageDecoder
 
         if (exportedPixels is null)
         {
-            throw new InvalidDataException("The HEIC decoder did not return a pixel buffer.");
+            throw new InvalidDataException("The image decoder did not return a pixel buffer.");
         }
 
         ct.ThrowIfCancellationRequested();
@@ -132,7 +132,7 @@ internal sealed class MagickHeicImageDecoder : IImageDecoder
         if (source.Length != expectedLength)
         {
             throw new InvalidDataException(
-                $"The decoded HEIC pixel buffer has length {source.Length}, expected {expectedLength}.");
+                $"The decoded image pixel buffer has length {source.Length}, expected {expectedLength}.");
         }
 
         using ILockedFramebuffer framebuffer = bitmap.Lock();

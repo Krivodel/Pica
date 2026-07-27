@@ -28,10 +28,41 @@ public sealed class ImageFormatRegistryTests
     }
 
     [Fact]
-    public void Resolve_WithHeicExtension_ReturnsHeicDecoder()
+    public void Resolve_WithHeicExtension_ReturnsMagickDecoder()
     {
         IImageDecoder decoder = ((IImageDecoderResolver)_registry).Resolve("image.heic");
 
-        decoder.Should().BeOfType<MagickHeicImageDecoder>();
+        decoder.Should().BeOfType<MagickImageDecoder>();
+    }
+
+    [Theory]
+    [InlineData("image.tif")]
+    [InlineData("image.tiff")]
+    [InlineData("IMAGE.TIFF")]
+    public void IsSupportedFileName_WithTiffExtension_ReturnsTrue(string fileName)
+    {
+        bool isSupported = _registry.IsSupportedFileName(fileName);
+
+        isSupported.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("image.tif")]
+    [InlineData("image.tiff")]
+    public void GetContentType_WithTiffExtension_ReturnsTiffContentType(string fileName)
+    {
+        string contentType = _registry.GetContentType(fileName);
+
+        contentType.Should().Be(PicaImageFormats.TiffContentType);
+    }
+
+    [Theory]
+    [InlineData("image.tif")]
+    [InlineData("image.tiff")]
+    public void Resolve_WithTiffExtension_ReturnsMagickDecoder(string fileName)
+    {
+        IImageDecoder decoder = ((IImageDecoderResolver)_registry).Resolve(fileName);
+
+        decoder.Should().BeOfType<MagickImageDecoder>();
     }
 }
