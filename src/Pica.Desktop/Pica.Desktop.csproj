@@ -95,7 +95,7 @@
   <Target Name="PublishPicaGitHubRelease"
           AfterTargets="Publish"
           Condition="'$(IsPicaGitHubPublish)' == 'true'">
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\eng\Publish-PicaRelease.ps1&quot; -Version &quot;$(Version)&quot; -CertificateThumbprint &quot;$(PICA_CERTIFICATE_THUMBPRINT)&quot; -PreparedApplicationDirectory &quot;$(PublishDir)&quot; -PublishToGitHub" />
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\eng\Publish-PicaRelease.ps1&quot; -Version &quot;$(Version)&quot; -CertificateThumbprint &quot;$(PICA_CERTIFICATE_THUMBPRINT)&quot; -PreparedApplicationDirectory &quot;$(PicaNormalizedPublishDirectory)&quot; -PublishToGitHub" />
   </Target>
 
 </Project>

@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
@@ -206,28 +205,6 @@ internal sealed class InstallerForm : Form
             return;
         }
 
-        string executablePath = Path.Combine(
-            installPath,
-            InstallerProduct.ApplicationExecutableName);
-        ProcessStartInfo startInfo = new()
-        {
-            FileName = executablePath,
-            UseShellExecute = true,
-            WorkingDirectory = installPath
-        };
-        try
-        {
-            Process.Start(startInfo);
-        }
-        catch (InvalidOperationException ex)
-        {
-            HandleApplicationLaunchFailure(ex);
-        }
-        catch (System.ComponentModel.Win32Exception ex)
-        {
-            HandleApplicationLaunchFailure(ex);
-        }
-
         DialogResult = DialogResult.OK;
         Close();
     }
@@ -253,19 +230,6 @@ internal sealed class InstallerForm : Form
             InstallerProduct.InstallationWindowTitle,
             MessageBoxButtons.OK,
             MessageBoxIcon.Error);
-    }
-
-    private void HandleApplicationLaunchFailure(Exception ex)
-    {
-        _logger.LogError(
-            ex,
-            "Pica was installed but could not be started.");
-        MessageBox.Show(
-            this,
-            "Установка завершена, но приложение не удалось запустить автоматически.",
-            InstallerProduct.InstallationWindowTitle,
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Warning);
     }
 
     private void OnBrowseClicked(object? sender, EventArgs e)

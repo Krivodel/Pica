@@ -382,6 +382,8 @@ $packArguments = @(
     'win-x64',
     '--framework',
     'net9-x64-desktop',
+    '--shortcuts',
+    'StartMenuRoot',
     '--outputDir',
     $releaseDirectory,
     '--noPortable',
