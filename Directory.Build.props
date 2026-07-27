@@ -7,6 +7,7 @@
     <Authors>Krivodeling</Authors>
     <Copyright>Copyright © 2026 Krivodel</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>Pica.PackageIcon.png</PackageIcon>
     <PicaRepositoryUrl>https://github.com/Krivodel/Pica</PicaRepositoryUrl>
     <PackageProjectUrl>$(PicaRepositoryUrl)</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -18,6 +19,10 @@
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)README.md"
+          Pack="true"
+          PackagePath="\"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)assets\Pica.PackageIcon.png"
           Pack="true"
           PackagePath="\"
           Visible="false" />

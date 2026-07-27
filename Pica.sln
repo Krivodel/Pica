@@ -10,6 +10,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{3A5F5B4E-AC9A-4B74-A30F-B521651C8C6A}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "assets", "assets", "{8D78140A-7B99-4BEB-8392-975E48D16EDD}"
+	ProjectSection(SolutionItems) = preProject
+		assets\Pica.PackageIcon.png = assets\Pica.PackageIcon.png
+	EndProjectSection
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pica.Protocol", "src\Pica.Protocol\Pica.Protocol.csproj", "{FC5DA5F4-720F-42BE-A047-0C06D6ED1BE5}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pica.Viewer", "src\Pica.Viewer\Pica.Viewer.csproj", "{1DAAA4AD-0A0E-4A0F-9D06-C5414D77D5F7}"
