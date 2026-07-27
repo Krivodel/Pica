@@ -10,7 +10,7 @@
     <PackageProjectUrl>https://github.com/Krivodel/Pica</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageTags>pica;image-viewer;avalonia</PackageTags>
+    <PackageTags>pica;image-viewer;image;view;viewer;avalonia</PackageTags>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/Krivodel/Pica.git</RepositoryUrl>
   </PropertyGroup>
