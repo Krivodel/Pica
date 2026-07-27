@@ -1,8 +1,8 @@
 <Project>
   <PropertyGroup>
     <PicaApplicationName>Pica</PicaApplicationName>
-    <PicaVersion>1.0.2</PicaVersion>
-    <PicaPackageVersion>1.0.2-preview.1</PicaPackageVersion>
+    <PicaVersion>1.0.3</PicaVersion>
+    <PicaPackageVersion>1.0.3-preview.1</PicaPackageVersion>
     <PicaWindowsX64RuntimeIdentifier>win-x64</PicaWindowsX64RuntimeIdentifier>
     <PicaWindowsArm64RuntimeIdentifier>win-arm64</PicaWindowsArm64RuntimeIdentifier>
     <PicaLinuxX64RuntimeIdentifier>linux-x64</PicaLinuxX64RuntimeIdentifier>
