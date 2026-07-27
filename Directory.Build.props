@@ -5,7 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <Authors>Krivodeling</Authors>
+    <Copyright>Copyright © 2026 Krivodel</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Krivodel/Pica</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageTags>pica;image-viewer;avalonia</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/Krivodel/Pica.git</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
