@@ -22,7 +22,9 @@ internal sealed class PngPlatformClipboardImageWriter : IPlatformClipboardImageW
     {
         ArgumentNullException.ThrowIfNull(image);
 
-        await _clipboardDataWriter.SetBytesAsync(_pngFormat, image.PngContent, ct);
+        await _clipboardDataWriter
+            .SetBytesAsync(_pngFormat, image.PngContent, ct)
+            .ConfigureAwait(false);
     }
 
     public async Task SetFileWithImageAsync(
@@ -33,6 +35,8 @@ internal sealed class PngPlatformClipboardImageWriter : IPlatformClipboardImageW
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(bitmap);
 
-        await _clipboardDataWriter.SetFileAsync(file, ct);
+        await _clipboardDataWriter
+            .SetFileAsync(file, ct)
+            .ConfigureAwait(false);
     }
 }

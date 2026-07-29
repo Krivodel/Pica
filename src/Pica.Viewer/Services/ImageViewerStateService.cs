@@ -49,20 +49,18 @@ public sealed class ImageViewerStateService : IImageViewerStateService
                 return _currentState;
             }
 
-            if (!File.Exists(_stateFilePath))
+            FileStream? openedStream = await OpenReadStreamAsync(
+                _stateFilePath,
+                ct).ConfigureAwait(false);
+
+            if (openedStream is null)
             {
                 _currentState = new ImageViewerState();
                 _logger.LogInformation("Pica viewer state does not exist; using defaults");
                 return _currentState;
             }
 
-            await using FileStream stream = new(
-                _stateFilePath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                StateFileBufferSize,
-                FileOptions.Asynchronous);
+            await using FileStream stream = openedStream;
             ImageViewerState? state = await JsonSerializer
                 .DeserializeAsync<ImageViewerState>(stream, SerializerOptions, ct)
                 .ConfigureAwait(false);
@@ -98,14 +96,10 @@ public sealed class ImageViewerStateService : IImageViewerStateService
                 throw new InvalidOperationException("The Pica state directory could not be determined.");
             }
 
-            Directory.CreateDirectory(directoryPath);
-            await using FileStream stream = new(
+            await using FileStream stream = await OpenWriteStreamAsync(
                 _stateFilePath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None,
-                StateFileBufferSize,
-                FileOptions.Asynchronous);
+                directoryPath,
+                ct).ConfigureAwait(false);
             await JsonSerializer
                 .SerializeAsync(stream, normalizedState, SerializerOptions, ct)
                 .ConfigureAwait(false);
@@ -129,5 +123,49 @@ public sealed class ImageViewerStateService : IImageViewerStateService
             PicaProtocolConstants.ApplicationName,
             StateDirectoryName,
             StateFileName);
+    }
+
+    private static Task<FileStream?> OpenReadStreamAsync(
+        string filePath,
+        CancellationToken ct)
+    {
+        return Task.Run(
+            () =>
+            {
+                if (!File.Exists(filePath))
+                {
+                    return null;
+                }
+
+                return new FileStream(
+                    filePath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    StateFileBufferSize,
+                    FileOptions.Asynchronous);
+            },
+            ct);
+    }
+
+    private static Task<FileStream> OpenWriteStreamAsync(
+        string filePath,
+        string directoryPath,
+        CancellationToken ct)
+    {
+        return Task.Run(
+            () =>
+            {
+                Directory.CreateDirectory(directoryPath);
+
+                return new FileStream(
+                    filePath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    StateFileBufferSize,
+                    FileOptions.Asynchronous);
+            },
+            ct);
     }
 }

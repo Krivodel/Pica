@@ -1,4 +1,3 @@
-using Avalonia;
 using FluentAssertions;
 using Xunit;
 
@@ -49,7 +48,7 @@ public sealed class ImageChannelBitmapLoaderTests
         ];
 
         return new PreparedBitmapPixels(
-            new PixelSize(2, 1),
+            new ImageDimensions(2, 1),
             RowBytes,
             pixels);
     }

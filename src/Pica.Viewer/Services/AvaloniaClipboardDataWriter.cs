@@ -8,24 +8,21 @@ namespace Pica.Viewer.Services;
 
 internal sealed class AvaloniaClipboardDataWriter : IDisposable
 {
+    private readonly ViewerWindowPlatformContext _platformContext;
     private readonly ILogger<AvaloniaClipboardDataWriter> _logger;
-    private IClipboard? _clipboard;
     private IAsyncDataTransfer? _clipboardDataTransfer;
     private Task? _flushTask;
     private CancellationTokenSource? _flushCancellation;
     private bool _hasPendingClipboardData;
     private bool _isFlushStarted;
 
-    public AvaloniaClipboardDataWriter(ILogger<AvaloniaClipboardDataWriter> logger)
+    public AvaloniaClipboardDataWriter(
+        ViewerWindowPlatformContext platformContext,
+        ILogger<AvaloniaClipboardDataWriter> logger)
     {
+        _platformContext = platformContext
+            ?? throw new ArgumentNullException(nameof(platformContext));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
-    public void Attach(IClipboard clipboard)
-    {
-        ArgumentNullException.ThrowIfNull(clipboard);
-
-        _clipboard = clipboard;
     }
 
     public async Task SetFileAsync(IStorageFile file, CancellationToken ct)
@@ -52,32 +49,31 @@ internal sealed class AvaloniaClipboardDataWriter : IDisposable
         await SetDataAsync(dataTransfer, ct);
     }
 
-    public Task FlushAsync(CancellationToken ct)
+    public async Task FlushAsync(CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();
+        IClipboard? clipboard = await _platformContext
+            .GetClipboardAsync(ct)
+            .ConfigureAwait(false);
 
-        if ((_clipboard is null) || !_hasPendingClipboardData)
+        if (clipboard is null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        if (_flushTask is null)
-        {
-            CancellationTokenSource cancellation = new();
-            _flushCancellation = cancellation;
-            _flushTask = FlushPendingDataAsync(cancellation);
-        }
-
-        Task flushTask = _flushTask;
-        return ct.CanBeCanceled
-            ? flushTask.WaitAsync(ct)
-            : flushTask;
+        Task flushTask = await Dispatcher.UIThread.InvokeAsync(
+            () => GetOrStartFlushTask(clipboard, ct),
+            DispatcherPriority.Normal,
+            ct);
+        await flushTask;
     }
 
     public async Task ReleasePendingDataAsync(CancellationToken ct)
     {
-        await CancelOrWaitForActiveFlushAsync(ct);
-        ClearPendingData();
+        Task releaseTask = await Dispatcher.UIThread.InvokeAsync(
+            () => ReleasePendingDataOnUiThreadAsync(ct),
+            DispatcherPriority.Normal,
+            ct);
+        await releaseTask;
     }
 
     public void Dispose()
@@ -88,18 +84,71 @@ internal sealed class AvaloniaClipboardDataWriter : IDisposable
 
     private async Task SetDataAsync(DataTransfer dataTransfer, CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();
-        await CancelOrWaitForActiveFlushAsync(ct);
-        IClipboard? clipboard = _clipboard;
+        IClipboard? clipboard = await _platformContext
+            .GetClipboardAsync(ct)
+            .ConfigureAwait(false);
 
         if (clipboard is null)
         {
             return;
         }
 
+        Task setDataTask = await Dispatcher.UIThread.InvokeAsync(
+            () => SetDataOnUiThreadAsync(
+                clipboard,
+                dataTransfer,
+                ct),
+            DispatcherPriority.Normal,
+            ct);
+        await setDataTask;
+    }
+
+    private async Task SetDataOnUiThreadAsync(
+        IClipboard clipboard,
+        DataTransfer dataTransfer,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(clipboard);
+        ct.ThrowIfCancellationRequested();
+        await CancelOrWaitForActiveFlushAsync(ct);
+
         await clipboard.SetDataAsync(dataTransfer);
         _clipboardDataTransfer = dataTransfer;
         _hasPendingClipboardData = true;
+    }
+
+    private Task GetOrStartFlushTask(
+        IClipboard clipboard,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(clipboard);
+        ct.ThrowIfCancellationRequested();
+
+        if (!_hasPendingClipboardData)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_flushTask is null)
+        {
+            CancellationTokenSource cancellation = new();
+            _flushCancellation = cancellation;
+            _flushTask = FlushPendingDataAsync(
+                clipboard,
+                cancellation);
+        }
+
+        Task flushTask = _flushTask;
+        return ct.CanBeCanceled
+            ? flushTask.WaitAsync(ct)
+            : flushTask;
+    }
+
+    private async Task ReleasePendingDataOnUiThreadAsync(
+        CancellationToken ct)
+    {
+        await CancelOrWaitForActiveFlushAsync(ct);
+        ClearPendingData();
     }
 
     private async Task CancelOrWaitForActiveFlushAsync(CancellationToken ct)
@@ -119,12 +168,18 @@ internal sealed class AvaloniaClipboardDataWriter : IDisposable
         await flushTask.WaitAsync(ct);
     }
 
-    private async Task FlushPendingDataAsync(CancellationTokenSource cancellation)
+    private async Task FlushPendingDataAsync(
+        IClipboard clipboard,
+        CancellationTokenSource cancellation)
     {
+        ArgumentNullException.ThrowIfNull(clipboard);
+
         try
         {
             Task uiFlushTask = await Dispatcher.UIThread.InvokeAsync(
-                () => FlushOnUiThreadAsync(cancellation.Token),
+                () => FlushOnUiThreadAsync(
+                    clipboard,
+                    cancellation.Token),
                 DispatcherPriority.Background,
                 cancellation.Token);
             await uiFlushTask;
@@ -139,7 +194,7 @@ internal sealed class AvaloniaClipboardDataWriter : IDisposable
         }
         finally
         {
-            if (ReferenceEquals(_flushCancellation, cancellation))
+            if (object.ReferenceEquals(_flushCancellation, cancellation))
             {
                 _flushCancellation = null;
                 _flushTask = null;
@@ -150,12 +205,14 @@ internal sealed class AvaloniaClipboardDataWriter : IDisposable
         }
     }
 
-    private async Task FlushOnUiThreadAsync(CancellationToken ct)
+    private async Task FlushOnUiThreadAsync(
+        IClipboard clipboard,
+        CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(clipboard);
         ct.ThrowIfCancellationRequested();
-        IClipboard? clipboard = _clipboard;
 
-        if ((clipboard is null) || !_hasPendingClipboardData)
+        if (!_hasPendingClipboardData)
         {
             return;
         }
@@ -163,7 +220,7 @@ internal sealed class AvaloniaClipboardDataWriter : IDisposable
         IAsyncDataTransfer? currentData = await clipboard.TryGetInProcessDataAsync();
         ct.ThrowIfCancellationRequested();
 
-        if (!ReferenceEquals(currentData, _clipboardDataTransfer))
+        if (!object.ReferenceEquals(currentData, _clipboardDataTransfer))
         {
             ClearPendingData();
             return;

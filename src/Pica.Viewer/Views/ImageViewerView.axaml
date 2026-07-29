@@ -1,0 +1,204 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:services="using:Pica.Viewer.Services"
+             x:Class="Pica.Viewer.Views.ImageViewerView">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerColors.axaml" />
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerBrushes.axaml" />
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerEffects.axaml" />
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerMetrics.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <StyleInclude Source="avares://Pica.Viewer/Resources/ViewerMainStyles.axaml" />
+        <StyleInclude Source="avares://Pica.Viewer/Resources/ViewerToolMenuStyles.axaml" />
+    </UserControl.Styles>
+
+    <Grid x:Name="RootControl"
+          ClipToBounds="True"
+          Background="{StaticResource ViewerBackgroundBrush}">
+        <Grid x:Name="ViewerAreaControl"
+              ClipToBounds="True"
+              Background="{StaticResource ViewerBackgroundBrush}">
+            <Canvas x:Name="ImageCanvasControl"
+                    ClipToBounds="False"
+                    Background="{StaticResource ViewerTransparentBrush}">
+                <Image x:Name="ImageControl"
+                       Stretch="Fill" />
+            </Canvas>
+
+            <Grid x:Name="ViewerDynamicLayerControl">
+                <Border x:Name="LeftNavigationAreaControl"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Stretch"
+                        Classes="viewer-navigation-area">
+                    <Grid Classes="viewer-navigation-icon-host">
+                        <PathIcon HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Classes="viewer-navigation-icon"
+                                  Data="M15,4 L7,12 L15,20 Z" />
+                    </Grid>
+                </Border>
+
+                <Border x:Name="RightNavigationAreaControl"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Stretch"
+                        Classes="viewer-navigation-area">
+                    <Grid Classes="viewer-navigation-icon-host">
+                        <PathIcon HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Classes="viewer-navigation-icon"
+                                  Data="M9,4 L17,12 L9,20 Z" />
+                    </Grid>
+                </Border>
+
+                <Grid x:Name="BottomControlsControl"
+                      Height="{StaticResource ViewerToolButtonSize}"
+                      Margin="0,0,0,26"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Bottom"
+                      Opacity="{StaticResource ViewerHiddenControlsOpacity}"
+                      ColumnDefinitions="*,*">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Duration="{StaticResource ViewerControlsFadeDuration}"
+                                              Property="Opacity" />
+                        </Transitions>
+                    </Grid.Transitions>
+                    <StackPanel Grid.ColumnSpan="2"
+                                HorizontalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="8">
+                        <Button x:Name="ZoomOutButton"
+                                Classes="viewer-tool-button">
+                            <PathIcon Classes="viewer-tool-icon"
+                                      Data="M5,11 L19,11 L19,13 L5,13 Z" />
+                        </Button>
+                        <Button x:Name="ResetButton"
+                                Classes="viewer-tool-button">
+                            <PathIcon Classes="viewer-tool-icon"
+                                      Data="M12,7 A5,5 0 1 0 12,17 A5,5 0 1 0 12,7" />
+                        </Button>
+                        <Button x:Name="ZoomInButton"
+                                Classes="viewer-tool-button">
+                            <PathIcon Classes="viewer-tool-icon"
+                                      Data="M11,5 L13,5 L13,11 L19,11 L19,13 L13,13 L13,19 L11,19 L11,13 L5,13 L5,11 L11,11 Z" />
+                        </Button>
+                    </StackPanel>
+                    <Button x:Name="ToolMenuButtonControl"
+                            Grid.Column="1"
+                            Margin="82,0,0,0"
+                            HorizontalAlignment="Left"
+                            Classes="viewer-tool-button">
+                        <PathIcon Classes="viewer-tool-icon"
+                                  Data="M6,15 L12,9 L18,15 Z" />
+                    </Button>
+                </Grid>
+
+                <Border x:Name="ImageInformationPanelControl"
+                        Margin="{StaticResource ViewerInformationPanelMargin}"
+                        Padding="12,8"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        IsHitTestVisible="False"
+                        IsVisible="False"
+                        Opacity="{StaticResource ViewerHiddenControlsOpacity}"
+                        Background="{StaticResource ViewerInformationPanelBrush}"
+                        CornerRadius="8">
+                    <Border.Transitions>
+                        <Transitions>
+                            <DoubleTransition Duration="{StaticResource ViewerControlsFadeDuration}"
+                                              Property="Opacity" />
+                        </Transitions>
+                    </Border.Transitions>
+                    <TextBlock x:Name="ImageInformationTextControl"
+                               Foreground="{StaticResource ViewerMenuForegroundBrush}"
+                               TextWrapping="Wrap" />
+                </Border>
+
+                <Button x:Name="FullscreenSettingsButtonControl"
+                        Margin="{StaticResource ViewerSettingsButtonMargin}"
+                        Classes="viewer-window-button">
+                    <Grid Classes="viewer-window-icon-host">
+                        <PathIcon Classes="settings-icon viewer-window-icon" />
+                    </Grid>
+                </Button>
+
+                <Button x:Name="WindowModeButtonControl"
+                        Margin="{StaticResource ViewerWindowModeButtonMargin}"
+                        Classes="viewer-window-button">
+                    <Grid Classes="viewer-window-icon-host">
+                        <PathIcon Classes="viewer-window-icon"
+                                  Data="M6,6 L18,6 L18,18 L6,18 Z M8,8 L8,16 L16,16 L16,8 Z" />
+                    </Grid>
+                </Button>
+
+                <Button x:Name="CloseButtonControl"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Classes="viewer-window-button">
+                    <Grid Classes="viewer-window-icon-host">
+                        <PathIcon x:Name="CloseIconControl"
+                                  Classes="viewer-window-icon destructive" />
+                    </Grid>
+                </Button>
+            </Grid>
+
+            <Border x:Name="FadeOverlayControl"
+                    IsHitTestVisible="False"
+                    Background="{StaticResource ViewerBackgroundBrush}" />
+        </Grid>
+
+        <Grid x:Name="WindowResizeOverlayControl"
+              IsVisible="False">
+            <Border Width="{StaticResource ViewerResizeEdgeSize}"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Stretch"
+                    Background="{StaticResource ViewerTransparentBrush}"
+                    Tag="{x:Static services:WindowSizingEdges.Left}" />
+            <Border Width="{StaticResource ViewerResizeEdgeSize}"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Stretch"
+                    Background="{StaticResource ViewerTransparentBrush}"
+                    Tag="{x:Static services:WindowSizingEdges.Right}" />
+            <Border Height="{StaticResource ViewerResizeEdgeSize}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Top"
+                    Background="{StaticResource ViewerTransparentBrush}"
+                    Tag="{x:Static services:WindowSizingEdges.Top}" />
+            <Border Height="{StaticResource ViewerResizeEdgeSize}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Bottom"
+                    Background="{StaticResource ViewerTransparentBrush}"
+                    Tag="{x:Static services:WindowSizingEdges.Bottom}" />
+            <Border Width="{StaticResource ViewerResizeCornerSize}"
+                    Height="{StaticResource ViewerResizeCornerSize}"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Background="{StaticResource ViewerTransparentBrush}"
+                    Tag="{x:Static services:WindowSizingEdges.TopLeft}" />
+            <Border Width="{StaticResource ViewerResizeCornerSize}"
+                    Height="{StaticResource ViewerResizeCornerSize}"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Background="{StaticResource ViewerTransparentBrush}"
+                    Tag="{x:Static services:WindowSizingEdges.TopRight}" />
+            <Border Width="{StaticResource ViewerResizeCornerSize}"
+                    Height="{StaticResource ViewerResizeCornerSize}"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom"
+                    Background="{StaticResource ViewerTransparentBrush}"
+                    Tag="{x:Static services:WindowSizingEdges.BottomLeft}" />
+            <Border Width="{StaticResource ViewerResizeCornerSize}"
+                    Height="{StaticResource ViewerResizeCornerSize}"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Background="{StaticResource ViewerTransparentBrush}"
+                    Tag="{x:Static services:WindowSizingEdges.BottomRight}" />
+        </Grid>
+    </Grid>
+</UserControl>

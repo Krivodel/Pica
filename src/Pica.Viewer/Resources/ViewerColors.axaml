@@ -1,0 +1,10 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Color x:Key="ViewerBackgroundColor">#FF000000</Color>
+    <Color x:Key="ViewerDestructiveIconColor">#FFB3261E</Color>
+    <Color x:Key="ViewerFloatingMenuColor">#E8181818</Color>
+    <Color x:Key="ViewerInformationPanelColor">#C0181818</Color>
+    <Color x:Key="ViewerMenuForegroundColor">#FFFFFFFF</Color>
+    <Color x:Key="ViewerToolButtonColor">#96101010</Color>
+    <Color x:Key="ViewerTransparentColor">#00FFFFFF</Color>
+</ResourceDictionary>

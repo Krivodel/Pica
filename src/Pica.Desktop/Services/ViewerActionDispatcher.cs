@@ -51,10 +51,30 @@ public sealed class ViewerActionDispatcher : IViewerActionDispatcher
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(pngContent);
 
+        await DispatchDerivedImageAsync(
+            action,
+            item,
+            PicaImageFormats.SelectionFileName,
+            pngContent,
+            ct).ConfigureAwait(false);
+    }
+
+    public async Task DispatchDerivedImageAsync(
+        PicaActionDefinition action,
+        PicaImageItem item,
+        string fileName,
+        byte[] pngContent,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentNullException.ThrowIfNull(pngContent);
+
         if (string.IsNullOrWhiteSpace(_payloadDirectory))
         {
             _logger.LogWarning(
-                "Pica selection action {ActionId} for item {ItemId} was ignored because no payload directory is available",
+                "Pica derived-image action {ActionId} for item {ItemId} was ignored because no payload directory is available",
                 action.Id,
                 item.Id);
 
@@ -79,7 +99,7 @@ public sealed class ViewerActionDispatcher : IViewerActionDispatcher
             action.Id,
             item.Id,
             filePath,
-            PicaImageFormats.SelectionFileName,
+            fileName,
             PicaImageFormats.PngContentType);
         await SendAsync(invocation, ct).ConfigureAwait(false);
     }

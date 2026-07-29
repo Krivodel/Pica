@@ -14,4 +14,23 @@ public interface IViewerActionDispatcher
         PicaImageItem item,
         byte[] pngContent,
         CancellationToken ct);
+
+    Task DispatchDerivedImageAsync(
+        PicaActionDefinition action,
+        PicaImageItem item,
+        string fileName,
+        byte[] pngContent,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentNullException.ThrowIfNull(pngContent);
+
+        return DispatchSelectionAsync(
+            action,
+            item,
+            pngContent,
+            ct);
+    }
 }

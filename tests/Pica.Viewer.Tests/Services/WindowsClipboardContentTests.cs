@@ -15,7 +15,9 @@ public sealed class WindowsClipboardContentTests
     {
         byte[] pixels = BgraBitmapTestData.Pixels;
         PreparedBitmapPixels bitmap = new(
-            BgraBitmapTestData.PixelSize,
+            new ImageDimensions(
+                BgraBitmapTestData.Width,
+                BgraBitmapTestData.Height),
             BgraBitmapTestData.RowBytes,
             pixels);
 

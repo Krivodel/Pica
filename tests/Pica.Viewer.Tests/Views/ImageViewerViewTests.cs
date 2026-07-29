@@ -1,20 +1,25 @@
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Media;
 using FluentAssertions;
 using Xunit;
 
-using Pica.Tests.Common;
-
 using Pica.Protocol;
+using Pica.Tests.Common;
 using Pica.Viewer.Controls;
+using Pica.Viewer.Services;
+using Pica.Viewer.Tests.TestDoubles;
+using Pica.Viewer.ViewModels;
 using Pica.Viewer.Views;
 
 namespace Pica.Viewer.Tests.Views;
 
+[Collection(AvaloniaHeadlessCollection.Name)]
 public sealed class ImageViewerViewTests
 {
     private static readonly SemaphoreSlim SessionLock = new(1, 1);
@@ -27,9 +32,9 @@ public sealed class ImageViewerViewTests
     }
 
     [Fact]
-    public void Constructor_WithOrderedCurrentImageActions_PlacesLastActionBeforeRevealInFolder()
+    public async Task Constructor_WithOrderedCurrentImageActions_PlacesLastActionBeforeRevealInFolder()
     {
-        Dispatch(() =>
+        await DispatchAsync(() =>
         {
             PicaActionDefinition attachAction = new(
                 "attach",
@@ -50,22 +55,25 @@ public sealed class ImageViewerViewTests
                 showInGalleryAction,
                 attachAction
             ];
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                actions);
 
             using ImageViewerView view = new(
-                false,
+                session,
+                CreateToolMenu(session, false),
                 new List<ViewerSettingControl>(),
-                actions,
                 ViewerWindowMode.FullScreen,
                 CreateEvents());
 
-            StackPanel menuItems = view.ContextMenu
+            StackPanel menuItems = view.ViewerContextMenu
                 .Child
                 .Should()
                 .BeOfType<StackPanel>()
                 .Subject;
             List<Button> buttons = menuItems.Children.OfType<Button>().ToList();
             int showInGalleryIndex = buttons.FindIndex(button =>
-                ReferenceEquals(button.Tag, showInGalleryAction));
+                object.ReferenceEquals(button.Tag, showInGalleryAction));
             int revealInFolderIndex = buttons.FindIndex(button =>
                 string.Equals(
                     GetMenuButtonText(button),
@@ -77,14 +85,17 @@ public sealed class ImageViewerViewTests
     }
 
     [Fact]
-    public void Constructor_WithToolMenuButton_KeepsThreeZoomButtonsCentered()
+    public async Task Constructor_WithToolMenuButton_KeepsThreeZoomButtonsCentered()
     {
-        Dispatch(() =>
+        await DispatchAsync(() =>
         {
-            using ImageViewerView view = new(
+            ImageViewerSessionViewModel session = CreateSession(
                 false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
                 new List<ViewerSettingControl>(),
-                new List<PicaActionDefinition>(),
                 ViewerWindowMode.FullScreen,
                 CreateEvents());
 
@@ -106,44 +117,310 @@ public sealed class ImageViewerViewTests
     }
 
     [Fact]
-    public void UpdateFilteringMenuState_WithDisabledFiltering_HidesCheck()
+    public async Task Constructor_WithExistingViewerChrome_PreservesDimensions()
     {
-        Dispatch(() =>
+        await DispatchAsync(() =>
         {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+
             using ImageViewerView view = new(
-                true,
+                session,
+                CreateToolMenu(session, false),
                 new List<ViewerSettingControl>(),
-                new List<PicaActionDefinition>(),
                 ViewerWindowMode.FullScreen,
                 CreateEvents());
 
-            view.UpdateFilteringMenuState(false);
+            Grid navigationIconHost = view.LeftNavigationArea
+                .Child
+                .Should()
+                .BeOfType<Grid>()
+                .Subject;
+            PathIcon navigationIcon = navigationIconHost
+                .Children
+                .Should()
+                .ContainSingle()
+                .Which
+                .Should()
+                .BeOfType<PathIcon>()
+                .Subject;
+            Panel viewerChrome = view.BottomControls
+                .Parent
+                .Should()
+                .BeAssignableTo<Panel>()
+                .Subject;
+
+            view.LeftNavigationArea.Width.Should().Be(24d);
+            navigationIconHost.Width.Should().Be(60d);
+            navigationIconHost.Height.Should().Be(60d);
+            navigationIcon.Width.Should().Be(44d);
+            navigationIcon.Height.Should().Be(44d);
+            view.BottomControls.Height.Should().Be(44d);
+            view.ToolMenuButton.Width.Should().Be(44d);
+            view.ToolMenuButton.Height.Should().Be(44d);
+            view.ImageInformationPanel.Margin.Should().Be(new Thickness(16d));
+            view.FullscreenSettingsButton.Margin.Right.Should().Be(128d);
+            view.WindowModeButton.Margin.Right.Should().Be(64d);
+            view.CloseButton.Width.Should().Be(64d);
+            view.CloseButton.Height.Should().Be(64d);
+            viewerChrome.Children.IndexOf(view.LeftNavigationArea).Should().Be(0);
+            viewerChrome.Children.IndexOf(view.RightNavigationArea).Should().Be(1);
+            viewerChrome.Children.IndexOf(view.BottomControls).Should().Be(2);
+            viewerChrome.Children.IndexOf(view.ImageInformationPanel).Should().Be(3);
+            viewerChrome.Children.IndexOf(view.FullscreenSettingsButton).Should().Be(4);
+            viewerChrome.Children.IndexOf(view.WindowModeButton).Should().Be(5);
+            viewerChrome.Children.IndexOf(view.CloseButton).Should().Be(6);
+        });
+    }
+
+    [Fact]
+    public async Task Constructor_WithInformationPanelMarginResource_UsesThicknessCompatibleWithMargin()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            bool resourceFound = view.TryFindResource(
+                "ViewerInformationPanelMargin",
+                view.ActualThemeVariant,
+                out object? resource);
+
+            resourceFound.Should().BeTrue();
+            resource.Should().BeOfType<Thickness>();
+            view.ImageInformationPanel.Margin.Should().Be(new Thickness(16d));
+            view.InformationPanelMargin.Should().Be(16d);
+        });
+    }
+
+    [Fact]
+    public async Task Layout_WhenHostedAsWindowContent_FillsWindowAndAnchorsWindowButtons()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Window window = new()
+            {
+                Width = 1000d,
+                Height = 600d,
+                Content = view
+            };
+
+            try
+            {
+                window.Show();
+
+                view.Bounds.Size.Should().Be(new Size(1000d, 600d));
+                view.Root.Bounds.Size.Should().Be(view.Bounds.Size);
+                view.CloseButton.Bounds.Right.Should().Be(1000d);
+                view.WindowModeButton.Bounds.Right.Should().Be(936d);
+                view.FullscreenSettingsButton.Bounds.Right.Should().Be(872d);
+            }
+            finally
+            {
+                window.Close();
+                view.Dispose();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Layout_WhenMenusAreHosted_PreservesExistingMenuAppearance()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Window window = new()
+            {
+                Content = view
+            };
+
+            try
+            {
+                window.Show();
+                Button contextMenuButton =
+                    GetMenuButtons(view.ViewerContextMenu)[0];
+                DoubleTransition opacityTransition = view.ViewerContextMenu
+                    .Transitions
+                    .Should()
+                    .ContainSingle()
+                    .Which
+                    .Should()
+                    .BeOfType<DoubleTransition>()
+                    .Subject;
+                SolidColorBrush menuBackground = view.ViewerContextMenu
+                    .Background
+                    .Should()
+                    .BeOfType<SolidColorBrush>()
+                    .Subject;
+
+                view.ViewerContextMenu.Padding.Should().Be(new Thickness(6d));
+                view.ViewerContextMenu.CornerRadius.Should().Be(new CornerRadius(8d));
+                menuBackground.Color.Should().Be(Color.FromArgb(232, 24, 24, 24));
+                opacityTransition.Duration.Should().Be(TimeSpan.FromSeconds(0.16d));
+                view.ToolMenu.Padding.Should().Be(view.ViewerContextMenu.Padding);
+                view.ToolMenu.CornerRadius.Should().Be(
+                    view.ViewerContextMenu.CornerRadius);
+                contextMenuButton.MinWidth.Should().Be(148d);
+                contextMenuButton.Padding.Should().Be(new Thickness(10d, 8d));
+                contextMenuButton.HorizontalContentAlignment
+                    .Should()
+                    .Be(HorizontalAlignment.Left);
+            }
+            finally
+            {
+                window.Close();
+                view.Dispose();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Layout_WhenSelectionToolbarIsHosted_PreservesExistingButtonAppearance()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Window window = new()
+            {
+                Content = view
+            };
+
+            try
+            {
+                window.Show();
+                Button selectionButton = view.SelectionToolbar
+                    .Children
+                    .OfType<Button>()
+                    .First();
+                SolidColorBrush background = selectionButton
+                    .Background
+                    .Should()
+                    .BeOfType<SolidColorBrush>()
+                    .Subject;
+
+                selectionButton.Width.Should().Be(42d);
+                selectionButton.Height.Should().Be(42d);
+                selectionButton.CornerRadius.Should().Be(new CornerRadius(8d));
+                background.Color.Should().Be(Color.FromArgb(150, 16, 16, 16));
+            }
+            finally
+            {
+                window.Close();
+                view.Dispose();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task FilteringBinding_WhenFilteringDisabled_HidesCheck()
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                true,
+                new List<PicaActionDefinition>());
+            ImageViewerToolMenuViewModel toolMenu =
+                CreateToolMenu(session, true);
+            using ImageViewerView view = new(
+                session,
+                toolMenu,
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            await toolMenu.Settings.ToggleFilteringCommand.ExecuteAsync(
+                null);
 
             GetMenuCheckIcons(view.ToolMenu)
                 .First()
                 .IsVisible
                 .Should()
                 .BeFalse();
+            toolMenu.Settings.Dispose();
         });
     }
 
     [Fact]
-    public void UpdateImageModeMenuState_WithChannelsMode_SelectsOnlyChannels()
+    public async Task ImageModeBinding_WithChannelsMode_SelectsOnlyChannels()
     {
-        Dispatch(() =>
+        await DispatchAsync(() =>
         {
-            using ImageViewerView view = new(
+            ImageViewerSessionViewModel session = CreateSession(
                 false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
                 new List<ViewerSettingControl>(),
-                new List<PicaActionDefinition>(),
                 ViewerWindowMode.FullScreen,
                 CreateEvents());
 
-            view.UpdateImageModeMenuState(ViewerImageMode.Channels);
+            session.SelectChannelImageModeCommand.Execute(null);
 
             List<PathIcon> checkIcons = GetMenuCheckIcons(view.ModeMenu);
             checkIcons[0].IsVisible.Should().BeFalse();
             checkIcons[1].IsVisible.Should().BeTrue();
+        });
+    }
+
+    [Fact]
+    public async Task Constructor_WithToolMenu_BindsStateChangesToViewModelCommands()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            ImageViewerToolMenuViewModel toolMenu =
+                CreateToolMenu(session, false);
+            using ImageViewerView view = new(
+                session,
+                toolMenu,
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            List<Button> toolMenuButtons = GetMenuButtons(view.ToolMenu);
+            List<Button> modeMenuButtons = GetMenuButtons(view.ModeMenu);
+
+            toolMenuButtons[0].Command.Should().BeSameAs(
+                toolMenu.Settings.ToggleFilteringCommand);
+            modeMenuButtons[0].Command.Should().BeSameAs(
+                session.SelectMainImageModeCommand);
+            modeMenuButtons[1].Command.Should().BeSameAs(
+                session.SelectChannelImageModeCommand);
         });
     }
 
@@ -179,6 +456,63 @@ public sealed class ImageViewerViewTests
         };
     }
 
+    private static ImageViewerSessionViewModel CreateSession(
+        bool isFilteringEnabled,
+        IReadOnlyList<PicaActionDefinition> actions)
+    {
+        Guid itemId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        PicaImageItem item = new(
+            itemId,
+            "image.png",
+            "image.png");
+        PicaViewerRequest request = new(
+            new PicaImageItem[] { item },
+            itemId,
+            actions,
+            null);
+
+        ImageViewerSession session = new(
+            request,
+            isFilteringEnabled);
+
+        return new ImageViewerSessionViewModel(session);
+    }
+
+    private static ImageViewerToolMenuViewModel CreateToolMenu(
+        ImageViewerSessionViewModel session,
+        bool isFilteringEnabled)
+    {
+        PicaViewerRequest request = new(
+            new List<PicaImageItem>(),
+            Guid.Empty,
+            new List<PicaActionDefinition>(),
+            null);
+        ImageViewerSession settingsSession = new(
+            request,
+            isFilteringEnabled);
+        ImageViewerState state = new()
+        {
+            IsFilteringEnabled = isFilteringEnabled
+        };
+        ViewerWindowPlacement placement = new(
+            false,
+            null,
+            null,
+            null,
+            null);
+        ImageViewerSettingsViewModel settings = new(
+            new RecordingImageViewerStateService(state),
+            settingsSession,
+            new RecordingImageLoadingSettings(),
+            new ViewerWindowPlacementProvider(placement),
+            new RecordingViewModelErrorHandler(),
+            state);
+
+        return new ImageViewerToolMenuViewModel(
+            session,
+            settings);
+    }
+
     private static string? GetMenuButtonText(Button button)
     {
         if (button.Content is not StackPanel content)
@@ -191,14 +525,7 @@ public sealed class ImageViewerViewTests
 
     private static List<PathIcon> GetMenuCheckIcons(Border menu)
     {
-        StackPanel items = menu
-            .Child
-            .Should()
-            .BeOfType<StackPanel>()
-            .Subject;
-
-        return items.Children
-            .OfType<Button>()
+        return GetMenuButtons(menu)
             .Select(button => button.Content)
             .OfType<StackPanel>()
             .Select(content => content.Children
@@ -210,9 +537,30 @@ public sealed class ImageViewerViewTests
             .ToList();
     }
 
-    private static void Dispatch(Action action)
+    private static List<Button> GetMenuButtons(Border menu)
     {
-        HeadlessTestSessionDispatcher.Dispatch(
+        StackPanel items = menu
+            .Child
+            .Should()
+            .BeOfType<StackPanel>()
+            .Subject;
+
+        return items.Children
+            .OfType<Button>()
+            .ToList();
+    }
+
+    private static async Task DispatchAsync(Action action)
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(
+            typeof(ImageViewerViewTests),
+            SessionLock,
+            action).ConfigureAwait(false);
+    }
+
+    private static async Task DispatchAsync(Func<Task> action)
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(
             typeof(ImageViewerViewTests),
             SessionLock,
             action);

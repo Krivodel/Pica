@@ -1,10 +1,8 @@
-using Avalonia;
-
 namespace Pica.Viewer.Services;
 
 internal sealed record PreparedClipboardImage(
-    PixelSize PixelSize,
+    ImageDimensions Dimensions,
     int RowBytes,
     byte[] BgraPixels,
     byte[] PngContent)
-    : PreparedBitmapPixels(PixelSize, RowBytes, BgraPixels);
+    : PreparedBitmapPixels(Dimensions, RowBytes, BgraPixels);

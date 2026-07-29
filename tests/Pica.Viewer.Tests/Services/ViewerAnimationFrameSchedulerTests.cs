@@ -11,7 +11,8 @@ public sealed class ViewerAnimationFrameSchedulerTests
     public void RequestAnimationFrame_WhenNotPresented_SubmitsAfterPresentationResumes()
     {
         List<Action<TimeSpan>> submittedFrames = [];
-        ViewerAnimationFrameScheduler scheduler = new(submittedFrames.Add);
+        ViewerAnimationFrameScheduler scheduler =
+            CreateScheduler(submittedFrames);
         int completedFrameCount = 0;
 
         scheduler.RequestAnimationFrame(_ => completedFrameCount++);
@@ -30,7 +31,8 @@ public sealed class ViewerAnimationFrameSchedulerTests
     public void SetPresentation_WhenFrameWasSubmitted_IgnoresStaleFrame()
     {
         List<Action<TimeSpan>> submittedFrames = [];
-        ViewerAnimationFrameScheduler scheduler = new(submittedFrames.Add);
+        ViewerAnimationFrameScheduler scheduler =
+            CreateScheduler(submittedFrames);
         int completedFrameCount = 0;
         scheduler.SetPresentation(true);
         scheduler.RequestAnimationFrame(_ => completedFrameCount++);
@@ -52,7 +54,8 @@ public sealed class ViewerAnimationFrameSchedulerTests
     public void CancelPendingFrames_WhenStaleFrameArrives_DoesNotInvokeCallback()
     {
         List<Action<TimeSpan>> submittedFrames = [];
-        ViewerAnimationFrameScheduler scheduler = new(submittedFrames.Add);
+        ViewerAnimationFrameScheduler scheduler =
+            CreateScheduler(submittedFrames);
         int completedFrameCount = 0;
         scheduler.SetPresentation(true);
         scheduler.RequestAnimationFrame(_ => completedFrameCount++);
@@ -62,5 +65,15 @@ public sealed class ViewerAnimationFrameSchedulerTests
 
         completedFrameCount.Should().Be(0);
         scheduler.HasPendingFrames.Should().BeFalse();
+    }
+
+    private static ViewerAnimationFrameScheduler CreateScheduler(
+        List<Action<TimeSpan>> submittedFrames)
+    {
+        ViewerAnimationFrameScheduler scheduler = new();
+        scheduler.AnimationFrameRequested += (_, e) =>
+            submittedFrames.Add(e.FrameAction);
+
+        return scheduler;
     }
 }

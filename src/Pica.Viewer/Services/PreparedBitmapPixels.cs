@@ -1,8 +1,6 @@
-using Avalonia;
-
 namespace Pica.Viewer.Services;
 
 internal record PreparedBitmapPixels(
-    PixelSize PixelSize,
+    ImageDimensions Dimensions,
     int RowBytes,
     byte[] BgraPixels);

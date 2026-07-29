@@ -1,4 +1,3 @@
-using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 
@@ -10,30 +9,27 @@ namespace Pica.Viewer.Services;
 internal sealed class ViewerImageOperations
 {
     private readonly IViewerClipboardWriter _clipboardImageWriter;
+    private readonly IViewerFilePickerService _filePickerService;
     private readonly IImageFormatRegistry _formatRegistry;
     private readonly PngImageEncoder _pngImageEncoder;
     private readonly IViewerActionDispatcher _actionDispatcher;
 
     internal ViewerImageOperations(
         IViewerClipboardWriter clipboardImageWriter,
+        IViewerFilePickerService filePickerService,
         IImageFormatRegistry formatRegistry,
         PngImageEncoder pngImageEncoder,
         IViewerActionDispatcher actionDispatcher)
     {
         _clipboardImageWriter = clipboardImageWriter
             ?? throw new ArgumentNullException(nameof(clipboardImageWriter));
+        _filePickerService = filePickerService
+            ?? throw new ArgumentNullException(nameof(filePickerService));
         _formatRegistry = formatRegistry ?? throw new ArgumentNullException(nameof(formatRegistry));
         _pngImageEncoder = pngImageEncoder
             ?? throw new ArgumentNullException(nameof(pngImageEncoder));
         _actionDispatcher = actionDispatcher
             ?? throw new ArgumentNullException(nameof(actionDispatcher));
-    }
-
-    internal void AttachClipboard(IClipboard clipboard)
-    {
-        ArgumentNullException.ThrowIfNull(clipboard);
-
-        _clipboardImageWriter.Attach(clipboard);
     }
 
     internal async Task CopyPreparedImageAsync(
@@ -42,24 +38,21 @@ internal sealed class ViewerImageOperations
     {
         ArgumentNullException.ThrowIfNull(image);
 
-        await _clipboardImageWriter.SetPreparedImageAsync(image, ct);
-    }
-
-    internal async Task FlushClipboardAsync(CancellationToken ct)
-    {
-        await _clipboardImageWriter.FlushAsync(ct);
+        await _clipboardImageWriter
+            .SetPreparedImageAsync(image, ct)
+            .ConfigureAwait(false);
     }
 
     internal async Task CopyFileAsync(
-        IStorageProvider storageProvider,
         PicaImageItem item,
         Bitmap? bitmap,
         CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(storageProvider);
         ArgumentNullException.ThrowIfNull(item);
 
-        IStorageFile? file = await storageProvider.TryGetFileFromPathAsync(item.FilePath);
+        IStorageFile? file = await _filePickerService
+            .GetFileFromPathAsync(item.FilePath, ct)
+            .ConfigureAwait(false);
 
         if (file is null)
         {
@@ -68,11 +61,15 @@ internal sealed class ViewerImageOperations
 
         if (bitmap is null)
         {
-            await _clipboardImageWriter.SetFileAsync(file, ct);
+            await _clipboardImageWriter
+                .SetFileAsync(file, ct)
+                .ConfigureAwait(false);
             return;
         }
 
-        await _clipboardImageWriter.SetFileWithImageAsync(file, bitmap, ct);
+        await _clipboardImageWriter
+            .SetFileWithImageAsync(file, bitmap, ct)
+            .ConfigureAwait(false);
     }
 
     internal async Task DispatchCurrentAsync(
@@ -83,76 +80,104 @@ internal sealed class ViewerImageOperations
         ArgumentNullException.ThrowIfNull(action);
         ArgumentNullException.ThrowIfNull(item);
 
-        await _actionDispatcher.DispatchCurrentImageAsync(action, item, ct);
+        await _actionDispatcher
+            .DispatchCurrentImageAsync(action, item, ct)
+            .ConfigureAwait(false);
     }
 
-    internal async Task DispatchSelectionAsync(
+    internal async Task DispatchPreparedSelectionAsync(
+        PicaActionDefinition action,
+        PicaImageItem item,
+        PreparedClipboardImage image,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(image);
+
+        await _actionDispatcher.DispatchSelectionAsync(
+            action,
+            item,
+            image.PngContent,
+            ct).ConfigureAwait(false);
+    }
+
+    internal async Task DispatchBitmapAsync(
         PicaActionDefinition action,
         PicaImageItem item,
         Bitmap bitmap,
+        string fileName,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(action);
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        byte[] pngContent = await _pngImageEncoder.EncodeAsync(bitmap, ct);
-        await _actionDispatcher.DispatchSelectionAsync(action, item, pngContent, ct);
+        byte[] pngContent = await _pngImageEncoder
+            .EncodeAsync(bitmap, ct)
+            .ConfigureAwait(false);
+        await _actionDispatcher.DispatchDerivedImageAsync(
+            action,
+            item,
+            fileName,
+            pngContent,
+            ct).ConfigureAwait(false);
     }
 
     internal async Task SaveCurrentAsync(
-        IStorageProvider storageProvider,
         PicaImageItem item,
         CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(storageProvider);
         ArgumentNullException.ThrowIfNull(item);
 
         await SaveImageAsync(
-            storageProvider,
             () => CreateCurrentImageSavePicker(item),
             currentCt => File.ReadAllBytesAsync(item.FilePath, currentCt),
             SaveContentPreparationTiming.BeforeOpeningDestination,
-            null,
-            ct);
+            ct).ConfigureAwait(false);
     }
 
-    internal async Task SaveSelectionAsync(
-        IStorageProvider storageProvider,
-        Bitmap bitmap,
+    internal async Task SavePreparedSelectionAsync(
+        PreparedClipboardImage image,
         Action saved,
         CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(storageProvider);
-        ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentNullException.ThrowIfNull(image);
         ArgumentNullException.ThrowIfNull(saved);
+        (string suggestedFileName, FilePickerFileType fileType) =
+            CreatePngSavePicker(PicaImageFormats.SelectionFileName);
+        IStorageFile? destination = await ShowSaveFilePickerAsync(
+            suggestedFileName,
+            fileType,
+            ct).ConfigureAwait(false);
 
-        await SaveImageAsync(
-            storageProvider,
-            () => CreatePngSavePicker(PicaImageFormats.SelectionFileName),
-            currentCt => _pngImageEncoder.EncodeAsync(bitmap, currentCt),
-            SaveContentPreparationTiming.AfterOpeningDestination,
-            saved,
-            ct);
+        if (destination is null)
+        {
+            return;
+        }
+
+        await WriteImageAsync(
+            destination,
+            currentCt => Task.FromResult(image.PngContent),
+            image.PngContent,
+            ct).ConfigureAwait(false);
+        saved();
     }
 
     internal async Task SaveBitmapAsync(
-        IStorageProvider storageProvider,
         Bitmap bitmap,
         string suggestedFileName,
         CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(storageProvider);
         ArgumentNullException.ThrowIfNull(bitmap);
         ArgumentException.ThrowIfNullOrWhiteSpace(suggestedFileName);
 
         await SaveImageAsync(
-            storageProvider,
             () => CreatePngSavePicker(suggestedFileName),
             currentCt => _pngImageEncoder.EncodeAsync(bitmap, currentCt),
             SaveContentPreparationTiming.AfterOpeningDestination,
-            null,
-            ct);
+            ct).ConfigureAwait(false);
     }
 
     private static (string SuggestedFileName, FilePickerFileType FileType) CreatePngSavePicker(
@@ -175,24 +200,32 @@ internal sealed class ViewerImageOperations
         }
     }
 
+    private static async Task WriteImageAsync(
+        IStorageFile destination,
+        Func<CancellationToken, Task<byte[]>> createContent,
+        byte[]? preparedContent,
+        CancellationToken ct)
+    {
+        await using Stream target = await destination
+            .OpenWriteAsync()
+            .ConfigureAwait(false);
+        ClearWritableStream(target);
+        byte[] content = preparedContent
+            ?? await createContent(ct).ConfigureAwait(false);
+        await target.WriteAsync(content, ct).ConfigureAwait(false);
+    }
+
     private async Task SaveImageAsync(
-        IStorageProvider storageProvider,
         Func<(string SuggestedFileName, FilePickerFileType FileType)> createPicker,
         Func<CancellationToken, Task<byte[]>> createContent,
         SaveContentPreparationTiming preparationTiming,
-        Action? saved,
         CancellationToken ct)
     {
-        if (!storageProvider.CanSave)
-        {
-            return;
-        }
-
         (string suggestedFileName, FilePickerFileType fileType) = createPicker();
         IStorageFile? destination = await ShowSaveFilePickerAsync(
-            storageProvider,
             suggestedFileName,
-            fileType);
+            fileType,
+            ct).ConfigureAwait(false);
 
         if (destination is null)
         {
@@ -201,13 +234,13 @@ internal sealed class ViewerImageOperations
 
         byte[]? preparedContent = preparationTiming
             == SaveContentPreparationTiming.BeforeOpeningDestination
-            ? await createContent(ct)
+            ? await createContent(ct).ConfigureAwait(false)
             : null;
-        await using Stream target = await destination.OpenWriteAsync();
-        ClearWritableStream(target);
-        byte[] content = preparedContent ?? await createContent(ct);
-        await target.WriteAsync(content, ct);
-        saved?.Invoke();
+        await WriteImageAsync(
+            destination,
+            createContent,
+            preparedContent,
+            ct).ConfigureAwait(false);
     }
 
     private (string SuggestedFileName, FilePickerFileType FileType) CreateCurrentImageSavePicker(
@@ -220,9 +253,9 @@ internal sealed class ViewerImageOperations
     }
 
     private async Task<IStorageFile?> ShowSaveFilePickerAsync(
-        IStorageProvider storageProvider,
         string suggestedFileName,
-        FilePickerFileType fileType)
+        FilePickerFileType fileType,
+        CancellationToken ct)
     {
         FilePickerSaveOptions options = new()
         {
@@ -231,7 +264,9 @@ internal sealed class ViewerImageOperations
             Title = ViewerUiStrings.SaveAs
         };
 
-        return await storageProvider.SaveFilePickerAsync(options);
+        return await _filePickerService
+            .SelectSaveDestinationAsync(options, ct)
+            .ConfigureAwait(false);
     }
 
     private FilePickerFileType CreateImageFilePickerFileType(

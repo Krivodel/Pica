@@ -11,7 +11,7 @@ namespace Pica.Viewer.Tests.Services;
 public sealed class WindowsFileActionsTests
 {
     [Fact]
-    public void GetOpenWithApplications_WithImageExtension_ReturnsUniqueHandlers()
+    public async Task GetOpenWithApplicationsAsync_WithImageExtension_ReturnsUniqueHandlers()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -24,7 +24,9 @@ public sealed class WindowsFileActionsTests
         WindowsFileActions actions = new(iconLoader, fileRevealPlatform);
 
         IReadOnlyList<OpenWithApplication> applications =
-            actions.GetOpenWithApplications("image.png");
+            await actions.GetOpenWithApplicationsAsync(
+                "image.png",
+                CancellationToken.None);
 
         applications.Select(application => application.Identifier)
             .Should()

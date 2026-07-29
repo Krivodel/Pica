@@ -4,11 +4,16 @@ internal abstract class PlatformFileActions : IPlatformFileActions
 {
     public abstract bool SupportsOpenWith { get; }
 
-    public IReadOnlyList<OpenWithApplication> GetOpenWithApplications(string filePath)
+    public async Task<IReadOnlyList<OpenWithApplication>>
+        GetOpenWithApplicationsAsync(
+            string filePath,
+            CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        return GetOpenWithApplicationsCore(filePath);
+        return await Task.Run(
+            () => GetOpenWithApplicationsCore(filePath),
+            ct).ConfigureAwait(false);
     }
 
     public Task RevealInFolderAsync(

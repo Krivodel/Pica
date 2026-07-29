@@ -12,6 +12,7 @@ using Pica.Viewer.Services;
 
 namespace Pica.Viewer.Tests.Services;
 
+[Collection(AvaloniaHeadlessCollection.Name)]
 public sealed class ImagePreviewLoaderTests
 {
     private const int SourceWidth = 400;

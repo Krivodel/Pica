@@ -1,0 +1,84 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style Selector="StackPanel.viewer-menu-items">
+        <Setter Property="Orientation"
+                Value="Vertical" />
+        <Setter Property="Spacing"
+                Value="2" />
+    </Style>
+
+    <Style Selector="StackPanel.viewer-menu-content">
+        <Setter Property="Orientation"
+                Value="Horizontal" />
+        <Setter Property="Spacing"
+                Value="8" />
+    </Style>
+
+    <Style Selector="Grid.viewer-menu-icon-host">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerMenuIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerMenuIconSize}" />
+    </Style>
+
+    <Style Selector="Border.viewer-floating-menu">
+        <Setter Property="Padding"
+                Value="6" />
+        <Setter Property="Background"
+                Value="{StaticResource ViewerFloatingMenuBrush}" />
+        <Setter Property="CornerRadius"
+                Value="8" />
+        <Setter Property="HorizontalAlignment"
+                Value="Left" />
+        <Setter Property="Opacity"
+                Value="{StaticResource ViewerHiddenControlsOpacity}" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Duration="{StaticResource ViewerControlsFadeDuration}"
+                                  Property="Opacity" />
+            </Transitions>
+        </Setter>
+        <Setter Property="VerticalAlignment"
+                Value="Top" />
+    </Style>
+
+    <Style Selector="Button.viewer-menu-button">
+        <Setter Property="MinWidth"
+                Value="148" />
+        <Setter Property="Padding"
+                Value="10,8" />
+        <Setter Property="Background"
+                Value="{StaticResource ViewerTransparentBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{StaticResource ViewerTransparentBrush}" />
+        <Setter Property="Cursor"
+                Value="Hand" />
+        <Setter Property="Focusable"
+                Value="False" />
+        <Setter Property="HorizontalContentAlignment"
+                Value="Left" />
+    </Style>
+
+    <Style Selector="TextBlock.viewer-menu-text">
+        <Setter Property="Foreground"
+                Value="{StaticResource ViewerMenuForegroundBrush}" />
+        <Setter Property="VerticalAlignment"
+                Value="Center" />
+    </Style>
+
+    <Style Selector="PathIcon.viewer-menu-icon">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerMenuIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerMenuIconSize}" />
+        <Setter Property="Foreground"
+                Value="{StaticResource ViewerMenuForegroundBrush}" />
+    </Style>
+
+    <Style Selector="Image.viewer-menu-application-icon">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerMenuIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerMenuIconSize}" />
+    </Style>
+</Styles>

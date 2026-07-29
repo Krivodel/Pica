@@ -1,19 +1,15 @@
 namespace Pica.Viewer.Services;
 
-public sealed class ViewerAnimationFrameScheduler
+public sealed class ViewerAnimationFrameScheduler :
+    IViewerRenderFrameAwaiter
 {
     public bool HasPendingFrames => _pendingRequests.Count > 0;
 
-    private readonly Action<Action<TimeSpan>> _requestAnimationFrame;
+    internal event EventHandler<ViewerAnimationFrameRequestedEventArgs>?
+        AnimationFrameRequested;
+
     private readonly List<PendingFrameRequest> _pendingRequests = [];
     private bool _isPresented;
-
-    public ViewerAnimationFrameScheduler(
-        Action<Action<TimeSpan>> requestAnimationFrame)
-    {
-        _requestAnimationFrame = requestAnimationFrame
-            ?? throw new ArgumentNullException(nameof(requestAnimationFrame));
-    }
 
     public void RequestAnimationFrame(Action<TimeSpan> frameAction)
     {
@@ -39,7 +35,7 @@ public sealed class ViewerAnimationFrameScheduler
 
         if (!_isPresented)
         {
-            foreach (PendingFrameRequest request in _pendingRequests)
+            foreach (PendingFrameRequest request in _pendingRequests.ToList())
             {
                 request.InvalidateSubmission();
             }
@@ -47,7 +43,7 @@ public sealed class ViewerAnimationFrameScheduler
             return;
         }
 
-        foreach (PendingFrameRequest request in _pendingRequests)
+        foreach (PendingFrameRequest request in _pendingRequests.ToList())
         {
             Submit(request);
         }
@@ -63,11 +59,34 @@ public sealed class ViewerAnimationFrameScheduler
         _pendingRequests.Clear();
     }
 
+    async Task IViewerRenderFrameAwaiter.WaitAsync(CancellationToken ct)
+    {
+        TaskCompletionSource frameRendered = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        RequestAnimationFrame(_ => frameRendered.TrySetResult());
+
+        await frameRendered.Task
+            .WaitAsync(ct)
+            .ConfigureAwait(false);
+    }
+
     private void Submit(PendingFrameRequest request)
     {
+        EventHandler<ViewerAnimationFrameRequestedEventArgs>? requestFrame =
+            AnimationFrameRequested;
+
+        if (requestFrame is null)
+        {
+            return;
+        }
+
         int submissionVersion = request.BeginSubmission();
-        _requestAnimationFrame(
-            frameTime => Complete(request, submissionVersion, frameTime));
+        ViewerAnimationFrameRequestedEventArgs e = new(
+            frameTime => Complete(
+                request,
+                submissionVersion,
+                frameTime));
+        requestFrame(this, e);
     }
 
     private void Complete(

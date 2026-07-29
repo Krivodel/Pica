@@ -21,12 +21,4 @@ internal sealed record ImageChannel
         Code = code;
         BgraOffset = bgraOffset;
     }
-
-    internal string CreateFileName(string sourceFileName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFileName);
-        string nameWithoutExtension = Path.GetFileNameWithoutExtension(sourceFileName);
-
-        return $"{nameWithoutExtension}-{Code}{PicaImageFormats.PngExtension}";
-    }
 }

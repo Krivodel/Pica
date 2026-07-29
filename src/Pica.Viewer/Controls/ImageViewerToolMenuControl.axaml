@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Pica.Viewer.ViewModels"
+             x:Class="Pica.Viewer.Controls.ImageViewerToolMenuControl"
+             x:DataType="vm:ImageViewerToolMenuViewModel">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerToolMenuResources.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Canvas x:Name="MenuCanvas"
+            ClipToBounds="True">
+        <Border x:Name="ToolMenuBorder"
+                Classes="viewer-floating-menu"
+                IsVisible="False">
+            <StackPanel Classes="viewer-menu-items">
+                <Button x:Name="FilteringButton"
+                        Classes="viewer-menu-button"
+                        Command="{Binding Settings.ToggleFilteringCommand}">
+                    <StackPanel Classes="viewer-menu-content">
+                        <Grid Classes="viewer-menu-icon-host">
+                            <PathIcon Classes="viewer-menu-icon"
+                                      Data="{StaticResource ViewerCheckIconGeometry}"
+                                      IsVisible="{Binding Settings.IsFilteringEnabled}" />
+                        </Grid>
+                        <TextBlock Classes="viewer-menu-text"
+                                   Text="{StaticResource ViewerFilteringText}" />
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="ModeSubmenuButton"
+                        Classes="viewer-menu-button">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Classes="viewer-menu-content">
+                            <Grid Classes="viewer-menu-icon-host" />
+                            <TextBlock Classes="viewer-menu-text"
+                                       Text="{StaticResource ViewerModeText}" />
+                        </StackPanel>
+                        <PathIcon x:Name="ModeSubmenuIcon"
+                                  Grid.Column="1"
+                                  Width="14"
+                                  Height="14"
+                                  Classes="viewer-menu-icon" />
+                    </Grid>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Border x:Name="ModeMenuBorder"
+                Classes="viewer-floating-menu"
+                IsVisible="False">
+            <StackPanel Classes="viewer-menu-items">
+                <Button x:Name="MainModeButton"
+                        Classes="viewer-menu-button"
+                        Command="{Binding Session.SelectMainImageModeCommand}">
+                    <StackPanel Classes="viewer-menu-content">
+                        <Grid Classes="viewer-menu-icon-host">
+                            <PathIcon Classes="viewer-menu-icon"
+                                      Data="{StaticResource ViewerCheckIconGeometry}"
+                                      IsVisible="{Binding Session.IsMainImageModeActive}" />
+                        </Grid>
+                        <TextBlock Classes="viewer-menu-text"
+                                   Text="{StaticResource ViewerMainModeText}" />
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="ChannelModeButton"
+                        Classes="viewer-menu-button"
+                        Command="{Binding Session.SelectChannelImageModeCommand}">
+                    <StackPanel Classes="viewer-menu-content">
+                        <Grid Classes="viewer-menu-icon-host">
+                            <PathIcon Classes="viewer-menu-icon"
+                                      Data="{StaticResource ViewerCheckIconGeometry}"
+                                      IsVisible="{Binding Session.IsChannelModeActive}" />
+                        </Grid>
+                        <TextBlock Classes="viewer-menu-text"
+                                   Text="{StaticResource ViewerChannelsModeText}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+    </Canvas>
+</UserControl>

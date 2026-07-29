@@ -124,7 +124,7 @@ internal sealed class WindowsExplorerWindowLocator
         return null;
     }
 
-    private static IWindowsExplorerWindow? GetMatchingWindow(
+    private IWindowsExplorerWindow? GetMatchingWindow(
         object shellWindows,
         int index,
         string directoryPath,
@@ -183,6 +183,10 @@ internal sealed class WindowsExplorerWindowLocator
         }
         catch (Exception ex) when (IsWindowInspectionFailure(ex))
         {
+            _logger.LogDebug(
+                ex,
+                "Failed to inspect a Windows Explorer window.");
+
             return null;
         }
         finally
@@ -236,7 +240,7 @@ internal sealed class WindowsExplorerWindowLocator
         return true;
     }
 
-    private static void TryAddWindowHandle(
+    private void TryAddWindowHandle(
         object shellWindows,
         int index,
         HashSet<long> windowHandles)
@@ -258,6 +262,10 @@ internal sealed class WindowsExplorerWindowLocator
         }
         catch (Exception ex) when (IsWindowInspectionFailure(ex))
         {
+            _logger.LogDebug(
+                ex,
+                "Failed to inspect Windows Explorer window at index {WindowIndex}.",
+                index);
         }
         finally
         {

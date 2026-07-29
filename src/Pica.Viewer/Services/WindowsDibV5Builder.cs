@@ -18,7 +18,7 @@ internal static class WindowsDibV5Builder
     {
         ArgumentNullException.ThrowIfNull(image);
 
-        int imageSize = checked(image.RowBytes * image.PixelSize.Height);
+        int imageSize = checked(image.RowBytes * image.Dimensions.Height);
 
         if (image.BgraPixels.Length != imageSize)
         {
@@ -29,8 +29,12 @@ internal static class WindowsDibV5Builder
         byte[] content = new byte[checked(HeaderSize + imageSize)];
         Span<byte> header = content.AsSpan(0, HeaderSize);
         BinaryPrimitives.WriteUInt32LittleEndian(header[0..4], HeaderSize);
-        BinaryPrimitives.WriteInt32LittleEndian(header[4..8], image.PixelSize.Width);
-        BinaryPrimitives.WriteInt32LittleEndian(header[8..12], -image.PixelSize.Height);
+        BinaryPrimitives.WriteInt32LittleEndian(
+            header[4..8],
+            image.Dimensions.Width);
+        BinaryPrimitives.WriteInt32LittleEndian(
+            header[8..12],
+            -image.Dimensions.Height);
         BinaryPrimitives.WriteUInt16LittleEndian(header[12..14], 1);
         BinaryPrimitives.WriteUInt16LittleEndian(header[14..16], 32);
         BinaryPrimitives.WriteUInt32LittleEndian(header[16..20], BitFieldsCompression);

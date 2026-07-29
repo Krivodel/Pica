@@ -1,0 +1,9 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DropShadowEffect x:Key="ViewerFloatingControlShadowEffect"
+                      BlurRadius="6"
+                      Color="{StaticResource ViewerBackgroundColor}"
+                      OffsetX="0"
+                      OffsetY="1"
+                      Opacity="0.7" />
+</ResourceDictionary>

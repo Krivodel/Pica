@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 
+using CommunityToolkit.Mvvm.Input;
+
 namespace Pica.Viewer.Controls;
 
 internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
@@ -14,20 +16,23 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
         set => CheckBox.IsEnabled = value;
     }
 
-    private readonly Func<bool, Task> _changed;
+    private readonly IAsyncRelayCommand<bool> _changedCommand;
     private bool _isChangingValue;
+    private bool _currentValue;
 
     internal ViewerCheckBoxSettingControl(
         string content,
         bool initialValue,
-        Func<bool, Task> changed,
+        IAsyncRelayCommand<bool> changedCommand,
         bool isEnabled = true,
         double topSpacing = 0d)
         : base(null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
         ArgumentOutOfRangeException.ThrowIfNegative(topSpacing);
-        _changed = changed ?? throw new ArgumentNullException(nameof(changed));
+        _changedCommand = changedCommand
+            ?? throw new ArgumentNullException(nameof(changedCommand));
+        _currentValue = initialValue;
 
         CheckBox = new CheckBox
         {
@@ -41,6 +46,7 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
 
     internal void SetValue(bool value)
     {
+        _currentValue = value;
         _isChangingValue = true;
 
         try
@@ -63,6 +69,15 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
             return;
         }
 
-        await _changed(CheckBox.IsChecked == true);
+        bool isChecked = CheckBox.IsChecked == true;
+
+        if (!_changedCommand.CanExecute(isChecked))
+        {
+            SetValue(_currentValue);
+            return;
+        }
+
+        _currentValue = isChecked;
+        await _changedCommand.ExecuteAsync(isChecked);
     }
 }

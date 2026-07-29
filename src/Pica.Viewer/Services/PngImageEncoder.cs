@@ -32,7 +32,9 @@ internal sealed class PngImageEncoder
         try
         {
             return EncodePixels(
-                bitmap.PixelSize,
+                new PixelSize(
+                    bitmap.Dimensions.Width,
+                    bitmap.Dimensions.Height),
                 PixelFormat.Bgra8888,
                 AlphaFormat.Premul,
                 pixelsHandle.AddrOfPinnedObject(),

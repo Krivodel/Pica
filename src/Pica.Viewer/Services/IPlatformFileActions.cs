@@ -4,7 +4,9 @@ internal interface IPlatformFileActions
 {
     bool SupportsOpenWith { get; }
 
-    IReadOnlyList<OpenWithApplication> GetOpenWithApplications(string filePath);
+    Task<IReadOnlyList<OpenWithApplication>> GetOpenWithApplicationsAsync(
+        string filePath,
+        CancellationToken ct);
 
     Task RevealInFolderAsync(
         string filePath,

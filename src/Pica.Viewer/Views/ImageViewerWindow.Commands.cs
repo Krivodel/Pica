@@ -1,7 +1,6 @@
-using Microsoft.Extensions.Logging;
-
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using SukiUI.Controls;
 
@@ -12,73 +11,38 @@ namespace Pica.Viewer.Views;
 
 public sealed partial class ImageViewerWindow : SukiWindow
 {
-    private void ShowOpenWithMenu(OpenWithTarget target, Control anchor)
+    private static PicaActionDefinition? GetExternalAction(object? sender)
     {
-        if ((_currentItem is null) || !_platformFileActions.SupportsOpenWith)
-        {
-            return;
-        }
-
-        try
-        {
-            string associationFilePath = GetOpenWithAssociationFilePath(target);
-            IReadOnlyList<OpenWithApplication> applications =
-                _platformFileActions.GetOpenWithApplications(associationFilePath);
-            _view.UpdateOpenWithApplications(
-                applications,
-                OnOpenWithApplicationClicked,
-                OnChooseApplicationClicked);
-            _logger.LogDebug(
-                "Loaded {ApplicationCount} applications for Pica open-with target {Target}",
-                applications.Count,
-                target);
-            _openWithTarget = target;
-            ShowOpenWithSubmenu(anchor);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retrieve the application list for opening the image.");
-        }
+        return sender is Button { Tag: PicaActionDefinition action } ? action : null;
     }
 
-    private string GetOpenWithAssociationFilePath(OpenWithTarget target)
+    private void OnToolMenuClicked(
+        object? sender,
+        RoutedEventArgs e)
     {
-        if (target == OpenWithTarget.Selection)
-        {
-            return PicaImageFormats.SelectionFileName;
-        }
-
-        PicaImageItem item = _currentItem
-            ?? throw new InvalidOperationException(
-                "An image must be selected before opening it with another application.");
-        ImageChannel? channel = _channelSelection.SelectedChannel;
-
-        return channel is null
-            ? item.FilePath
-            : channel.CreateFileName(item.FileName);
+        _ = sender;
+        _ = e;
+        _floatingMenus.ToggleTool();
     }
 
-    private async Task RunPlatformFileActionAsync(
-        Func<CancellationToken, Task> action,
-        string operationName)
+    private void OnToolMenuActionClicked(
+        object? sender,
+        RoutedEventArgs e)
     {
-        ArgumentNullException.ThrowIfNull(action);
-        ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
+        _ = sender;
+        _ = e;
+        _floatingMenus.HideTool();
+    }
 
-        try
-        {
-            await action(CancellationToken.None);
-            _logger.LogInformation(
-                "Completed Pica system action {OperationName}",
-                operationName);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Failed to execute Pica system operation {OperationName}.",
-                operationName);
-        }
+    private void OnModeMenuClicked(
+        object? sender,
+        RoutedEventArgs e)
+    {
+        _ = e;
+
+        Control anchor =
+            sender as Control ?? _view.ModeMenuButton;
+        _floatingMenus.ShowMode(anchor);
     }
 
     private void OnZoomOutClicked(object? sender, RoutedEventArgs e)
@@ -86,8 +50,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        Size viewport = GetViewportSize();
-        BeginScaleAnimation(_scale / GetZoomButtonFactor(), new Point(viewport.Width / 2d, viewport.Height / 2d));
+        Size viewport = _viewport.GetViewportSize();
+        _viewport.BeginScaleAnimation(
+            _viewport.Scale / _keyboardInput.ZoomButtonFactor,
+            new Point(viewport.Width / 2d, viewport.Height / 2d));
     }
 
     private void OnResetClicked(object? sender, RoutedEventArgs e)
@@ -95,7 +61,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        BeginResetScaleAndCenterAnimation();
+        _viewport.BeginResetScaleAndCenterAnimation();
     }
 
     private void OnZoomInClicked(object? sender, RoutedEventArgs e)
@@ -103,8 +69,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        Size viewport = GetViewportSize();
-        BeginScaleAnimation(_scale * GetZoomButtonFactor(), new Point(viewport.Width / 2d, viewport.Height / 2d));
+        Size viewport = _viewport.GetViewportSize();
+        _viewport.BeginScaleAnimation(
+            _viewport.Scale * _keyboardInput.ZoomButtonFactor,
+            new Point(viewport.Width / 2d, viewport.Height / 2d));
     }
 
     private void OnCloseClicked(object? sender, RoutedEventArgs e)
@@ -112,7 +80,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        CloseWithFade();
+        Close();
     }
 
     private void OnWindowModeClicked(object? sender, RoutedEventArgs e)
@@ -120,7 +88,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        ToggleWindowMode();
+        _windowMode.Toggle();
     }
 
     private void OnSettingsClicked(object? sender, RoutedEventArgs e)
@@ -128,13 +96,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        if (_view.SettingsPanel is { IsVisible: true, IsHitTestVisible: true })
-        {
-            HideSettingsPanel();
-            return;
-        }
-
-        ShowSettingsPanel();
+        _settingsPanel.Toggle();
     }
 
     private async void OnContextCopyClicked(object? sender, RoutedEventArgs e)
@@ -142,8 +104,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        HideContextMenu();
-        await CopyCurrentImageAsync(CancellationToken.None);
+        _floatingMenus.HideContext();
+        await _actionController.CopyCurrentAsync(CancellationToken.None);
     }
 
     private async void OnContextExternalActionClicked(object? sender, RoutedEventArgs e)
@@ -157,8 +119,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
             return;
         }
 
-        HideContextMenu();
-        await DispatchCurrentImageActionAsync(action, CancellationToken.None);
+        _floatingMenus.HideContext();
+        await _actionController.DispatchCurrentAsync(
+            action,
+            CancellationToken.None);
     }
 
     private async void OnContextSaveAsClicked(object? sender, RoutedEventArgs e)
@@ -166,10 +130,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        HideContextMenu();
-        await RunExclusiveImageOperationAsync(
-            SaveCurrentImageAsAsync,
-            CancellationToken.None);
+        _floatingMenus.HideContext();
+        await _actionController.SaveCurrentAsAsync(CancellationToken.None);
     }
 
     private async void OnContextRevealInFolderClicked(object? sender, RoutedEventArgs e)
@@ -177,31 +139,27 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        if (_currentItem is null)
-        {
-            return;
-        }
-
-        string filePath = _currentItem.FilePath;
         FileRevealWindowMode windowMode =
-            AlternateActionModifierPolicy.IsActive(_activeKeyModifiers)
+            AlternateActionModifierPolicy.IsActive(
+                _keyboardInput.ActiveKeyModifiers)
                 ? FileRevealWindowMode.OpenNew
                 : FileRevealWindowMode.ReuseExisting;
-        HideContextMenu();
-        await RunPlatformFileActionAsync(
-            ct => _platformFileActions.RevealInFolderAsync(
-                filePath,
-                windowMode,
-                ct),
-            "Reveal in folder");
+        _floatingMenus.HideContext();
+        await _actionController.RevealInFolderAsync(
+            windowMode,
+            CancellationToken.None);
     }
 
-    private void OnContextOpenWithClicked(object? sender, RoutedEventArgs e)
+    private async void OnContextOpenWithClicked(
+        object? sender,
+        RoutedEventArgs e)
     {
         _ = e;
 
         Control anchor = sender as Control ?? _view.ContextOpenWithButton;
-        ShowOpenWithMenu(OpenWithTarget.CurrentImage, anchor);
+        await _floatingMenus.ShowOpenWithAsync(
+            OpenWithTarget.CurrentImage,
+            anchor);
     }
 
     private async void OnOpenWithApplicationClicked(object? sender, RoutedEventArgs e)
@@ -213,16 +171,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
             return;
         }
 
-        OpenWithTarget target = _openWithTarget;
-        await RunExclusiveImageOperationAsync(
-            ct => RunOpenWithTargetActionAsync(
-                target,
-                (filePath, actionCt) => _platformFileActions.OpenWithAsync(
-                    filePath,
-                    application,
-                    actionCt),
-                "Open with",
-                ct),
+        OpenWithTarget target = _floatingMenus.OpenWithTarget;
+        await _actionController.OpenWithApplicationAsync(
+            target,
+            application,
             CancellationToken.None);
     }
 
@@ -231,36 +183,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        OpenWithTarget target = _openWithTarget;
-        await RunExclusiveImageOperationAsync(
-            ct => RunOpenWithTargetActionAsync(
-                target,
-                _platformFileActions.ChooseApplicationAsync,
-                "Choose application",
-                ct),
+        OpenWithTarget target = _floatingMenus.OpenWithTarget;
+        await _actionController.ChooseApplicationAsync(
+            target,
             CancellationToken.None);
-    }
-
-    private async Task RunOpenWithTargetActionAsync(
-        OpenWithTarget target,
-        Func<string, CancellationToken, Task> action,
-        string actionName,
-        CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(action);
-        ArgumentException.ThrowIfNullOrWhiteSpace(actionName);
-
-        string? filePath = await GetOpenWithFilePathAsync(target, ct);
-
-        if (filePath is null)
-        {
-            return;
-        }
-
-        HideOpenWithAfterAction(target);
-        await RunPlatformFileActionAsync(
-            actionCt => action(filePath, actionCt),
-            actionName);
     }
 
     private void OnContextSelectAreaClicked(object? sender, RoutedEventArgs e)
@@ -268,10 +194,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        HideContextMenu();
-        HideViewerControls();
-        _isSelectionArmed = true;
-        UpdateSelectionCursor(_lastPointerHoverPosition);
+        _floatingMenus.HideContext();
+        _selectionInteraction.Arm();
     }
 
     private void OnSelectionCancelClicked(object? sender, RoutedEventArgs e)
@@ -279,15 +203,19 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        CancelSelection();
+        _selectionInteraction.Cancel();
     }
 
-    private void OnSelectionOpenWithClicked(object? sender, RoutedEventArgs e)
+    private async void OnSelectionOpenWithClicked(
+        object? sender,
+        RoutedEventArgs e)
     {
         _ = e;
 
         Control anchor = sender as Control ?? _view.SelectionOpenWithButton;
-        ShowOpenWithMenu(OpenWithTarget.Selection, anchor);
+        await _floatingMenus.ShowOpenWithAsync(
+            OpenWithTarget.Selection,
+            anchor);
     }
 
     private async void OnSelectionCopyClicked(object? sender, RoutedEventArgs e)
@@ -295,7 +223,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        await CopySelectionAndCloseAsync(CancellationToken.None);
+        await _actionController.CopySelectionAndCloseAsync(
+            CancellationToken.None);
     }
 
     private async void OnSelectionExternalActionClicked(object? sender, RoutedEventArgs e)
@@ -309,7 +238,9 @@ public sealed partial class ImageViewerWindow : SukiWindow
             return;
         }
 
-        await DispatchSelectionActionAndCloseAsync(action, CancellationToken.None);
+        await _actionController.DispatchSelectionAndCloseAsync(
+            action,
+            CancellationToken.None);
     }
 
     private async void OnSelectionSaveAsClicked(object? sender, RoutedEventArgs e)
@@ -317,11 +248,15 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
-        await SaveSelectionAsAndCloseAsync(CancellationToken.None);
+        await _actionController.SaveSelectionAsAndCloseAsync(
+            CancellationToken.None);
     }
 
-    private static PicaActionDefinition? GetExternalAction(object? sender)
+    private void OnFloatingMenuPointerPressed(
+        object? sender,
+        PointerPressedEventArgs e)
     {
-        return sender is Button { Tag: PicaActionDefinition action } ? action : null;
+        _ = sender;
+        e.Handled = true;
     }
 }

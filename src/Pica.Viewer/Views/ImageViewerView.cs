@@ -11,12 +11,13 @@ using Pica.Protocol;
 using Pica.Viewer.Controls;
 using Pica.Viewer.Resources;
 using Pica.Viewer.Services;
+using Pica.Viewer.ViewModels;
 
 using ShapePath = Avalonia.Controls.Shapes.Path;
 
 namespace Pica.Viewer.Views;
 
-internal sealed class ImageViewerView : IDisposable
+internal sealed partial class ImageViewerView : UserControl, IDisposable
 {
     internal Grid Root { get; }
     internal Grid ViewerArea { get; }
@@ -39,7 +40,7 @@ internal sealed class ImageViewerView : IDisposable
     internal Button WindowModeButton { get; }
     internal Button CloseButton { get; }
     internal Canvas ContextMenuLayer { get; }
-    internal Border ContextMenu { get; }
+    internal Border ViewerContextMenu { get; }
     internal Button ContextOpenWithButton { get; }
     internal Canvas OpenWithMenuLayer { get; }
     internal Border OpenWithMenu { get; }
@@ -50,101 +51,153 @@ internal sealed class ImageViewerView : IDisposable
     internal StackPanel SelectionToolbar { get; }
     internal Button SelectionOpenWithButton { get; }
     internal Avalonia.Controls.Controls TitleBarSettingsControls { get; }
+    internal double HiddenControlsOpacity { get; }
+    internal double InformationPanelMargin => ImageInformationPanel.Margin.Left;
+    internal double NavigationAreaMinimumWidth { get; }
+    internal double VisibleControlsOpacity { get; }
+    internal double WindowButtonSize { get; }
+    internal double WindowControlsWidth => WindowButtonSize * 3d;
 
     private const string CopyIconGeometry = "M8,7 L17,7 L17,19 L8,19 Z M6,5 L15,5 L15,3 L4,3 L4,15 L6,15 Z";
     private const string SaveIconGeometry = "M5,3 L16,3 L21,8 L21,19 L19,21 L5,21 L3,19 L3,5 Z M7,6 L7,10 L11,10 L11,8 L13,8 L13,10 L16,10 L16,6 Z M7,19 L17,19 L17,14 L7,14 Z";
     private const string FolderIconGeometry = "M3,6 L10,6 L12,8 L21,8 L21,19 L3,19 Z";
     private const string OpenWithIconGeometry = "M13,3 L20,3 L20,10 L18,10 L18,6.4 L9.4,15 L8,13.6 L16.6,5 L13,5 Z M4,5 L10,5 L10,7 L6,7 L6,17 L16,17 L16,13 L18,13 L18,19 L4,19 Z";
-    private const string CloseOrCancelIconGeometry = "M6,7.4 L7.4,6 L12,10.6 L16.6,6 L18,7.4 L13.4,12 L18,16.6 L16.6,18 L12,13.4 L7.4,18 L6,16.6 L10.6,12 Z";
-    private const string CheckIconGeometry = "M5,12 L10,17 L19,7 L17.5,5.5 L10,13.5 L6.5,10 Z";
-    private const string SubmenuIconGeometry = "M9,6 L15,12 L9,18 Z";
-    private const string ToolMenuIconGeometry = "M6,15 L12,9 L18,15 Z";
-    private const string WindowModeIconGeometry = "M6,6 L18,6 L18,18 L6,18 Z M8,8 L8,16 L16,16 L16,8 Z";
+    private const string MenuForegroundBrushResourceKey = "ViewerMenuForegroundBrush";
+    private const string DestructiveIconBrushResourceKey = "ViewerDestructiveIconBrush";
+    private const string FloatingControlShadowEffectResourceKey =
+        "ViewerFloatingControlShadowEffect";
+    private const string HiddenControlsOpacityResourceKey =
+        "ViewerHiddenControlsOpacity";
+    private const string NavigationAreaMinimumWidthResourceKey =
+        "ViewerNavigationAreaMinimumWidth";
     private const string SettingsIconClassName = "settings-icon";
+    private const string VisibleControlsOpacityResourceKey =
+        "ViewerVisibleControlsOpacity";
+    private const string WindowButtonSizeResourceKey =
+        "ViewerWindowButtonSize";
+    private const string WindowIconHostSizeResourceKey =
+        "ViewerWindowIconHostSize";
     private const double SettingsPanelTopGap = 8d;
     private const double SettingsPanelRightMargin = 12d;
-    private const double NavigationIconSize = 44d;
-    private const double NavigationShadowPadding = 8d;
-    private const double ToolShadowPadding = 7d;
-    private const double ToolButtonSize = 44d;
-    private const double ToolButtonSpacing = 8d;
-    private const double ToolIconSize = 22d;
-    private const double CenteredToolGroupWidth =
-        (ToolButtonSize * 3d) + (ToolButtonSpacing * 2d);
-    private const double ToolMenuButtonLeftMargin =
-        (CenteredToolGroupWidth / 2d) + ToolButtonSpacing;
-    private const double WindowResizeBorderSize = 6d;
-    private const double WindowResizeCornerSize = 12d;
     private const double SelectionButtonSize = 42d;
     private const double SelectionButtonSpacing = 6d;
     private const double SelectionToolbarPadding = 8d;
-    private const double ControlsFadeDurationSeconds = 0.16d;
-    private static readonly TimeSpan ControlsFadeDuration =
-        TimeSpan.FromSeconds(ControlsFadeDurationSeconds);
-    private static readonly IBrush DestructiveIconBrush =
-        new SolidColorBrush(Color.FromRgb(179, 38, 30));
     private readonly List<Bitmap> _openWithIcons = [];
-    private readonly PathIcon _filteringCheckIcon;
-    private readonly PathIcon _mainModeCheckIcon;
-    private readonly PathIcon _channelModeCheckIcon;
+    private readonly ImageViewerToolMenuControl _toolMenuControl;
+    private readonly Grid _viewerDynamicLayer;
 
     internal ImageViewerView(
-        bool isFilteringEnabled,
+        ImageViewerSessionViewModel session,
+        ImageViewerToolMenuViewModel toolMenu,
         IReadOnlyList<ViewerSettingControl> settingControls,
-        IReadOnlyList<PicaActionDefinition> actions,
         ViewerWindowMode windowMode,
         ImageViewerViewEvents events)
     {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(toolMenu);
         ArgumentNullException.ThrowIfNull(settingControls);
-        ArgumentNullException.ThrowIfNull(actions);
         ArgumentNullException.ThrowIfNull(events);
 
-        Root = CreateRoot();
-        ViewerArea = CreateViewerArea();
-        WindowResizeOverlay = CreateWindowResizeOverlay(windowMode, events);
-        SettingsPanel = CreateSettingsPanel(settingControls, windowMode);
-        FadeOverlay = CreateFadeOverlay();
-        ImageCanvas = CreateImageCanvas();
-        Image = CreateImage();
-        LeftNavigationArea = CreateNavigationArea(
-            HorizontalAlignment.Left,
-            "M15,4 L7,12 L15,20 Z");
-        RightNavigationArea = CreateNavigationArea(
-            HorizontalAlignment.Right,
-            "M9,4 L17,12 L9,20 Z");
-        BottomControls = CreateBottomControls(
-            events,
-            out Button toolMenuButton);
-        ToolMenuButton = toolMenuButton;
-        ToolMenuLayer = CreateClippedMenuLayer();
-        ToolMenu = CreateToolMenu(
-            events,
-            out Button modeMenuButton,
-            out PathIcon filteringCheckIcon);
-        ModeMenuButton = modeMenuButton;
-        _filteringCheckIcon = filteringCheckIcon;
-        ModeMenu = CreateModeMenu(
-            events,
-            out PathIcon mainModeCheckIcon,
-            out PathIcon channelModeCheckIcon);
-        _mainModeCheckIcon = mainModeCheckIcon;
-        _channelModeCheckIcon = channelModeCheckIcon;
-        ImageInformationPanel = CreateImageInformationPanel(
+        InitializeComponent();
+        HiddenControlsOpacity =
+            GetRequiredDouble(HiddenControlsOpacityResourceKey);
+        NavigationAreaMinimumWidth =
+            GetRequiredDouble(NavigationAreaMinimumWidthResourceKey);
+        VisibleControlsOpacity =
+            GetRequiredDouble(VisibleControlsOpacityResourceKey);
+        WindowButtonSize =
+            GetRequiredDouble(WindowButtonSizeResourceKey);
+        Root = this.FindControl<Grid>("RootControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its root grid.");
+        ViewerArea = this.FindControl<Grid>("ViewerAreaControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its viewer area.");
+        ImageCanvas = this.FindControl<Canvas>("ImageCanvasControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its image canvas.");
+        Image = this.FindControl<Image>("ImageControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its image control.");
+        _viewerDynamicLayer = this.FindControl<Grid>("ViewerDynamicLayerControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its dynamic layer.");
+        FadeOverlay = this.FindControl<Border>("FadeOverlayControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its fade overlay.");
+        WindowResizeOverlay = this.FindControl<Grid>("WindowResizeOverlayControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its window resize overlay.");
+        WindowResizeOverlay.IsVisible = windowMode == ViewerWindowMode.Windowed;
+        ConfigureWindowResizeBorders(WindowResizeOverlay, events);
+        SettingsPanel = CreateSettingsPanel(
+            settingControls,
             windowMode,
-            out TextBlock imageInformationText);
-        ImageInformationText = imageInformationText;
-        FullscreenSettingsButton = CreateFullscreenSettingsButton(events.SettingsClicked);
-        WindowModeButton = CreateWindowModeButton(events.WindowModeClicked);
-        CloseButton = CreateCloseButton(events.CloseClicked);
+            HiddenControlsOpacity,
+            WindowButtonSize);
+        LeftNavigationArea = this.FindControl<Border>("LeftNavigationAreaControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its left navigation area.");
+        RightNavigationArea = this.FindControl<Border>("RightNavigationAreaControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its right navigation area.");
+        BottomControls = this.FindControl<Grid>("BottomControlsControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its bottom controls.");
+        Button zoomOutButton = GetRequiredButton("ZoomOutButton");
+        Button resetButton = GetRequiredButton("ResetButton");
+        Button zoomInButton = GetRequiredButton("ZoomInButton");
+        ToolMenuButton = GetRequiredButton("ToolMenuButtonControl");
+        zoomOutButton.Click += events.ZoomOutClicked;
+        resetButton.Click += events.ResetClicked;
+        zoomInButton.Click += events.ZoomInClicked;
+        ToolMenuButton.Click += events.ToolMenuClicked;
+        ImageViewerToolMenuControl toolMenuControl = new(toolMenu);
+        toolMenuControl.FilteringMenuItem.Click += events.FilteringMenuClicked;
+        toolMenuControl.ModeMenuButton.Click += events.ModeMenuClicked;
+        toolMenuControl.MainModeMenuItem.Click += events.MainModeMenuClicked;
+        toolMenuControl.ChannelModeMenuItem.Click += events.ChannelModeMenuClicked;
+        _toolMenuControl = toolMenuControl;
+        ToolMenuLayer = toolMenuControl.MenuLayer;
+        ToolMenu = toolMenuControl.ToolMenu;
+        ModeMenuButton = toolMenuControl.ModeMenuButton;
+        ModeMenu = toolMenuControl.ModeMenu;
+        ImageInformationPanel = this.FindControl<Border>("ImageInformationPanelControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its information panel.");
+        ImageInformationPanel.IsVisible =
+            windowMode == ViewerWindowMode.FullScreen;
+        ImageInformationText = this.FindControl<TextBlock>("ImageInformationTextControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its information text.");
+        FullscreenSettingsButton = GetRequiredButton(
+            "FullscreenSettingsButtonControl");
+        WindowModeButton = GetRequiredButton("WindowModeButtonControl");
+        CloseButton = GetRequiredButton("CloseButtonControl");
+        PathIcon closeIcon = GetRequiredPathIcon("CloseIconControl");
+        closeIcon.Data = ViewerIconGeometries.CloseOrCancel;
+        FullscreenSettingsButton.Click += events.SettingsClicked;
+        WindowModeButton.Click += events.WindowModeClicked;
+        CloseButton.Click += events.CloseClicked;
         ContextMenuLayer = CreateClippedMenuLayer();
-        ContextMenu = CreateContextMenu(actions, events, out Button contextOpenWithButton);
+        ViewerContextMenu = CreateContextMenu(
+            session.Actions,
+            events,
+            out Button contextOpenWithButton);
         ContextOpenWithButton = contextOpenWithButton;
         OpenWithMenuLayer = CreateClippedMenuLayer();
         OpenWithMenu = CreateOpenWithMenu(out StackPanel openWithMenuItems);
         OpenWithMenuItems = openWithMenuItems;
+        IBrush menuForegroundBrush =
+            GetRequiredBrush(MenuForegroundBrushResourceKey);
+        IBrush destructiveIconBrush =
+            GetRequiredBrush(DestructiveIconBrushResourceKey);
         SelectionOverlay = CreateSelectionOverlay(
-            actions,
+            session.Actions,
             events,
+            menuForegroundBrush,
+            destructiveIconBrush,
+            HiddenControlsOpacity,
             out ShapePath selectionShade,
             out ShapePath selectionFrame,
             out StackPanel selectionToolbar,
@@ -153,10 +206,14 @@ internal sealed class ImageViewerView : IDisposable
         SelectionFrame = selectionFrame;
         SelectionToolbar = selectionToolbar;
         SelectionOpenWithButton = selectionOpenWithButton;
-        TitleBarSettingsControls = CreateTitleBarSettingsButton(events.SettingsClicked);
-        UpdateFilteringMenuState(isFilteringEnabled);
-        UpdateImageModeMenuState(ViewerImageMode.Main);
-
+        IEffect floatingControlShadow =
+            GetRequiredEffect(FloatingControlShadowEffectResourceKey);
+        double windowIconHostSize =
+            GetRequiredDouble(WindowIconHostSizeResourceKey);
+        TitleBarSettingsControls = CreateTitleBarSettingsButton(
+            events.SettingsClicked,
+            floatingControlShadow,
+            windowIconHostSize);
         Compose();
     }
 
@@ -167,7 +224,9 @@ internal sealed class ImageViewerView : IDisposable
 
     internal void UpdateSettingsPanelPlacement(ViewerWindowMode windowMode)
     {
-        SettingsPanel.Margin = CreateSettingsPanelMargin(windowMode);
+        SettingsPanel.Margin = CreateSettingsPanelMargin(
+            windowMode,
+            WindowButtonSize);
     }
 
     internal void ApplyImageFiltering(bool isFilteringEnabled)
@@ -177,17 +236,6 @@ internal sealed class ImageViewerView : IDisposable
             isFilteringEnabled
                 ? BitmapInterpolationMode.HighQuality
                 : BitmapInterpolationMode.None);
-    }
-
-    internal void UpdateFilteringMenuState(bool isFilteringEnabled)
-    {
-        _filteringCheckIcon.IsVisible = isFilteringEnabled;
-    }
-
-    internal void UpdateImageModeMenuState(ViewerImageMode mode)
-    {
-        _mainModeCheckIcon.IsVisible = mode == ViewerImageMode.Main;
-        _channelModeCheckIcon.IsVisible = mode == ViewerImageMode.Channels;
     }
 
     internal void UpdateImageInformation(string information)
@@ -229,104 +277,21 @@ internal sealed class ImageViewerView : IDisposable
             chooseApplicationClickHandler));
     }
 
-    private static Grid CreateRoot()
-    {
-        return new Grid
-        {
-            Background = Brushes.Black,
-            ClipToBounds = true,
-            Opacity = ImageViewerVisualMetrics.VisibleControlsOpacity
-        };
-    }
-
-    private static Grid CreateViewerArea()
-    {
-        return new Grid
-        {
-            Background = Brushes.Black,
-            ClipToBounds = true
-        };
-    }
-
-    private static Grid CreateWindowResizeOverlay(
-        ViewerWindowMode windowMode,
-        ImageViewerViewEvents events)
-    {
-        Grid overlay = new()
-        {
-            IsVisible = windowMode == ViewerWindowMode.Windowed
-        };
-        overlay.Children.Add(CreateWindowResizeBorder(
-            WindowSizingEdges.Left,
-            WindowResizeBorderSize,
-            double.NaN,
-            HorizontalAlignment.Left,
-            VerticalAlignment.Stretch,
-            events));
-        overlay.Children.Add(CreateWindowResizeBorder(
-            WindowSizingEdges.Right,
-            WindowResizeBorderSize,
-            double.NaN,
-            HorizontalAlignment.Right,
-            VerticalAlignment.Stretch,
-            events));
-        overlay.Children.Add(CreateWindowResizeBorder(
-            WindowSizingEdges.Top,
-            double.NaN,
-            WindowResizeBorderSize,
-            HorizontalAlignment.Stretch,
-            VerticalAlignment.Top,
-            events));
-        overlay.Children.Add(CreateWindowResizeBorder(
-            WindowSizingEdges.Bottom,
-            double.NaN,
-            WindowResizeBorderSize,
-            HorizontalAlignment.Stretch,
-            VerticalAlignment.Bottom,
-            events));
-        overlay.Children.Add(CreateWindowResizeBorder(
-            WindowSizingEdges.TopLeft,
-            WindowResizeCornerSize,
-            WindowResizeCornerSize,
-            HorizontalAlignment.Left,
-            VerticalAlignment.Top,
-            events));
-        overlay.Children.Add(CreateWindowResizeBorder(
-            WindowSizingEdges.TopRight,
-            WindowResizeCornerSize,
-            WindowResizeCornerSize,
-            HorizontalAlignment.Right,
-            VerticalAlignment.Top,
-            events));
-        overlay.Children.Add(CreateWindowResizeBorder(
-            WindowSizingEdges.BottomLeft,
-            WindowResizeCornerSize,
-            WindowResizeCornerSize,
-            HorizontalAlignment.Left,
-            VerticalAlignment.Bottom,
-            events));
-        overlay.Children.Add(CreateWindowResizeBorder(
-            WindowSizingEdges.BottomRight,
-            WindowResizeCornerSize,
-            WindowResizeCornerSize,
-            HorizontalAlignment.Right,
-            VerticalAlignment.Bottom,
-            events));
-
-        return overlay;
-    }
-
     private static ViewerSettingsPanel CreateSettingsPanel(
         IReadOnlyList<ViewerSettingControl> settingControls,
-        ViewerWindowMode windowMode)
+        ViewerWindowMode windowMode,
+        double hiddenControlsOpacity,
+        double windowButtonSize)
     {
         return new ViewerSettingsPanel(settingControls)
         {
-            Margin = CreateSettingsPanelMargin(windowMode),
+            Margin = CreateSettingsPanelMargin(
+                windowMode,
+                windowButtonSize),
             HorizontalAlignment = HorizontalAlignment.Right,
             IsHitTestVisible = false,
             IsVisible = false,
-            Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
+            Opacity = hiddenControlsOpacity,
             RenderTransform = new TranslateTransform(
                 0d,
                 ImageViewerVisualMetrics.SettingsPanelHiddenOffset),
@@ -334,23 +299,30 @@ internal sealed class ImageViewerView : IDisposable
         };
     }
 
-    private static Thickness CreateSettingsPanelMargin(ViewerWindowMode windowMode)
+    private static Thickness CreateSettingsPanelMargin(
+        ViewerWindowMode windowMode,
+        double windowButtonSize)
     {
         double topMargin = windowMode == ViewerWindowMode.Windowed
             ? SettingsPanelTopGap
-            : ImageViewerVisualMetrics.CloseRevealSize + SettingsPanelTopGap;
+            : windowButtonSize + SettingsPanelTopGap;
 
         return new Thickness(0d, topMargin, SettingsPanelRightMargin, 0d);
     }
 
     private static Avalonia.Controls.Controls CreateTitleBarSettingsButton(
-        EventHandler<RoutedEventArgs> clickHandler)
+        EventHandler<RoutedEventArgs> clickHandler,
+        IEffect floatingControlShadow,
+        double windowIconHostSize)
     {
         PathIcon icon = new();
         icon.Classes.Add(SettingsIconClassName);
         Button button = new()
         {
-            Content = CreateFloatingControlShadowHost(icon, ToolIconSize, ToolShadowPadding),
+            Content = CreateFloatingControlShadowHost(
+                icon,
+                windowIconHostSize,
+                floatingControlShadow),
             Focusable = false
         };
         button.Classes.Add("Icon");
@@ -361,29 +333,23 @@ internal sealed class ImageViewerView : IDisposable
         return controls;
     }
 
-    private static Border CreateWindowResizeBorder(
-        WindowSizingEdges sizingEdges,
-        double width,
-        double height,
-        HorizontalAlignment horizontalAlignment,
-        VerticalAlignment verticalAlignment,
+    private static void ConfigureWindowResizeBorders(
+        Grid windowResizeOverlay,
         ImageViewerViewEvents events)
     {
-        Border border = new()
+        foreach (Border border in windowResizeOverlay.Children.OfType<Border>())
         {
-            Width = width,
-            Height = height,
-            Background = Brushes.Transparent,
-            Cursor = GetWindowResizeCursor(sizingEdges),
-            HorizontalAlignment = horizontalAlignment,
-            Tag = sizingEdges,
-            VerticalAlignment = verticalAlignment
-        };
-        border.PointerPressed += events.WindowResizePointerPressed;
-        border.PointerMoved += events.WindowResizePointerMoved;
-        border.PointerReleased += events.WindowResizePointerReleased;
+            if (border.Tag is not WindowSizingEdges sizingEdges)
+            {
+                throw new InvalidOperationException(
+                    "A window resize border is missing its sizing edges.");
+            }
 
-        return border;
+            border.Cursor = GetWindowResizeCursor(sizingEdges);
+            border.PointerPressed += events.WindowResizePointerPressed;
+            border.PointerMoved += events.WindowResizePointerMoved;
+            border.PointerReleased += events.WindowResizePointerReleased;
+        }
     }
 
     private static Cursor GetWindowResizeCursor(WindowSizingEdges sizingEdges)
@@ -409,240 +375,13 @@ internal sealed class ImageViewerView : IDisposable
             : ViewerCursors.TopRightResize;
     }
 
-    private static Border CreateFadeOverlay()
-    {
-        return new Border
-        {
-            Background = Brushes.Black,
-            IsHitTestVisible = false,
-            Opacity = ImageViewerVisualMetrics.VisibleControlsOpacity
-        };
-    }
-
-    private static Canvas CreateImageCanvas()
-    {
-        return new Canvas
-        {
-            Background = Brushes.Transparent,
-            ClipToBounds = false
-        };
-    }
-
-    private static Image CreateImage()
-    {
-        return new Image
-        {
-            Stretch = Stretch.Fill
-        };
-    }
-
-    private static Border CreateNavigationArea(HorizontalAlignment alignment, string geometry)
-    {
-        PathIcon icon = new()
-        {
-            Width = NavigationIconSize,
-            Height = NavigationIconSize,
-            ClipToBounds = false,
-            Data = StreamGeometry.Parse(geometry),
-            Foreground = Brushes.White,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid iconHost = CreateFloatingControlShadowHost(
-            icon,
-            NavigationIconSize,
-            NavigationShadowPadding);
-
-        return new Border
-        {
-            Width = ImageViewerVisualMetrics.ArrowAreaMinWidth,
-            HorizontalAlignment = alignment,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            Background = Brushes.Transparent,
-            Child = iconHost,
-            Cursor = ViewerCursors.Hand,
-            Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
-            Transitions = CreateOpacityTransition(ControlsFadeDuration)
-        };
-    }
-
-    private static Grid CreateBottomControls(
-        ImageViewerViewEvents events,
-        out Button toolMenuButton)
-    {
-        Grid controls = new()
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,*"),
-            Height = ToolButtonSize,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = new Thickness(0d, 0d, 0d, 26d),
-            Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
-            Transitions = CreateOpacityTransition(ControlsFadeDuration)
-        };
-
-        StackPanel centeredControls = new()
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Orientation = Orientation.Horizontal,
-            Spacing = ToolButtonSpacing
-        };
-
-        centeredControls.Children.Add(CreateIconButton(
-            "M5,11 L19,11 L19,13 L5,13 Z",
-            events.ZoomOutClicked,
-            0d,
-            Brushes.White));
-        centeredControls.Children.Add(CreateIconButton(
-            "M12,7 A5,5 0 1 0 12,17 A5,5 0 1 0 12,7",
-            events.ResetClicked,
-            0d,
-            Brushes.White));
-        centeredControls.Children.Add(CreateIconButton(
-            "M11,5 L13,5 L13,11 L19,11 L19,13 L13,13 L13,19 L11,19 L11,13 L5,13 L5,11 L11,11 Z",
-            events.ZoomInClicked,
-            0d,
-            Brushes.White));
-
-        Grid.SetColumnSpan(centeredControls, 2);
-        toolMenuButton = CreateIconButton(
-            ToolMenuIconGeometry,
-            events.ToolMenuClicked,
-            0d,
-            Brushes.White);
-        toolMenuButton.HorizontalAlignment = HorizontalAlignment.Left;
-        toolMenuButton.Margin = new Thickness(
-            ToolMenuButtonLeftMargin,
-            0d,
-            0d,
-            0d);
-        Grid.SetColumn(toolMenuButton, 1);
-
-        controls.Children.Add(centeredControls);
-        controls.Children.Add(toolMenuButton);
-
-        return controls;
-    }
-
-    private static Border CreateImageInformationPanel(
-        ViewerWindowMode windowMode,
-        out TextBlock informationText)
-    {
-        informationText = new TextBlock
-        {
-            Foreground = Brushes.White,
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        return new Border
-        {
-            Margin = new Thickness(ImageViewerVisualMetrics.InformationPanelMargin),
-            Padding = new Thickness(12d, 8d),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromArgb(192, 24, 24, 24)),
-            Child = informationText,
-            CornerRadius = new CornerRadius(8d),
-            IsHitTestVisible = false,
-            IsVisible = windowMode == ViewerWindowMode.FullScreen,
-            Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
-            Transitions = CreateOpacityTransition(ControlsFadeDuration)
-        };
-    }
-
-    private static Button CreateCloseButton(EventHandler<RoutedEventArgs> clickHandler)
-    {
-        Button button = CreateIconButton(
-            CloseOrCancelIconGeometry,
-            clickHandler,
-            0d,
-            DestructiveIconBrush);
-        button.HorizontalContentAlignment = HorizontalAlignment.Center;
-        button.Padding = new Thickness(0d);
-        button.VerticalContentAlignment = VerticalAlignment.Center;
-        ConfigureWindowCornerButton(button, 0d);
-
-        return button;
-    }
-
-    private static Button CreateWindowModeButton(EventHandler<RoutedEventArgs> clickHandler)
-    {
-        Button button = CreateIconButton(
-            WindowModeIconGeometry,
-            clickHandler,
-            0d,
-            Brushes.White);
-        ConfigureWindowCornerButton(button, ImageViewerVisualMetrics.CloseRevealSize);
-
-        return button;
-    }
-
-    private static void ConfigureWindowCornerButton(Button button, double rightMargin)
-    {
-        button.HorizontalAlignment = HorizontalAlignment.Right;
-        button.VerticalAlignment = VerticalAlignment.Top;
-        button.Margin = new Thickness(
-            0d,
-            0d,
-            rightMargin,
-            0d);
-        button.Width = ImageViewerVisualMetrics.CloseRevealSize;
-        button.Height = ImageViewerVisualMetrics.CloseRevealSize;
-        button.Background = Brushes.Transparent;
-        button.BorderBrush = Brushes.Transparent;
-        button.BorderThickness = new Thickness(0d);
-        button.CornerRadius = new CornerRadius(0d);
-        button.Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity;
-        button.Transitions = CreateOpacityTransition(ControlsFadeDuration);
-        WrapButtonContentWithFloatingShadow(button);
-    }
-
-    private static Button CreateFullscreenSettingsButton(EventHandler<RoutedEventArgs> clickHandler)
-    {
-        PathIcon icon = new()
-        {
-            Width = ToolIconSize,
-            Height = ToolIconSize,
-            Foreground = Brushes.White
-        };
-        icon.Classes.Add(SettingsIconClassName);
-        Button button = new()
-        {
-            Width = ImageViewerVisualMetrics.CloseRevealSize,
-            Height = ImageViewerVisualMetrics.CloseRevealSize,
-            Margin = new Thickness(
-                0d,
-                0d,
-                ImageViewerVisualMetrics.CloseRevealSize * 2d,
-                0d),
-            Padding = new Thickness(0d),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            Background = Brushes.Transparent,
-            BorderBrush = Brushes.Transparent,
-            BorderThickness = new Thickness(0d),
-            Content = CreateFloatingControlShadowHost(icon, ToolIconSize, ToolShadowPadding),
-            CornerRadius = new CornerRadius(0d),
-            Cursor = ViewerCursors.Hand,
-            Focusable = false,
-            Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
-            Transitions = CreateOpacityTransition(ControlsFadeDuration)
-        };
-        button.Click += clickHandler;
-
-        return button;
-    }
-
     private static Border CreateContextMenu(
         IReadOnlyList<PicaActionDefinition> actions,
         ImageViewerViewEvents events,
         out Button openWithButton)
     {
-        StackPanel panel = new()
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 2d
-        };
+        StackPanel panel = new();
+        panel.Classes.Add("viewer-menu-items");
         panel.Children.Add(CreateMenuButton(
             "Копировать",
             CopyIconGeometry,
@@ -687,58 +426,8 @@ internal sealed class ImageViewerView : IDisposable
 
     private static Border CreateOpenWithMenu(out StackPanel items)
     {
-        items = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 2d
-        };
-
-        return CreateFloatingMenu(items);
-    }
-
-    private static Border CreateToolMenu(
-        ImageViewerViewEvents events,
-        out Button modeMenuButton,
-        out PathIcon filteringCheckIcon)
-    {
-        StackPanel items = new()
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 2d
-        };
-
-        items.Children.Add(CreateCheckMenuButton(
-            ViewerUiStrings.Filtering,
-            events.FilteringMenuClicked,
-            out filteringCheckIcon));
-
-        modeMenuButton = CreateSubmenuButton(
-            ViewerUiStrings.Mode,
-            events.ModeMenuClicked);
-        items.Children.Add(modeMenuButton);
-
-        return CreateFloatingMenu(items);
-    }
-
-    private static Border CreateModeMenu(
-        ImageViewerViewEvents events,
-        out PathIcon mainModeCheckIcon,
-        out PathIcon channelModeCheckIcon)
-    {
-        StackPanel items = new()
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 2d
-        };
-
-        items.Children.Add(CreateCheckMenuButton(
-            ViewerUiStrings.MainMode,
-            events.MainModeMenuClicked,
-            out mainModeCheckIcon));
-        items.Children.Add(CreateCheckMenuButton(
-            ViewerUiStrings.ChannelsMode,
-            events.ChannelModeMenuClicked,
-            out channelModeCheckIcon));
+        items = new StackPanel();
+        items.Classes.Add("viewer-menu-items");
 
         return CreateFloatingMenu(items);
     }
@@ -753,23 +442,22 @@ internal sealed class ImageViewerView : IDisposable
 
     private static Border CreateFloatingMenu(StackPanel content)
     {
-        return new Border
+        Border menu = new()
         {
-            Padding = new Thickness(6d),
-            Background = new SolidColorBrush(Color.FromArgb(232, 24, 24, 24)),
-            CornerRadius = new CornerRadius(8d),
             Child = content,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            IsVisible = false,
-            Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
-            Transitions = CreateOpacityTransition(ControlsFadeDuration),
-            VerticalAlignment = VerticalAlignment.Top
+            IsVisible = false
         };
+        menu.Classes.Add("viewer-floating-menu");
+
+        return menu;
     }
 
     private static Canvas CreateSelectionOverlay(
         IReadOnlyList<PicaActionDefinition> actions,
         ImageViewerViewEvents events,
+        IBrush menuForegroundBrush,
+        IBrush destructiveIconBrush,
+        double hiddenControlsOpacity,
         out ShapePath shade,
         out ShapePath frame,
         out StackPanel toolbar,
@@ -784,7 +472,7 @@ internal sealed class ImageViewerView : IDisposable
         {
             Fill = new SolidColorBrush(Color.FromArgb(160, 0, 0, 0)),
             IsHitTestVisible = false,
-            Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
+            Opacity = hiddenControlsOpacity,
             Transitions = CreateOpacityTransition(
                 ImageViewerVisualMetrics.SelectionOverlayFadeDuration)
         };
@@ -792,7 +480,7 @@ internal sealed class ImageViewerView : IDisposable
         {
             Fill = Brushes.Transparent,
             IsHitTestVisible = false,
-            Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
+            Opacity = hiddenControlsOpacity,
             Stroke = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255)),
             StrokeDashArray = [4d, 4d],
             StrokeThickness = 1d,
@@ -810,7 +498,7 @@ internal sealed class ImageViewerView : IDisposable
             CopyIconGeometry,
             events.SelectionCopyClicked,
             0d,
-            Brushes.White));
+            menuForegroundBrush));
 
         foreach (PicaActionDefinition action in GetActions(actions, PicaActionTargets.Selection))
         {
@@ -818,7 +506,7 @@ internal sealed class ImageViewerView : IDisposable
                 action.IconGeometry,
                 events.SelectionExternalActionClicked,
                 action.IconRotationDegrees,
-                Brushes.White);
+                menuForegroundBrush);
             button.Tag = action;
             toolbar.Children.Add(button);
         }
@@ -827,49 +515,24 @@ internal sealed class ImageViewerView : IDisposable
             SaveIconGeometry,
             events.SelectionSaveAsClicked,
             0d,
-            Brushes.White));
+            menuForegroundBrush));
         openWithButton = CreateSelectionButton(
             OpenWithIconGeometry,
             events.SelectionOpenWithClicked,
             0d,
-            Brushes.White);
+            menuForegroundBrush);
         toolbar.Children.Add(openWithButton);
         toolbar.Children.Add(CreateSelectionButton(
-            CloseOrCancelIconGeometry,
+            ViewerIconGeometries.CloseOrCancel,
             events.SelectionCancelClicked,
             0d,
-            DestructiveIconBrush));
+            destructiveIconBrush));
         toolbar.Width = GetSelectionToolbarWidth(toolbar.Children.Count);
         overlay.Children.Add(shade);
         overlay.Children.Add(frame);
         overlay.Children.Add(toolbar);
 
         return overlay;
-    }
-
-    private static Button CreateIconButton(
-        string geometry,
-        EventHandler<RoutedEventArgs> clickHandler,
-        double iconRotationDegrees,
-        IBrush iconBrush)
-    {
-        Button button = new()
-        {
-            Width = ToolButtonSize,
-            Height = ToolButtonSize,
-            MinWidth = 0d,
-            MinHeight = 0d,
-            Cursor = ViewerCursors.Hand,
-            Focusable = false,
-            Padding = new Thickness(0d),
-            Background = new SolidColorBrush(Color.FromArgb(150, 16, 16, 16)),
-            BorderBrush = Brushes.Transparent,
-            CornerRadius = new CornerRadius(8d),
-            Content = CreatePathIcon(geometry, ToolIconSize, iconRotationDegrees, iconBrush)
-        };
-        button.Click += clickHandler;
-
-        return button;
     }
 
     private static Button CreateMenuButton(
@@ -917,32 +580,13 @@ internal sealed class ImageViewerView : IDisposable
         content.Children.Add(label);
 
         PathIcon indicator = CreatePathIcon(
-            SubmenuIconGeometry,
+            ViewerIconGeometries.Submenu,
             14d,
-            0d,
-            Brushes.White);
+            0d);
+        indicator.Classes.Add("viewer-menu-icon");
 
         Grid.SetColumn(indicator, 1);
         content.Children.Add(indicator);
-
-        return CreateMenuButton(content, clickHandler);
-    }
-
-    private static Button CreateCheckMenuButton(
-        string text,
-        EventHandler<RoutedEventArgs> clickHandler,
-        out PathIcon checkIcon)
-    {
-        StackPanel content = CreateMenuButtonPanel();
-
-        checkIcon = CreatePathIcon(
-            CheckIconGeometry,
-            18d,
-            0d,
-            Brushes.White);
-
-        content.Children.Add(CreateMenuIconHost(checkIcon));
-        content.Children.Add(CreateMenuTextBlock(text));
 
         return CreateMenuButton(content, clickHandler);
     }
@@ -963,13 +607,13 @@ internal sealed class ImageViewerView : IDisposable
 
         if (icon is not null)
         {
-            content.Children.Add(new Image
+            Image applicationIcon = new()
             {
-                Width = 18d,
-                Height = 18d,
                 Source = icon,
                 Stretch = Stretch.Uniform
-            });
+            };
+            applicationIcon.Classes.Add("viewer-menu-application-icon");
+            content.Children.Add(applicationIcon);
         }
 
         content.Children.Add(CreateMenuTextBlock(text));
@@ -991,30 +635,27 @@ internal sealed class ImageViewerView : IDisposable
 
     private static TextBlock CreateMenuTextBlock(string text)
     {
-        return new TextBlock
+        TextBlock textBlock = new()
         {
-            Foreground = Brushes.White,
-            Text = text,
-            VerticalAlignment = VerticalAlignment.Center
+            Text = text
         };
+        textBlock.Classes.Add("viewer-menu-text");
+
+        return textBlock;
     }
 
     private static StackPanel CreateMenuButtonPanel()
     {
-        return new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8d
-        };
+        StackPanel panel = new();
+        panel.Classes.Add("viewer-menu-content");
+
+        return panel;
     }
 
     private static Grid CreateMenuIconHost(Control? icon)
     {
-        Grid host = new()
-        {
-            Width = 18d,
-            Height = 18d
-        };
+        Grid host = new();
+        host.Classes.Add("viewer-menu-icon-host");
 
         if (icon is not null)
         {
@@ -1030,11 +671,11 @@ internal sealed class ImageViewerView : IDisposable
         double iconRotationDegrees)
     {
         StackPanel content = CreateMenuButtonPanel();
-        content.Children.Add(CreatePathIcon(
+        PathIcon icon = CreatePathIcon(
             geometry,
-            18d,
-            iconRotationDegrees,
-            Brushes.White));
+            iconRotationDegrees);
+        icon.Classes.Add("viewer-menu-icon");
+        content.Children.Add(icon);
         content.Children.Add(CreateMenuTextBlock(text));
 
         return content;
@@ -1046,15 +687,9 @@ internal sealed class ImageViewerView : IDisposable
     {
         Button button = new()
         {
-            MinWidth = 148d,
-            Cursor = ViewerCursors.Hand,
-            Focusable = false,
-            Padding = new Thickness(10d, 8d),
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            Background = Brushes.Transparent,
-            BorderBrush = Brushes.Transparent,
             Content = content
         };
+        button.Classes.Add("viewer-menu-button");
         button.Click += clickHandler;
 
         return button;
@@ -1066,29 +701,52 @@ internal sealed class ImageViewerView : IDisposable
         double iconRotationDegrees,
         IBrush iconBrush)
     {
-        Button button = CreateIconButton(
-            geometry,
+        return CreateSelectionButton(
+            StreamGeometry.Parse(geometry),
             clickHandler,
             iconRotationDegrees,
             iconBrush);
-        button.Width = SelectionButtonSize;
-        button.Height = SelectionButtonSize;
+    }
+
+    private static Button CreateSelectionButton(
+        Geometry geometry,
+        EventHandler<RoutedEventArgs> clickHandler,
+        double iconRotationDegrees,
+        IBrush iconBrush)
+    {
+        PathIcon icon = CreatePathIcon(
+            geometry,
+            iconRotationDegrees);
+        icon.Classes.Add("viewer-tool-icon");
+        icon.Foreground = iconBrush;
+        Button button = new()
+        {
+            Width = SelectionButtonSize,
+            Height = SelectionButtonSize,
+            Content = icon
+        };
+        button.Classes.Add("viewer-tool-button");
+        button.Click += clickHandler;
 
         return button;
     }
 
     private static PathIcon CreatePathIcon(
         string geometry,
-        double size,
-        double rotationDegrees,
-        IBrush foreground)
+        double rotationDegrees)
+    {
+        return CreatePathIcon(
+            StreamGeometry.Parse(geometry),
+            rotationDegrees);
+    }
+
+    private static PathIcon CreatePathIcon(
+        Geometry geometry,
+        double rotationDegrees)
     {
         PathIcon icon = new()
         {
-            Width = size,
-            Height = size,
-            Data = StreamGeometry.Parse(geometry),
-            Foreground = foreground
+            Data = geometry
         };
 
         if (Math.Abs(rotationDegrees) > double.Epsilon)
@@ -1100,45 +758,37 @@ internal sealed class ImageViewerView : IDisposable
         return icon;
     }
 
+    private static PathIcon CreatePathIcon(
+        Geometry geometry,
+        double size,
+        double rotationDegrees)
+    {
+        PathIcon icon = CreatePathIcon(
+            geometry,
+            rotationDegrees);
+        icon.Width = size;
+        icon.Height = size;
+
+        return icon;
+    }
+
     private static Grid CreateFloatingControlShadowHost(
         Control control,
-        double contentSize,
-        double shadowPadding)
+        double hostSize,
+        IEffect floatingControlShadow)
     {
         ArgumentNullException.ThrowIfNull(control);
+        ArgumentNullException.ThrowIfNull(floatingControlShadow);
         Grid host = new()
         {
-            Width = contentSize + (shadowPadding * 2d),
-            Height = contentSize + (shadowPadding * 2d),
+            Width = hostSize,
+            Height = hostSize,
             ClipToBounds = false,
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 6d,
-                Color = Colors.Black,
-                OffsetX = 0d,
-                OffsetY = 1d,
-                Opacity = 0.7d
-            }
+            Effect = floatingControlShadow
         };
         host.Children.Add(control);
 
         return host;
-    }
-
-    private static void WrapButtonContentWithFloatingShadow(Button button)
-    {
-        ArgumentNullException.ThrowIfNull(button);
-
-        if (button.Content is not Control content)
-        {
-            return;
-        }
-
-        button.Content = null;
-        button.Content = CreateFloatingControlShadowHost(
-            content,
-            ToolIconSize,
-            ToolShadowPadding);
     }
 
     private static IReadOnlyList<PicaActionDefinition> GetActions(
@@ -1150,16 +800,6 @@ internal sealed class ImageViewerView : IDisposable
             .OrderBy(action => action.Order)
             .ThenBy(action => action.Id, StringComparer.Ordinal)
             .ToList();
-    }
-
-    private void DisposeOpenWithIcons()
-    {
-        foreach (Bitmap icon in _openWithIcons)
-        {
-            icon.Dispose();
-        }
-
-        _openWithIcons.Clear();
     }
 
     private static double GetSelectionToolbarWidth(int buttonCount)
@@ -1178,34 +818,94 @@ internal sealed class ImageViewerView : IDisposable
                 Property = Visual.OpacityProperty,
                 Duration = duration
             }
-
         ];
 
         return transitions;
     }
 
+    private void DisposeOpenWithIcons()
+    {
+        foreach (Bitmap icon in _openWithIcons)
+        {
+            icon.Dispose();
+        }
+
+        _openWithIcons.Clear();
+    }
+
+    private IBrush GetRequiredBrush(string resourceKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
+
+        if (!this.TryFindResource(
+            resourceKey,
+            ActualThemeVariant,
+            out object? resource)
+            || resource is not IBrush brush)
+        {
+            throw new InvalidOperationException(
+                $"The image viewer is missing its '{resourceKey}' brush.");
+        }
+
+        return brush;
+    }
+
+    private IEffect GetRequiredEffect(string resourceKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
+
+        if (!this.TryFindResource(
+            resourceKey,
+            ActualThemeVariant,
+            out object? resource)
+            || resource is not IEffect effect)
+        {
+            throw new InvalidOperationException(
+                $"The image viewer is missing its '{resourceKey}' effect.");
+        }
+
+        return effect;
+    }
+
+    private double GetRequiredDouble(string resourceKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
+
+        if (!this.TryFindResource(
+            resourceKey,
+            ActualThemeVariant,
+            out object? resource)
+            || resource is not double value)
+        {
+            throw new InvalidOperationException(
+                $"The image viewer is missing its '{resourceKey}' number.");
+        }
+
+        return value;
+    }
+
+    private Button GetRequiredButton(string name)
+    {
+        return this.FindControl<Button>(name)
+            ?? throw new InvalidOperationException(
+                $"The image viewer is missing its '{name}' button.");
+    }
+
+    private PathIcon GetRequiredPathIcon(string name)
+    {
+        return this.FindControl<PathIcon>(name)
+            ?? throw new InvalidOperationException(
+                $"The image viewer is missing its '{name}' path icon.");
+    }
+
     private void Compose()
     {
-        ImageCanvas.Children.Add(Image);
-        ViewerArea.Children.Add(ImageCanvas);
-        ViewerArea.Children.Add(LeftNavigationArea);
-        ViewerArea.Children.Add(RightNavigationArea);
-        ViewerArea.Children.Add(BottomControls);
-        ViewerArea.Children.Add(ImageInformationPanel);
-        ViewerArea.Children.Add(FullscreenSettingsButton);
-        ViewerArea.Children.Add(WindowModeButton);
-        ViewerArea.Children.Add(CloseButton);
-        ContextMenuLayer.Children.Add(ContextMenu);
-        ViewerArea.Children.Add(ContextMenuLayer);
-        ViewerArea.Children.Add(SelectionOverlay);
+        ContextMenuLayer.Children.Add(ViewerContextMenu);
+        _viewerDynamicLayer.Children.Add(ContextMenuLayer);
+        _viewerDynamicLayer.Children.Add(SelectionOverlay);
         OpenWithMenuLayer.Children.Add(OpenWithMenu);
-        ViewerArea.Children.Add(OpenWithMenuLayer);
-        ToolMenuLayer.Children.Add(ToolMenu);
-        ToolMenuLayer.Children.Add(ModeMenu);
-        ViewerArea.Children.Add(ToolMenuLayer);
-        ViewerArea.Children.Add(FadeOverlay);
-        Root.Children.Add(ViewerArea);
-        Root.Children.Add(WindowResizeOverlay);
+        _viewerDynamicLayer.Children.Add(OpenWithMenuLayer);
+        _viewerDynamicLayer.Children.Add(_toolMenuControl);
         Root.Children.Add(SettingsPanel);
     }
 }

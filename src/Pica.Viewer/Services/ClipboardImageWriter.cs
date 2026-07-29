@@ -1,10 +1,9 @@
-using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 
 namespace Pica.Viewer.Services;
 
-internal sealed class ClipboardImageWriter : IViewerClipboardWriter, IDisposable
+internal sealed class ClipboardImageWriter : IViewerClipboardWriter
 {
     private readonly AvaloniaClipboardDataWriter _clipboardDataWriter;
     private readonly IPlatformClipboardImageWriter _platformImageWriter;
@@ -19,31 +18,27 @@ internal sealed class ClipboardImageWriter : IViewerClipboardWriter, IDisposable
             ?? throw new ArgumentNullException(nameof(platformImageWriter));
     }
 
-    public void Attach(IClipboard clipboard)
-    {
-        _clipboardDataWriter.Attach(clipboard);
-    }
-
     public async Task FlushAsync(CancellationToken ct)
     {
-        await _clipboardDataWriter.FlushAsync(ct);
-    }
-
-    public void Dispose()
-    {
-        _clipboardDataWriter.Dispose();
+        await _clipboardDataWriter
+            .FlushAsync(ct)
+            .ConfigureAwait(false);
     }
 
     async Task IViewerClipboardWriter.SetPreparedImageAsync(
         PreparedClipboardImage image,
         CancellationToken ct)
     {
-        await _platformImageWriter.SetImageAsync(image, ct);
+        await _platformImageWriter
+            .SetImageAsync(image, ct)
+            .ConfigureAwait(false);
     }
 
     async Task IViewerClipboardWriter.SetFileAsync(IStorageFile file, CancellationToken ct)
     {
-        await _clipboardDataWriter.SetFileAsync(file, ct);
+        await _clipboardDataWriter
+            .SetFileAsync(file, ct)
+            .ConfigureAwait(false);
     }
 
     async Task IViewerClipboardWriter.SetFileWithImageAsync(
@@ -51,6 +46,8 @@ internal sealed class ClipboardImageWriter : IViewerClipboardWriter, IDisposable
         Bitmap bitmap,
         CancellationToken ct)
     {
-        await _platformImageWriter.SetFileWithImageAsync(file, bitmap, ct);
+        await _platformImageWriter
+            .SetFileWithImageAsync(file, bitmap, ct)
+            .ConfigureAwait(false);
     }
 }

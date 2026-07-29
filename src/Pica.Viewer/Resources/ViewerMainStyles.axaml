@@ -1,0 +1,131 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style Selector="Border.viewer-navigation-area">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerNavigationAreaMinimumWidth}" />
+        <Setter Property="Background"
+                Value="{StaticResource ViewerTransparentBrush}" />
+        <Setter Property="Cursor"
+                Value="Hand" />
+        <Setter Property="Opacity"
+                Value="{StaticResource ViewerHiddenControlsOpacity}" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Duration="{StaticResource ViewerControlsFadeDuration}"
+                                  Property="Opacity" />
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="Grid.viewer-navigation-icon-host">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerNavigationIconHostSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerNavigationIconHostSize}" />
+        <Setter Property="ClipToBounds"
+                Value="False" />
+        <Setter Property="Effect"
+                Value="{StaticResource ViewerFloatingControlShadowEffect}" />
+    </Style>
+
+    <Style Selector="PathIcon.viewer-navigation-icon">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerNavigationIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerNavigationIconSize}" />
+        <Setter Property="ClipToBounds"
+                Value="False" />
+        <Setter Property="Foreground"
+                Value="{StaticResource ViewerMenuForegroundBrush}" />
+    </Style>
+
+    <Style Selector="Button.viewer-tool-button">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerToolButtonSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerToolButtonSize}" />
+        <Setter Property="MinWidth"
+                Value="0" />
+        <Setter Property="MinHeight"
+                Value="0" />
+        <Setter Property="Padding"
+                Value="0" />
+        <Setter Property="Background"
+                Value="{StaticResource ViewerToolButtonBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{StaticResource ViewerTransparentBrush}" />
+        <Setter Property="CornerRadius"
+                Value="8" />
+        <Setter Property="Cursor"
+                Value="Hand" />
+        <Setter Property="Focusable"
+                Value="False" />
+    </Style>
+
+    <Style Selector="PathIcon.viewer-tool-icon">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerToolIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerToolIconSize}" />
+        <Setter Property="Foreground"
+                Value="{StaticResource ViewerMenuForegroundBrush}" />
+    </Style>
+
+    <Style Selector="Button.viewer-window-button">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerWindowButtonSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerWindowButtonSize}" />
+        <Setter Property="Padding"
+                Value="0" />
+        <Setter Property="HorizontalAlignment"
+                Value="Right" />
+        <Setter Property="VerticalAlignment"
+                Value="Top" />
+        <Setter Property="Background"
+                Value="{StaticResource ViewerTransparentBrush}" />
+        <Setter Property="BorderBrush"
+                Value="{StaticResource ViewerTransparentBrush}" />
+        <Setter Property="BorderThickness"
+                Value="0" />
+        <Setter Property="CornerRadius"
+                Value="0" />
+        <Setter Property="Cursor"
+                Value="Hand" />
+        <Setter Property="Focusable"
+                Value="False" />
+        <Setter Property="Opacity"
+                Value="{StaticResource ViewerHiddenControlsOpacity}" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Duration="{StaticResource ViewerControlsFadeDuration}"
+                                  Property="Opacity" />
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="PathIcon.viewer-window-icon">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerToolIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerToolIconSize}" />
+        <Setter Property="Foreground"
+                Value="{StaticResource ViewerMenuForegroundBrush}" />
+    </Style>
+
+    <Style Selector="PathIcon.viewer-window-icon.destructive">
+        <Setter Property="Foreground"
+                Value="{StaticResource ViewerDestructiveIconBrush}" />
+    </Style>
+
+    <Style Selector="Grid.viewer-window-icon-host">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerWindowIconHostSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerWindowIconHostSize}" />
+        <Setter Property="ClipToBounds"
+                Value="False" />
+        <Setter Property="Effect"
+                Value="{StaticResource ViewerFloatingControlShadowEffect}" />
+    </Style>
+</Styles>

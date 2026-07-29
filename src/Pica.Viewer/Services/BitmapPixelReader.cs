@@ -87,7 +87,11 @@ internal static class BitmapPixelReader
         CopyPixels(framebuffer, pixels, rowBytes, ct);
         ConvertToBgra(framebuffer.Format, pixels);
 
-        return new PreparedBitmapPixels(framebuffer.Size, rowBytes, pixels);
+        ImageDimensions dimensions = new(
+            framebuffer.Size.Width,
+            framebuffer.Size.Height);
+
+        return new PreparedBitmapPixels(dimensions, rowBytes, pixels);
     }
 
     private static void CopyPixels(
@@ -114,5 +118,4 @@ internal static class BitmapPixelReader
                 destinationRowBytes);
         }
     }
-
 }

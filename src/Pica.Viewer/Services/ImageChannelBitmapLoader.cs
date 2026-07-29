@@ -6,13 +6,12 @@ using Avalonia.Platform;
 
 namespace Pica.Viewer.Services;
 
-internal sealed class ImageChannelBitmapLoader
+internal sealed class ImageChannelBitmapLoader : IImageChannelBitmapLoader
 {
     private const int BytesPerPixel = 4;
 
-    private static readonly SemaphoreSlim ChannelLoadLock = new(1, 1);
-
     private readonly IImageDecoderResolver _decoderResolver;
+    private readonly SemaphoreSlim _channelLoadLock = new(1, 1);
 
     public ImageChannelBitmapLoader(IImageDecoderResolver decoderResolver)
     {
@@ -73,10 +72,10 @@ internal sealed class ImageChannelBitmapLoader
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(channel);
-        int rowLength = checked(source.PixelSize.Width * BytesPerPixel);
+        int rowLength = checked(source.Dimensions.Width * BytesPerPixel);
 
         for (int rowIndex = 0;
-            rowIndex < source.PixelSize.Height;
+            rowIndex < source.Dimensions.Height;
             rowIndex++)
         {
             ct.ThrowIfCancellationRequested();
@@ -117,7 +116,9 @@ internal sealed class ImageChannelBitmapLoader
                 PixelFormat.Bgra8888,
                 AlphaFormat.Unpremul,
                 pixelsHandle.AddrOfPinnedObject(),
-                sourcePixels.PixelSize,
+                new PixelSize(
+                    sourcePixels.Dimensions.Width,
+                    sourcePixels.Dimensions.Height),
                 dpi,
                 sourcePixels.RowBytes);
         }
@@ -127,12 +128,12 @@ internal sealed class ImageChannelBitmapLoader
         }
     }
 
-    private static async Task<TResult> RunLockedAsync<TResult>(
+    private async Task<TResult> RunLockedAsync<TResult>(
         Func<Task<TResult>> operation,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(operation);
-        await ChannelLoadLock.WaitAsync(ct).ConfigureAwait(false);
+        await _channelLoadLock.WaitAsync(ct).ConfigureAwait(false);
 
         try
         {
@@ -140,7 +141,7 @@ internal sealed class ImageChannelBitmapLoader
         }
         finally
         {
-            ChannelLoadLock.Release();
+            _channelLoadLock.Release();
         }
     }
 }

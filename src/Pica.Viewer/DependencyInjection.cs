@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 
 using Pica.Viewer.Services;
 using Pica.Viewer.Services.FileReveal;
+using Pica.Viewer.ViewModels;
 
 namespace Pica.Viewer;
 
@@ -18,9 +19,14 @@ public static class DependencyInjection
         services.AddSingleton<IImageDecoderResolver>(provider =>
             provider.GetRequiredService<ImageFormatRegistry>());
         services.AddSingleton<IImageViewerStateService, ImageViewerStateService>();
+        services.AddSingleton<IViewModelErrorHandler, ViewModelErrorHandler>();
+        services.AddSingleton<
+            IImageFileMetadataProvider,
+            ImageFileMetadataProvider>();
         services.AddSingleton<ImagePreviewLoader>();
         services.AddSingleton<FullResolutionImageLoader>();
-        services.AddSingleton<ImageChannelBitmapLoader>();
+        services.AddSingleton<IViewerUiDispatcher, AvaloniaViewerUiDispatcher>();
+        services.AddSingleton<IImageChannelBitmapLoader, ImageChannelBitmapLoader>();
         services.AddSingleton<PngImageEncoder>();
         services.AddSingleton<ClipboardImagePreparer>();
         services.AddSingleton<IStandardFileRevealer, StandardFileRevealer>();
@@ -36,16 +42,14 @@ public static class DependencyInjection
             PlatformFileActionsFactory.Create(
                 provider.GetRequiredService<ILogger<WindowsApplicationIconLoader>>(),
                 provider.GetRequiredService<IFileRevealPlatform>()));
-        services.AddSingleton<AvaloniaClipboardDataWriter>();
-        services.AddSingleton<IPlatformClipboardImageWriter>(provider =>
-            PlatformClipboardImageWriterFactory.Create(
-                provider.GetRequiredService<AvaloniaClipboardDataWriter>(),
-                provider.GetRequiredService<ClipboardImagePreparer>()));
-        services.AddSingleton<ClipboardImageWriter>();
+        services.AddSingleton<ClipboardFlushCoordinator>();
         services.AddSingleton<IClipboardImageWriter>(provider =>
-            provider.GetRequiredService<ClipboardImageWriter>());
-        services.AddSingleton<IViewerClipboardWriter>(provider =>
-            provider.GetRequiredService<ClipboardImageWriter>());
+            provider.GetRequiredService<ClipboardFlushCoordinator>());
+        services.AddSingleton<ViewerClipboardFactory>();
+        services.AddSingleton<ImageViewerPresentationFactory>();
+        services.AddSingleton<ImageViewerSettingsFactory>();
+        services.AddSingleton<ImageViewerInteractionFactory>();
+        services.AddSingleton<ImageViewerWindowComposer>();
         services.AddSingleton<IImageViewerWindowFactory, ImageViewerWindowFactory>();
 
         return services;

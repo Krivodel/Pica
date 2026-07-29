@@ -4,15 +4,7 @@ namespace Pica.Tests.Common;
 
 public static class HeadlessTestSessionDispatcher
 {
-    public static void Dispatch(Type testApplicationType, Action action)
-    {
-        ArgumentNullException.ThrowIfNull(testApplicationType);
-        ArgumentNullException.ThrowIfNull(action);
-
-        DispatchCore(testApplicationType, action);
-    }
-
-    public static void Dispatch(
+    public static async Task DispatchAsync(
         Type testApplicationType,
         SemaphoreSlim sessionLock,
         Action action)
@@ -21,7 +13,7 @@ public static class HeadlessTestSessionDispatcher
         ArgumentNullException.ThrowIfNull(sessionLock);
         ArgumentNullException.ThrowIfNull(action);
 
-        sessionLock.Wait();
+        await sessionLock.WaitAsync().ConfigureAwait(false);
 
         try
         {

@@ -25,7 +25,7 @@ internal sealed class ClipboardImagePreparer
         return await RunPreparationAsync(
             bitmap,
             static (preparedBitmap, operationCt) => new PreparedClipboardImage(
-                preparedBitmap.PixelSize,
+                preparedBitmap.Dimensions,
                 preparedBitmap.RowBytes,
                 preparedBitmap.BgraPixels,
                 PngImageEncoder.EncodePixels(preparedBitmap, operationCt)),

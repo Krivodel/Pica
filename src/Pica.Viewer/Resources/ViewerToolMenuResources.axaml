@@ -1,0 +1,8 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <x:String x:Key="ViewerFilteringText">Фильтрация</x:String>
+    <x:String x:Key="ViewerModeText">Режим</x:String>
+    <x:String x:Key="ViewerMainModeText">Основной</x:String>
+    <x:String x:Key="ViewerChannelsModeText">Каналы</x:String>
+    <StreamGeometry x:Key="ViewerCheckIconGeometry">M5,12 L10,17 L19,7 L17.5,5.5 L10,13.5 L6.5,10 Z</StreamGeometry>
+</ResourceDictionary>
