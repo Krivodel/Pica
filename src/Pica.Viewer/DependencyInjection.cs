@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddSingleton<IImageViewerStateService, ImageViewerStateService>();
         services.AddSingleton<ImagePreviewLoader>();
         services.AddSingleton<FullResolutionImageLoader>();
+        services.AddSingleton<ImageChannelBitmapLoader>();
         services.AddSingleton<PngImageEncoder>();
         services.AddSingleton<ClipboardImagePreparer>();
         services.AddSingleton<IStandardFileRevealer, StandardFileRevealer>();

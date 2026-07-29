@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using FluentAssertions;
 using Xunit;
 
@@ -75,6 +76,77 @@ public sealed class ImageViewerViewTests
         });
     }
 
+    [Fact]
+    public void Constructor_WithToolMenuButton_KeepsThreeZoomButtonsCentered()
+    {
+        Dispatch(() =>
+        {
+            using ImageViewerView view = new(
+                false,
+                new List<ViewerSettingControl>(),
+                new List<PicaActionDefinition>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            StackPanel centeredControls = view.BottomControls
+                .Children
+                .OfType<StackPanel>()
+                .Single();
+
+            view.BottomControls.Measure(new Size(1000d, 44d));
+            view.BottomControls.Arrange(new Rect(0d, 0d, 1000d, 44d));
+
+            centeredControls.HorizontalAlignment.Should().Be(HorizontalAlignment.Center);
+            centeredControls.Children.Should().HaveCount(3);
+            centeredControls.Bounds.Center.X.Should().Be(500d);
+            view.ToolMenuButton.Bounds.Left
+                .Should()
+                .Be(centeredControls.Bounds.Right + 8d);
+        });
+    }
+
+    [Fact]
+    public void UpdateFilteringMenuState_WithDisabledFiltering_HidesCheck()
+    {
+        Dispatch(() =>
+        {
+            using ImageViewerView view = new(
+                true,
+                new List<ViewerSettingControl>(),
+                new List<PicaActionDefinition>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            view.UpdateFilteringMenuState(false);
+
+            GetMenuCheckIcons(view.ToolMenu)
+                .First()
+                .IsVisible
+                .Should()
+                .BeFalse();
+        });
+    }
+
+    [Fact]
+    public void UpdateImageModeMenuState_WithChannelsMode_SelectsOnlyChannels()
+    {
+        Dispatch(() =>
+        {
+            using ImageViewerView view = new(
+                false,
+                new List<ViewerSettingControl>(),
+                new List<PicaActionDefinition>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            view.UpdateImageModeMenuState(ViewerImageMode.Channels);
+
+            List<PathIcon> checkIcons = GetMenuCheckIcons(view.ModeMenu);
+            checkIcons[0].IsVisible.Should().BeFalse();
+            checkIcons[1].IsVisible.Should().BeTrue();
+        });
+    }
+
     private static ImageViewerViewEvents CreateEvents()
     {
         return new ImageViewerViewEvents
@@ -82,6 +154,11 @@ public sealed class ImageViewerViewTests
             ZoomOutClicked = IgnoreRoutedEvent,
             ResetClicked = IgnoreRoutedEvent,
             ZoomInClicked = IgnoreRoutedEvent,
+            ToolMenuClicked = IgnoreRoutedEvent,
+            FilteringMenuClicked = IgnoreRoutedEvent,
+            ModeMenuClicked = IgnoreRoutedEvent,
+            MainModeMenuClicked = IgnoreRoutedEvent,
+            ChannelModeMenuClicked = IgnoreRoutedEvent,
             CloseClicked = IgnoreRoutedEvent,
             WindowModeClicked = IgnoreRoutedEvent,
             SettingsClicked = IgnoreRoutedEvent,
@@ -110,6 +187,27 @@ public sealed class ImageViewerViewTests
         }
 
         return content.Children.OfType<TextBlock>().SingleOrDefault()?.Text;
+    }
+
+    private static List<PathIcon> GetMenuCheckIcons(Border menu)
+    {
+        StackPanel items = menu
+            .Child
+            .Should()
+            .BeOfType<StackPanel>()
+            .Subject;
+
+        return items.Children
+            .OfType<Button>()
+            .Select(button => button.Content)
+            .OfType<StackPanel>()
+            .Select(content => content.Children
+                .OfType<Grid>()
+                .Single()
+                .Children
+                .OfType<PathIcon>()
+                .Single())
+            .ToList();
     }
 
     private static void Dispatch(Action action)

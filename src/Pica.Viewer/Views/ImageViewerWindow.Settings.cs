@@ -20,20 +20,6 @@ public sealed partial class ImageViewerWindow : SukiWindow
         e.Handled = true;
     }
 
-    private async void OnFilteringTogglePropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        _ = sender;
-
-        if (e.Property != PixelFilteringToggleSwitch.IsFilteringEnabledProperty)
-        {
-            return;
-        }
-
-        _settings.IsFilteringEnabled = _view.FilteringToggle.IsFilteringEnabled;
-        _view.ApplyImageFiltering(_settings.IsFilteringEnabled);
-        await SaveCurrentStateAsync();
-    }
-
     private IReadOnlyList<ViewerSettingControl> CreateSettingControls()
     {
         List<ViewerSettingControl> settingControls =
@@ -93,6 +79,14 @@ public sealed partial class ImageViewerWindow : SukiWindow
         ];
 
         return settingControls;
+    }
+
+    private async Task ToggleFilteringAsync()
+    {
+        _settings.IsFilteringEnabled = !_settings.IsFilteringEnabled;
+        _view.ApplyImageFiltering(_settings.IsFilteringEnabled);
+        _view.UpdateFilteringMenuState(_settings.IsFilteringEnabled);
+        await SaveCurrentStateAsync();
     }
 
     private async Task ChangeMovementSpeedAsync(int movementSpeed)

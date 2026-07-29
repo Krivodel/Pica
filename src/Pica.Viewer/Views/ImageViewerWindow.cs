@@ -1,12 +1,14 @@
+using Microsoft.Extensions.Logging;
+
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using Microsoft.Extensions.Logging;
 using SukiUI.Controls;
 
 using Pica.Protocol;
@@ -26,6 +28,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private const double ContextMenuFallbackHeight = 260d;
     private const double OpenWithMenuFallbackWidth = 220d;
     private const double OpenWithMenuFallbackHeight = 52d;
+    private const double ToolMenuFallbackWidth = 160d;
+    private const double ToolMenuFallbackHeight = 86d;
+    private const double ModeMenuFallbackWidth = 160d;
+    private const double ModeMenuFallbackHeight = 86d;
     private const double SelectionToolbarGap = 10d;
     private const double SelectionHandleSize = 8d;
     private const double MinimumSelectionSize = 12d;
@@ -39,7 +45,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private const double MinimumScale = 0.05d;
     private const double MaximumScale = 32d;
     private const int CursorHideDelayMilliseconds = 1000;
-    private const int OpenWithMenuHideDelayMilliseconds = 120;
+    private const int SubmenuHideDelayMilliseconds = 120;
     private const int WindowModeLayoutSettleDelayMilliseconds = 100;
     private const double DefaultWindowWidth = 1280d;
     private const double DefaultWindowHeight = 800d;
@@ -60,8 +66,9 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private readonly IImageViewerStateService _imageViewerStateService;
     private readonly ImagePreviewLoader _imagePreviewLoader;
     private readonly FullResolutionImageLoader _fullResolutionImageLoader;
+    private readonly ImageChannelBitmapLoader _imageChannelBitmapLoader;
     private readonly ClipboardImagePreparer _clipboardImagePreparer;
-    private readonly TemporarySelectionFileStore _temporarySelectionFileStore;
+    private readonly TemporaryImageFileStore _temporaryImageFileStore;
     private readonly IPlatformFileActions _platformFileActions;
     private readonly ILogger<ImageViewerWindow> _logger;
     private readonly ViewerImageOperations _imageOperations;
@@ -72,10 +79,13 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private readonly ImageViewerView _view;
     private readonly DispatcherTimer _cursorTimer;
     private readonly DispatcherTimer _windowModeLayoutTimer;
-    private readonly DispatcherTimer _openWithMenuHideTimer;
+    private readonly DispatcherTimer _submenuHideTimer;
     private readonly ImagePreviewCache _previewCache;
+    private readonly ImageChannelSelection _channelSelection;
     private readonly ImageViewerState _settings;
     private Bitmap? _bitmap;
+    private Bitmap? _sourceBitmap;
+    private Bitmap? _channelBitmap;
     private PicaImageItem? _currentItem;
     private PixelSize _sourcePixelSize;
     private int _selectedIndex;
@@ -108,6 +118,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private long _selectionOverlayAnimationId;
     private long _settingsPanelAnimationId;
     private long _imageLoadId;
+    private long _channelLoadId;
     private bool _isChangingWindowMode;
     private bool _isWindowedMode;
     private bool _isApplyingWindowGeometry;
@@ -124,13 +135,17 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private double _windowedPreferredExtent;
     private IWindowResizeSession? _windowResizeSession;
     private CancellationTokenSource? _imageLoadCancellation;
+    private CancellationTokenSource? _channelLoadCancellation;
     private CancellationTokenSource? _selectionPreparationCancellation;
     private Task? _activeImageLoadTask;
+    private Task? _activeChannelLoadTask;
     private Task? _previewCachePrimingTask;
     private Task<PreparedClipboardImage?>? _selectionPreparationTask;
     private PixelRect _selectionPreparationRect;
     private OpenWithTarget _openWithTarget;
-    private Control? _openWithAnchor;
+    private Control? _submenuAnchor;
+    private Border? _activeSubmenu;
+    private ImageChannel? _displayedChannel;
 
     internal ImageViewerWindow(
         PicaViewerRequest request,
@@ -139,9 +154,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
         IImageViewerStateService imageViewerStateService,
         ImagePreviewLoader imagePreviewLoader,
         FullResolutionImageLoader fullResolutionImageLoader,
+        ImageChannelBitmapLoader imageChannelBitmapLoader,
         PngImageEncoder pngImageEncoder,
         ClipboardImagePreparer clipboardImagePreparer,
-        TemporarySelectionFileStore temporarySelectionFileStore,
+        TemporaryImageFileStore temporaryImageFileStore,
         IPlatformFileActions platformFileActions,
         IViewerActionDispatcher actionDispatcher,
         ILogger<ImageViewerWindow> logger,
@@ -154,10 +170,12 @@ public sealed partial class ImageViewerWindow : SukiWindow
             ?? throw new ArgumentNullException(nameof(imagePreviewLoader));
         _fullResolutionImageLoader = fullResolutionImageLoader
             ?? throw new ArgumentNullException(nameof(fullResolutionImageLoader));
+        _imageChannelBitmapLoader = imageChannelBitmapLoader
+            ?? throw new ArgumentNullException(nameof(imageChannelBitmapLoader));
         _clipboardImagePreparer = clipboardImagePreparer
             ?? throw new ArgumentNullException(nameof(clipboardImagePreparer));
-        _temporarySelectionFileStore = temporarySelectionFileStore
-            ?? throw new ArgumentNullException(nameof(temporarySelectionFileStore));
+        _temporaryImageFileStore = temporaryImageFileStore
+            ?? throw new ArgumentNullException(nameof(temporaryImageFileStore));
         _platformFileActions = platformFileActions
             ?? throw new ArgumentNullException(nameof(platformFileActions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -186,12 +204,18 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _animationFrameScheduler = new ViewerAnimationFrameScheduler(
             RequestAnimationFrame);
         _previewCache = new ImagePreviewCache();
+        _channelSelection = new ImageChannelSelection();
         _logoBitmap = LoadBitmap(AppIconAssetUri);
         ImageViewerViewEvents viewEvents = new()
         {
             ZoomOutClicked = OnZoomOutClicked,
             ResetClicked = OnResetClicked,
             ZoomInClicked = OnZoomInClicked,
+            ToolMenuClicked = OnToolMenuClicked,
+            FilteringMenuClicked = OnFilteringMenuClicked,
+            ModeMenuClicked = OnModeMenuClicked,
+            MainModeMenuClicked = OnMainModeMenuClicked,
+            ChannelModeMenuClicked = OnChannelModeMenuClicked,
             CloseClicked = OnCloseClicked,
             WindowModeClicked = OnWindowModeClicked,
             SettingsClicked = OnSettingsClicked,
@@ -222,7 +246,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _view.ApplyImageFiltering(_settings.IsFilteringEnabled);
         _cursorTimer = CreateCursorTimer();
         _windowModeLayoutTimer = CreateWindowModeLayoutTimer();
-        _openWithMenuHideTimer = CreateOpenWithMenuHideTimer();
+        _submenuHideTimer = CreateSubmenuHideTimer();
 
         ConfigureWindow();
         UpdateSelectedImageInformation();
@@ -301,14 +325,14 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
         _cursorTimer.Stop();
         _windowModeLayoutTimer.Stop();
-        _openWithMenuHideTimer.Stop();
+        _submenuHideTimer.Stop();
         StopScaleAnimation();
         StopPanMotion();
         CancelPendingImageLoad();
         _animationFrameScheduler.CancelPendingFrames();
         CancelSelectionClipboardPreparation();
         _view.Dispose();
-        _temporarySelectionFileStore.Dispose();
+        _temporaryImageFileStore.Dispose();
         _previewCache.Dispose();
         ReleaseDisplayedBitmap();
         _logoBitmap.Dispose();
@@ -426,13 +450,13 @@ public sealed partial class ImageViewerWindow : SukiWindow
         return timer;
     }
 
-    private DispatcherTimer CreateOpenWithMenuHideTimer()
+    private DispatcherTimer CreateSubmenuHideTimer()
     {
         DispatcherTimer timer = new()
         {
-            Interval = TimeSpan.FromMilliseconds(OpenWithMenuHideDelayMilliseconds)
+            Interval = TimeSpan.FromMilliseconds(SubmenuHideDelayMilliseconds)
         };
-        timer.Tick += OnOpenWithMenuHideTimerTick;
+        timer.Tick += OnSubmenuHideTimerTick;
 
         return timer;
     }
@@ -444,20 +468,26 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _view.ViewerArea.PointerReleased += OnPointerReleased;
         _view.ViewerArea.PointerWheelChanged += OnPointerWheelChanged;
         _view.ViewerArea.SizeChanged += OnViewerAreaSizeChanged;
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
         KeyUp += OnKeyUp;
         PositionChanged += OnWindowPositionChanged;
         Resized += OnWindowResized;
-        _view.FilteringToggle.PropertyChanged += OnFilteringTogglePropertyChanged;
         _view.LeftNavigationArea.PointerPressed += OnLeftNavigationPressed;
         _view.RightNavigationArea.PointerPressed += OnRightNavigationPressed;
         _view.ContextMenu.PointerPressed += OnFloatingMenuPointerPressed;
         _view.ContextOpenWithButton.PointerEntered += OnContextOpenWithAnchorPointerEntered;
-        _view.ContextOpenWithButton.PointerExited += OnOpenWithAnchorPointerExited;
-        _view.SelectionOpenWithButton.PointerExited += OnOpenWithAnchorPointerExited;
-        _view.OpenWithMenu.PointerEntered += OnOpenWithMenuPointerEntered;
-        _view.OpenWithMenu.PointerExited += OnOpenWithMenuPointerExited;
+        _view.ContextOpenWithButton.PointerExited += OnSubmenuAnchorPointerExited;
+        _view.SelectionOpenWithButton.PointerExited += OnSubmenuAnchorPointerExited;
+        _view.OpenWithMenu.PointerEntered += OnSubmenuPointerEntered;
+        _view.OpenWithMenu.PointerExited += OnSubmenuPointerExited;
         _view.OpenWithMenu.PointerPressed += OnFloatingMenuPointerPressed;
+        _view.ToolMenu.PointerPressed += OnFloatingMenuPointerPressed;
+        _view.ModeMenuButton.PointerEntered += OnModeMenuAnchorPointerEntered;
+        _view.ModeMenuButton.PointerExited += OnSubmenuAnchorPointerExited;
+        _view.ModeMenu.PointerEntered += OnSubmenuPointerEntered;
+        _view.ModeMenu.PointerExited += OnSubmenuPointerExited;
+        _view.ModeMenu.PointerPressed += OnFloatingMenuPointerPressed;
         _view.SelectionToolbar.PointerPressed += OnFloatingMenuPointerPressed;
         _view.SettingsPanel.PointerPressed += OnFloatingMenuPointerPressed;
         _view.Root.PointerExited += OnRootPointerExited;

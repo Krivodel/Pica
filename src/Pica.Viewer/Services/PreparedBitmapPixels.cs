@@ -2,7 +2,7 @@ using Avalonia;
 
 namespace Pica.Viewer.Services;
 
-internal record PreparedClipboardBitmap(
+internal record PreparedBitmapPixels(
     PixelSize PixelSize,
     int RowBytes,
     byte[] BgraPixels);

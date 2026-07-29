@@ -30,6 +30,16 @@ internal sealed class MagickImageDecoder : IImageDecoder
             : new PixelSize(width, height);
     }
 
+    public bool ReadHasAlpha(Stream sourceStream, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(sourceStream);
+        ct.ThrowIfCancellationRequested();
+        using MagickImage image = new(sourceStream);
+        ct.ThrowIfCancellationRequested();
+
+        return image.HasAlpha;
+    }
+
     public Bitmap Decode(Stream sourceStream, CancellationToken ct)
     {
         using MagickImage image = ReadImage(sourceStream, ct);

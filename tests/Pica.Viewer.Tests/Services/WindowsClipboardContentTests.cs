@@ -14,7 +14,7 @@ public sealed class WindowsClipboardContentTests
     public void Build_WithPreparedBitmap_CreatesTopDownDibV5WithExactPixels()
     {
         byte[] pixels = BgraBitmapTestData.Pixels;
-        PreparedClipboardBitmap bitmap = new(
+        PreparedBitmapPixels bitmap = new(
             BgraBitmapTestData.PixelSize,
             BgraBitmapTestData.RowBytes,
             pixels);

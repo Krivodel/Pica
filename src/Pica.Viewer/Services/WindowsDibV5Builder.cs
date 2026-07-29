@@ -14,7 +14,7 @@ internal static class WindowsDibV5Builder
     private const uint SrgbColorSpace = 0x73524742;
     private const uint ImagesRenderingIntent = 4;
 
-    public static byte[] Build(PreparedClipboardBitmap image)
+    public static byte[] Build(PreparedBitmapPixels image)
     {
         ArgumentNullException.ThrowIfNull(image);
 

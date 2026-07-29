@@ -65,7 +65,7 @@ internal sealed class WindowsPlatformClipboardImageWriter : IPlatformClipboardIm
             return;
         }
 
-        PreparedClipboardBitmap preparedBitmap = await _imagePreparer
+        PreparedBitmapPixels preparedBitmap = await _imagePreparer
             .PrepareBitmapAsync(bitmap, ct)
             .ConfigureAwait(false);
         byte[] dibContent = WindowsDibV5Builder.Build(preparedBitmap);

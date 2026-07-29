@@ -23,7 +23,7 @@ internal sealed class PngImageEncoder
     }
 
     internal static byte[] EncodePixels(
-        PreparedClipboardBitmap bitmap,
+        PreparedBitmapPixels bitmap,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(bitmap);

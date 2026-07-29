@@ -155,7 +155,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         _ = sender;
 
-        if (_isSelectionActive)
+        if (_isSelectionActive && !_channelSelection.IsActive)
         {
             return;
         }
@@ -168,7 +168,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         _ = sender;
 
-        if (_isSelectionActive)
+        if (_isSelectionActive && !_channelSelection.IsActive)
         {
             return;
         }

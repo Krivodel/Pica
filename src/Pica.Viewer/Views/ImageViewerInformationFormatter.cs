@@ -2,6 +2,9 @@ using System.Globalization;
 
 using Avalonia;
 
+using Pica.Viewer.Resources;
+using Pica.Viewer.Services;
+
 namespace Pica.Viewer.Views;
 
 internal static class ImageViewerInformationFormatter
@@ -12,6 +15,7 @@ internal static class ImageViewerInformationFormatter
     internal static string Format(
         string fileName,
         PixelSize pixelSize,
+        ImageChannel? selectedChannel,
         DateTime? modificationDate,
         ImageViewerInformationOptions options)
     {
@@ -26,6 +30,14 @@ internal static class ImageViewerInformationFormatter
             parts.Add(nameOrFormat);
         }
 
+        if (options.ShowModificationDate
+            && modificationDate is { } date)
+        {
+            parts.Add(date.ToString(
+                ModificationDateFormat,
+                CultureInfo.InvariantCulture));
+        }
+
         if (options.ShowResolution
             && (pixelSize.Width > 0)
             && (pixelSize.Height > 0))
@@ -33,12 +45,9 @@ internal static class ImageViewerInformationFormatter
             parts.Add($"{pixelSize.Width}×{pixelSize.Height}");
         }
 
-        if (options.ShowModificationDate
-            && modificationDate is { } date)
+        if (selectedChannel is not null)
         {
-            parts.Add(date.ToString(
-                ModificationDateFormat,
-                CultureInfo.InvariantCulture));
+            parts.Add($"{ViewerUiStrings.Channel} {selectedChannel.Code}");
         }
 
         return string.Join(PartSeparator, parts);

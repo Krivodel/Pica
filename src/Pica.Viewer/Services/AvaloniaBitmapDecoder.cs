@@ -25,6 +25,19 @@ internal sealed class AvaloniaBitmapDecoder : IImageDecoder
             : new PixelSize(imageInfo.Width, imageInfo.Height);
     }
 
+    public bool ReadHasAlpha(Stream sourceStream, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(sourceStream);
+        ct.ThrowIfCancellationRequested();
+        using SKManagedStream managedStream = new(sourceStream);
+        using SKCodec codec = SKCodec.Create(managedStream)
+            ?? throw new InvalidDataException("Failed to read the image channel information.");
+        bool hasAlpha = codec.Info.AlphaType != SKAlphaType.Opaque;
+        ct.ThrowIfCancellationRequested();
+
+        return hasAlpha;
+    }
+
     public Bitmap Decode(Stream sourceStream, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(sourceStream);

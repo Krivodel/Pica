@@ -57,6 +57,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         HideViewerChrome();
         HideContextMenu();
+        HideToolMenu();
     }
 
     private void HideViewerChrome()
@@ -106,6 +107,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
             return;
         }
 
+        HideToolMenu();
         Size viewport = GetViewportSize();
         HideOpenWithSubmenu();
         _view.ContextMenu.IsVisible = true;
@@ -128,26 +130,56 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private void ShowOpenWithSubmenu(Control anchor)
     {
-        ArgumentNullException.ThrowIfNull(anchor);
-        Size viewport = GetViewportSize();
-        _view.OpenWithMenu.IsVisible = true;
-        _view.OpenWithMenu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        Size submenuSize = GetMeasuredMenuSize(
-            _view.OpenWithMenu,
-            new Size(OpenWithMenuFallbackWidth, OpenWithMenuFallbackHeight));
-        Point? translatedPosition = anchor.TranslatePoint(
-            new Point(0d, 0d),
-            _view.OpenWithMenuLayer);
-
-        if (translatedPosition is not { } anchorPosition)
-        {
-            HideOpenWithSubmenu();
-            return;
-        }
-
         double menuGap = _openWithTarget == OpenWithTarget.Selection
             ? 0d
             : ContextMenuGap;
+        ShowSubmenu(
+            _view.OpenWithMenu,
+            _view.OpenWithMenuLayer,
+            anchor,
+            new Size(OpenWithMenuFallbackWidth, OpenWithMenuFallbackHeight),
+            menuGap);
+    }
+
+    private void ShowModeSubmenu(Control anchor)
+    {
+        ShowSubmenu(
+            _view.ModeMenu,
+            _view.ToolMenuLayer,
+            anchor,
+            new Size(ModeMenuFallbackWidth, ModeMenuFallbackHeight),
+            ContextMenuGap);
+    }
+
+    private void ShowSubmenu(
+        Border submenu,
+        Canvas submenuLayer,
+        Control anchor,
+        Size fallbackSize,
+        double menuGap)
+    {
+        ArgumentNullException.ThrowIfNull(submenu);
+        ArgumentNullException.ThrowIfNull(submenuLayer);
+        ArgumentNullException.ThrowIfNull(anchor);
+
+        HideActiveSubmenu();
+        _activeSubmenu = submenu;
+        _submenuAnchor = anchor;
+
+        Size viewport = GetViewportSize();
+        submenu.IsVisible = true;
+        submenu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Size submenuSize = GetMeasuredMenuSize(submenu, fallbackSize);
+        Point? translatedPosition = anchor.TranslatePoint(
+            new Point(0d, 0d),
+            submenuLayer);
+
+        if (translatedPosition is not { } anchorPosition)
+        {
+            HideActiveSubmenu();
+            return;
+        }
+
         double x = anchorPosition.X + anchor.Bounds.Width + menuGap;
 
         if ((x + submenuSize.Width) > viewport.Width)
@@ -157,41 +189,70 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
         double maxX = Math.Max(0d, viewport.Width - submenuSize.Width);
         double maxY = Math.Max(0d, viewport.Height - submenuSize.Height);
-        Canvas.SetLeft(_view.OpenWithMenu, Math.Clamp(x, 0d, maxX));
-        Canvas.SetTop(_view.OpenWithMenu, Math.Clamp(anchorPosition.Y, 0d, maxY));
-        _view.OpenWithMenu.Opacity = ImageViewerVisualMetrics.VisibleControlsOpacity;
+        Canvas.SetLeft(submenu, Math.Clamp(x, 0d, maxX));
+        Canvas.SetTop(submenu, Math.Clamp(anchorPosition.Y, 0d, maxY));
+        submenu.Opacity = ImageViewerVisualMetrics.VisibleControlsOpacity;
     }
 
     private void HideOpenWithSubmenu()
     {
-        _openWithMenuHideTimer.Stop();
-        _view.OpenWithMenu.Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity;
-        _view.OpenWithMenu.IsVisible = false;
-        _openWithAnchor = null;
+        HideSubmenu(_view.OpenWithMenu);
     }
 
-    private void ScheduleOpenWithSubmenuHide()
+    private void HideModeSubmenu()
     {
-        _openWithMenuHideTimer.Stop();
-        _openWithMenuHideTimer.Start();
+        HideSubmenu(_view.ModeMenu);
     }
 
-    private void CancelOpenWithSubmenuHide()
+    private void HideActiveSubmenu()
     {
-        _openWithMenuHideTimer.Stop();
+        Border? submenu = _activeSubmenu;
+
+        if (submenu is not null)
+        {
+            HideSubmenu(submenu);
+        }
     }
 
-    private void OnOpenWithMenuHideTimerTick(object? sender, EventArgs e)
+    private void HideSubmenu(Border submenu)
+    {
+        ArgumentNullException.ThrowIfNull(submenu);
+
+        submenu.Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity;
+        submenu.IsVisible = false;
+
+        if (ReferenceEquals(_activeSubmenu, submenu))
+        {
+            _submenuHideTimer.Stop();
+            _activeSubmenu = null;
+            _submenuAnchor = null;
+        }
+    }
+
+    private void ScheduleSubmenuHide()
+    {
+        _submenuHideTimer.Stop();
+        _submenuHideTimer.Start();
+    }
+
+    private void CancelSubmenuHide()
+    {
+        _submenuHideTimer.Stop();
+    }
+
+    private void OnSubmenuHideTimerTick(object? sender, EventArgs e)
     {
         _ = sender;
         _ = e;
-        _openWithMenuHideTimer.Stop();
 
-        bool isAnchorHovered = _openWithAnchor?.IsPointerOver == true;
+        _submenuHideTimer.Stop();
 
-        if (!isAnchorHovered && !_view.OpenWithMenu.IsPointerOver)
+        bool isAnchorHovered = _submenuAnchor?.IsPointerOver == true;
+        bool isSubmenuHovered = _activeSubmenu?.IsPointerOver == true;
+
+        if (!isAnchorHovered && !isSubmenuHovered)
         {
-            HideOpenWithSubmenu();
+            HideActiveSubmenu();
         }
     }
 
@@ -204,29 +265,32 @@ public sealed partial class ImageViewerWindow : SukiWindow
             return;
         }
 
-        CancelOpenWithSubmenuHide();
+        CancelSubmenuHide();
         ShowOpenWithMenu(OpenWithTarget.CurrentImage, anchor);
     }
 
-    private void OnOpenWithAnchorPointerExited(object? sender, PointerEventArgs e)
+    private void OnSubmenuAnchorPointerExited(object? sender, PointerEventArgs e)
     {
         _ = sender;
         _ = e;
-        ScheduleOpenWithSubmenuHide();
+
+        ScheduleSubmenuHide();
     }
 
-    private void OnOpenWithMenuPointerEntered(object? sender, PointerEventArgs e)
+    private void OnSubmenuPointerEntered(object? sender, PointerEventArgs e)
     {
         _ = sender;
         _ = e;
-        CancelOpenWithSubmenuHide();
+
+        CancelSubmenuHide();
     }
 
-    private void OnOpenWithMenuPointerExited(object? sender, PointerEventArgs e)
+    private void OnSubmenuPointerExited(object? sender, PointerEventArgs e)
     {
         _ = sender;
         _ = e;
-        ScheduleOpenWithSubmenuHide();
+
+        ScheduleSubmenuHide();
     }
 
     private static Size GetMeasuredMenuSize(Border menu, Size fallbackSize)

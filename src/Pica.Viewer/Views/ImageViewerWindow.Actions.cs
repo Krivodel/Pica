@@ -1,8 +1,10 @@
-using Avalonia.Media.Imaging;
 using Microsoft.Extensions.Logging;
+
+using Avalonia.Media.Imaging;
 using SukiUI.Controls;
-using Pica.Viewer.Services;
+
 using Pica.Protocol;
+using Pica.Viewer.Services;
 
 namespace Pica.Viewer.Views;
 
@@ -15,6 +17,24 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private async Task CopyCurrentImageCoreAsync(CancellationToken ct)
     {
+        if (_channelSelection.IsActive)
+        {
+            PreparedClipboardImage? channelImage =
+                await PrepareCurrentChannelImageAsync(ct);
+
+            if (channelImage is null)
+            {
+                return;
+            }
+
+            await _imageOperations.CopyPreparedImageAsync(channelImage, ct);
+            _logger.LogInformation(
+                "Copied channel {Channel} of Pica image {ItemId} to the clipboard",
+                _channelSelection.SelectedChannel?.Code,
+                _currentItem?.Id);
+            return;
+        }
+
         bool isFullResolutionReady = await WaitForFullResolutionImageAsync(ct);
         PicaImageItem? item = _currentItem;
 
@@ -88,7 +108,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private async Task CopySelectionAsync(CancellationToken ct)
     {
-        bool isFullResolutionReady = await WaitForFullResolutionImageAsync(ct);
+        bool isFullResolutionReady =
+            await WaitForCurrentImagePresentationAsync(ct);
 
         if (!isFullResolutionReady)
         {
@@ -150,13 +171,40 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private async Task SaveCurrentImageAsAsync(CancellationToken ct)
     {
-        if (_currentItem is null)
+        PicaImageItem? item = _currentItem;
+
+        if (item is null)
         {
             return;
         }
 
-        await _imageOperations.SaveCurrentAsync(StorageProvider, _currentItem, ct);
-        _logger.LogInformation("Completed save-as for Pica image {ItemId}", _currentItem.Id);
+        ImageChannel? channel = _channelSelection.SelectedChannel;
+
+        if (channel is not null)
+        {
+            bool isChannelReady =
+                await WaitForCurrentImagePresentationAsync(ct);
+            Bitmap? bitmap = _bitmap;
+
+            if (!isChannelReady || (bitmap is null))
+            {
+                return;
+            }
+
+            await _imageOperations.SaveBitmapAsync(
+                StorageProvider,
+                bitmap,
+                channel.CreateFileName(item.FileName),
+                ct);
+            _logger.LogInformation(
+                "Completed save-as for channel {Channel} of Pica image {ItemId}",
+                channel.Code,
+                item.Id);
+            return;
+        }
+
+        await _imageOperations.SaveCurrentAsync(StorageProvider, item, ct);
+        _logger.LogInformation("Completed save-as for Pica image {ItemId}", item.Id);
     }
 
     private async Task SaveSelectionAsAndCloseAsync(CancellationToken ct)
@@ -186,7 +234,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
         Func<Bitmap, CancellationToken, Task> operation,
         CancellationToken ct)
     {
-        bool isFullResolutionReady = await WaitForFullResolutionImageAsync(ct);
+        bool isFullResolutionReady =
+            await WaitForCurrentImagePresentationAsync(ct);
 
         if (!isFullResolutionReady)
         {
@@ -209,10 +258,33 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         if (target == OpenWithTarget.CurrentImage)
         {
-            return _currentItem?.FilePath;
+            ImageChannel? channel = _channelSelection.SelectedChannel;
+
+            if (channel is null)
+            {
+                return _currentItem?.FilePath;
+            }
+
+            PreparedClipboardImage? channelImage =
+                await PrepareCurrentChannelImageAsync(ct);
+
+            if (channelImage is null)
+            {
+                return null;
+            }
+
+            string channelFilePath =
+                _temporaryImageFileStore.CreateChannelFilePath(channel);
+            await _temporaryImageFileStore.SaveAsync(
+                channelFilePath,
+                channelImage,
+                ct);
+
+            return channelFilePath;
         }
 
-        bool isFullResolutionReady = await WaitForFullResolutionImageAsync(ct);
+        bool isFullResolutionReady =
+            await WaitForCurrentImagePresentationAsync(ct);
 
         if (!isFullResolutionReady)
         {
@@ -226,10 +298,29 @@ public sealed partial class ImageViewerWindow : SukiWindow
             return null;
         }
 
-        string filePath = _temporarySelectionFileStore.CreateFilePath();
-        await _temporarySelectionFileStore.SaveAsync(filePath, image, ct);
+        string filePath = _temporaryImageFileStore.CreateSelectionFilePath();
+        await _temporaryImageFileStore.SaveAsync(filePath, image, ct);
 
         return filePath;
+    }
+
+    private async Task<PreparedClipboardImage?> PrepareCurrentChannelImageAsync(
+        CancellationToken ct)
+    {
+        if (!_channelSelection.IsActive)
+        {
+            return null;
+        }
+
+        bool isChannelReady = await WaitForCurrentImagePresentationAsync(ct);
+        Bitmap? bitmap = _bitmap;
+
+        if (!isChannelReady || (bitmap is null))
+        {
+            return null;
+        }
+
+        return await _clipboardImagePreparer.PrepareImageAsync(bitmap, ct);
     }
 
     private void HideOpenWithAfterAction(OpenWithTarget target)

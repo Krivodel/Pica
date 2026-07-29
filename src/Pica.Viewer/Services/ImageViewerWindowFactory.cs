@@ -12,11 +12,12 @@ internal sealed class ImageViewerWindowFactory : IImageViewerWindowFactory
     private readonly IImageViewerStateService _stateService;
     private readonly ImagePreviewLoader _imagePreviewLoader;
     private readonly FullResolutionImageLoader _fullResolutionImageLoader;
+    private readonly ImageChannelBitmapLoader _imageChannelBitmapLoader;
     private readonly PngImageEncoder _pngImageEncoder;
     private readonly ClipboardImagePreparer _clipboardImagePreparer;
     private readonly IPlatformFileActions _platformFileActions;
     private readonly ILogger<ImageViewerWindow> _logger;
-    private readonly ILogger<TemporarySelectionFileStore> _temporarySelectionFileLogger;
+    private readonly ILogger<TemporaryImageFileStore> _temporaryImageFileLogger;
 
     public ImageViewerWindowFactory(
         IViewerClipboardWriter clipboardImageWriter,
@@ -24,11 +25,12 @@ internal sealed class ImageViewerWindowFactory : IImageViewerWindowFactory
         IImageViewerStateService stateService,
         ImagePreviewLoader imagePreviewLoader,
         FullResolutionImageLoader fullResolutionImageLoader,
+        ImageChannelBitmapLoader imageChannelBitmapLoader,
         PngImageEncoder pngImageEncoder,
         ClipboardImagePreparer clipboardImagePreparer,
         IPlatformFileActions platformFileActions,
         ILogger<ImageViewerWindow> logger,
-        ILogger<TemporarySelectionFileStore> temporarySelectionFileLogger)
+        ILogger<TemporaryImageFileStore> temporaryImageFileLogger)
     {
         _clipboardImageWriter = clipboardImageWriter
             ?? throw new ArgumentNullException(nameof(clipboardImageWriter));
@@ -38,6 +40,8 @@ internal sealed class ImageViewerWindowFactory : IImageViewerWindowFactory
             ?? throw new ArgumentNullException(nameof(imagePreviewLoader));
         _fullResolutionImageLoader = fullResolutionImageLoader
             ?? throw new ArgumentNullException(nameof(fullResolutionImageLoader));
+        _imageChannelBitmapLoader = imageChannelBitmapLoader
+            ?? throw new ArgumentNullException(nameof(imageChannelBitmapLoader));
         _pngImageEncoder = pngImageEncoder
             ?? throw new ArgumentNullException(nameof(pngImageEncoder));
         _clipboardImagePreparer = clipboardImagePreparer
@@ -45,8 +49,8 @@ internal sealed class ImageViewerWindowFactory : IImageViewerWindowFactory
         _platformFileActions = platformFileActions
             ?? throw new ArgumentNullException(nameof(platformFileActions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _temporarySelectionFileLogger = temporarySelectionFileLogger
-            ?? throw new ArgumentNullException(nameof(temporarySelectionFileLogger));
+        _temporaryImageFileLogger = temporaryImageFileLogger
+            ?? throw new ArgumentNullException(nameof(temporaryImageFileLogger));
     }
 
     public async Task<ImageViewerWindow> CreateAsync(
@@ -58,8 +62,8 @@ internal sealed class ImageViewerWindowFactory : IImageViewerWindowFactory
         ArgumentNullException.ThrowIfNull(actionDispatcher);
 
         ImageViewerState state = await _stateService.LoadAsync(ct);
-        TemporarySelectionFileStore temporarySelectionFileStore =
-            new(_temporarySelectionFileLogger);
+        TemporaryImageFileStore temporaryImageFileStore =
+            new(_temporaryImageFileLogger);
 
         return new ImageViewerWindow(
             request,
@@ -68,9 +72,10 @@ internal sealed class ImageViewerWindowFactory : IImageViewerWindowFactory
             _stateService,
             _imagePreviewLoader,
             _fullResolutionImageLoader,
+            _imageChannelBitmapLoader,
             _pngImageEncoder,
             _clipboardImagePreparer,
-            temporarySelectionFileStore,
+            temporaryImageFileStore,
             _platformFileActions,
             actionDispatcher,
             _logger,

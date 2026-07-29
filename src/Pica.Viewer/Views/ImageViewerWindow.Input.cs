@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Input;
 using SukiUI.Controls;
+
 using Pica.Viewer.Services;
 
 namespace Pica.Viewer.Views;
@@ -36,6 +37,26 @@ public sealed partial class ImageViewerWindow : SukiWindow
         return IsAnyModifierPressed(
             modifiers,
             KeyModifiers.Shift | KeyModifiers.Alt);
+    }
+
+    private static bool TryGetNavigationDirection(
+        Key key,
+        out int direction)
+    {
+        if ((key == Key.Left) || (key == Key.A))
+        {
+            direction = -1;
+            return true;
+        }
+
+        if ((key == Key.Right) || (key == Key.D))
+        {
+            direction = 1;
+            return true;
+        }
+
+        direction = 0;
+        return false;
     }
 
     private int GetEffectiveMovementSpeed(KeyModifiers modifiers)
@@ -194,6 +215,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         }
 
         HideContextMenu();
+        HideToolMenu();
         _isPointerPressed = true;
         _isImageClickCandidate = false;
         _pointerPressPosition = position;
@@ -351,6 +373,23 @@ public sealed partial class ImageViewerWindow : SukiWindow
         e.Handled = true;
     }
 
+    private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        _ = sender;
+
+        if (e.Key != Key.Tab)
+        {
+            return;
+        }
+
+        if (!_isImageOperationRunning)
+        {
+            ToggleChannelMode();
+        }
+
+        e.Handled = true;
+    }
+
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
         _ = sender;
@@ -378,6 +417,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
             {
                 CancelSelection();
             }
+            else if (_channelSelection.IsActive)
+            {
+                ExitChannelMode();
+            }
             else
             {
                 CloseWithFade();
@@ -398,7 +441,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
         if (e.Key == Key.F)
         {
-            _view.FilteringToggle.Toggle();
+            await ToggleFilteringAsync();
             e.Handled = true;
             return;
         }
@@ -410,6 +453,14 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 await CopySelectionAndCloseAsync(CancellationToken.None);
                 e.Handled = true;
             }
+            else if (_channelSelection.IsActive
+                && TryGetNavigationDirection(
+                    e.Key,
+                    out int channelDirection))
+            {
+                Navigate(channelDirection);
+                e.Handled = true;
+            }
 
             return;
         }
@@ -419,24 +470,11 @@ public sealed partial class ImageViewerWindow : SukiWindow
             BeginResetScaleAndCenterAnimation();
             e.Handled = true;
         }
-        else if (e.Key == Key.Left)
+        else if (TryGetNavigationDirection(
+            e.Key,
+            out int navigationDirection))
         {
-            Navigate(-1);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.A)
-        {
-            Navigate(-1);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Right)
-        {
-            Navigate(1);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.D)
-        {
-            Navigate(1);
+            Navigate(navigationDirection);
             e.Handled = true;
         }
         else if ((e.Key == Key.C) && IsControlModifierPressed(e.KeyModifiers))

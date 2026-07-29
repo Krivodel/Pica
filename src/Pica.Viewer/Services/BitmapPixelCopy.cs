@@ -9,18 +9,12 @@ internal static class BitmapPixelCopy
 {
     public static WriteableBitmap CreateCopy(Bitmap bitmap)
     {
-        ArgumentNullException.ThrowIfNull(bitmap);
+        return CreateCopy(bitmap, AlphaFormat.Premul);
+    }
 
-        WriteableBitmap copy = new(
-            bitmap.PixelSize,
-            bitmap.Dpi,
-            PixelFormat.Bgra8888,
-            AlphaFormat.Premul);
-
-        using ILockedFramebuffer framebuffer = copy.Lock();
-        bitmap.CopyPixels(framebuffer);
-
-        return copy;
+    public static WriteableBitmap CreateUnpremultipliedCopy(Bitmap bitmap)
+    {
+        return CreateCopy(bitmap, AlphaFormat.Unpremul);
     }
 
     public static WriteableBitmap CreateCrop(Bitmap bitmap, PixelRect sourceRect)
@@ -95,6 +89,24 @@ internal static class BitmapPixelCopy
         }
 
         return new PixelRect(left, top, right - left, bottom - top);
+    }
+
+    private static WriteableBitmap CreateCopy(
+        Bitmap bitmap,
+        AlphaFormat alphaFormat)
+    {
+        ArgumentNullException.ThrowIfNull(bitmap);
+
+        WriteableBitmap copy = new(
+            bitmap.PixelSize,
+            bitmap.Dpi,
+            PixelFormat.Bgra8888,
+            alphaFormat);
+
+        using ILockedFramebuffer framebuffer = copy.Lock();
+        bitmap.CopyPixels(framebuffer);
+
+        return copy;
     }
 
     private static Rect ConvertPixelRectToDipRect(PixelRect pixelRect, Vector dpi)

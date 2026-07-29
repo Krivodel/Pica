@@ -129,14 +129,34 @@ internal sealed class ViewerImageOperations
 
         await SaveImageAsync(
             storageProvider,
-            CreateSelectionSavePicker,
+            () => CreatePngSavePicker(PicaImageFormats.SelectionFileName),
             currentCt => _pngImageEncoder.EncodeAsync(bitmap, currentCt),
             SaveContentPreparationTiming.AfterOpeningDestination,
             saved,
             ct);
     }
 
-    private static (string SuggestedFileName, FilePickerFileType FileType) CreateSelectionSavePicker()
+    internal async Task SaveBitmapAsync(
+        IStorageProvider storageProvider,
+        Bitmap bitmap,
+        string suggestedFileName,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(storageProvider);
+        ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentException.ThrowIfNullOrWhiteSpace(suggestedFileName);
+
+        await SaveImageAsync(
+            storageProvider,
+            () => CreatePngSavePicker(suggestedFileName),
+            currentCt => _pngImageEncoder.EncodeAsync(bitmap, currentCt),
+            SaveContentPreparationTiming.AfterOpeningDestination,
+            null,
+            ct);
+    }
+
+    private static (string SuggestedFileName, FilePickerFileType FileType) CreatePngSavePicker(
+        string suggestedFileName)
     {
         FilePickerFileType fileType = new("PNG")
         {
@@ -144,7 +164,7 @@ internal sealed class ViewerImageOperations
             Patterns = ["*" + PicaImageFormats.PngExtension]
         };
 
-        return (PicaImageFormats.SelectionFileName, fileType);
+        return (suggestedFileName, fileType);
     }
 
     private static void ClearWritableStream(Stream stream)

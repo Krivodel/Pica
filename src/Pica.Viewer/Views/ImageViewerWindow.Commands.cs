@@ -1,10 +1,12 @@
+using Microsoft.Extensions.Logging;
+
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Microsoft.Extensions.Logging;
 using SukiUI.Controls;
-using Pica.Viewer.Services;
+
 using Pica.Protocol;
+using Pica.Viewer.Services;
 
 namespace Pica.Viewer.Views;
 
@@ -19,9 +21,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
         try
         {
-            string associationFilePath = target == OpenWithTarget.Selection
-                ? PicaImageFormats.SelectionFileName
-                : _currentItem.FilePath;
+            string associationFilePath = GetOpenWithAssociationFilePath(target);
             IReadOnlyList<OpenWithApplication> applications =
                 _platformFileActions.GetOpenWithApplications(associationFilePath);
             _view.UpdateOpenWithApplications(
@@ -33,13 +33,29 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 applications.Count,
                 target);
             _openWithTarget = target;
-            _openWithAnchor = anchor;
             ShowOpenWithSubmenu(anchor);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve the application list for opening the image.");
         }
+    }
+
+    private string GetOpenWithAssociationFilePath(OpenWithTarget target)
+    {
+        if (target == OpenWithTarget.Selection)
+        {
+            return PicaImageFormats.SelectionFileName;
+        }
+
+        PicaImageItem item = _currentItem
+            ?? throw new InvalidOperationException(
+                "An image must be selected before opening it with another application.");
+        ImageChannel? channel = _channelSelection.SelectedChannel;
+
+        return channel is null
+            ? item.FilePath
+            : channel.CreateFileName(item.FileName);
     }
 
     private async Task RunPlatformFileActionAsync(
@@ -151,7 +167,9 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = e;
 
         HideContextMenu();
-        await SaveCurrentImageAsAsync(CancellationToken.None);
+        await RunExclusiveImageOperationAsync(
+            SaveCurrentImageAsAsync,
+            CancellationToken.None);
     }
 
     private async void OnContextRevealInFolderClicked(object? sender, RoutedEventArgs e)

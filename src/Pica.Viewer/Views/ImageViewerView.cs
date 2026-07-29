@@ -27,8 +27,12 @@ internal sealed class ImageViewerView : IDisposable
     internal Image Image { get; }
     internal Border LeftNavigationArea { get; }
     internal Border RightNavigationArea { get; }
-    internal PixelFilteringToggleSwitch FilteringToggle { get; }
-    internal StackPanel BottomControls { get; }
+    internal Grid BottomControls { get; }
+    internal Button ToolMenuButton { get; }
+    internal Canvas ToolMenuLayer { get; }
+    internal Border ToolMenu { get; }
+    internal Button ModeMenuButton { get; }
+    internal Border ModeMenu { get; }
     internal Border ImageInformationPanel { get; }
     internal TextBlock ImageInformationText { get; }
     internal Button FullscreenSettingsButton { get; }
@@ -52,7 +56,9 @@ internal sealed class ImageViewerView : IDisposable
     private const string FolderIconGeometry = "M3,6 L10,6 L12,8 L21,8 L21,19 L3,19 Z";
     private const string OpenWithIconGeometry = "M13,3 L20,3 L20,10 L18,10 L18,6.4 L9.4,15 L8,13.6 L16.6,5 L13,5 Z M4,5 L10,5 L10,7 L6,7 L6,17 L16,17 L16,13 L18,13 L18,19 L4,19 Z";
     private const string CloseOrCancelIconGeometry = "M6,7.4 L7.4,6 L12,10.6 L16.6,6 L18,7.4 L13.4,12 L18,16.6 L16.6,18 L12,13.4 L7.4,18 L6,16.6 L10.6,12 Z";
+    private const string CheckIconGeometry = "M5,12 L10,17 L19,7 L17.5,5.5 L10,13.5 L6.5,10 Z";
     private const string SubmenuIconGeometry = "M9,6 L15,12 L9,18 Z";
+    private const string ToolMenuIconGeometry = "M6,15 L12,9 L18,15 Z";
     private const string WindowModeIconGeometry = "M6,6 L18,6 L18,18 L6,18 Z M8,8 L8,16 L16,16 L16,8 Z";
     private const string SettingsIconClassName = "settings-icon";
     private const double SettingsPanelTopGap = 8d;
@@ -61,7 +67,12 @@ internal sealed class ImageViewerView : IDisposable
     private const double NavigationShadowPadding = 8d;
     private const double ToolShadowPadding = 7d;
     private const double ToolButtonSize = 44d;
+    private const double ToolButtonSpacing = 8d;
     private const double ToolIconSize = 22d;
+    private const double CenteredToolGroupWidth =
+        (ToolButtonSize * 3d) + (ToolButtonSpacing * 2d);
+    private const double ToolMenuButtonLeftMargin =
+        (CenteredToolGroupWidth / 2d) + ToolButtonSpacing;
     private const double WindowResizeBorderSize = 6d;
     private const double WindowResizeCornerSize = 12d;
     private const double SelectionButtonSize = 42d;
@@ -73,6 +84,9 @@ internal sealed class ImageViewerView : IDisposable
     private static readonly IBrush DestructiveIconBrush =
         new SolidColorBrush(Color.FromRgb(179, 38, 30));
     private readonly List<Bitmap> _openWithIcons = [];
+    private readonly PathIcon _filteringCheckIcon;
+    private readonly PathIcon _mainModeCheckIcon;
+    private readonly PathIcon _channelModeCheckIcon;
 
     internal ImageViewerView(
         bool isFilteringEnabled,
@@ -98,11 +112,23 @@ internal sealed class ImageViewerView : IDisposable
         RightNavigationArea = CreateNavigationArea(
             HorizontalAlignment.Right,
             "M9,4 L17,12 L9,20 Z");
-        FilteringToggle = new PixelFilteringToggleSwitch
-        {
-            IsFilteringEnabled = isFilteringEnabled
-        };
-        BottomControls = CreateBottomControls(FilteringToggle, events);
+        BottomControls = CreateBottomControls(
+            events,
+            out Button toolMenuButton);
+        ToolMenuButton = toolMenuButton;
+        ToolMenuLayer = CreateClippedMenuLayer();
+        ToolMenu = CreateToolMenu(
+            events,
+            out Button modeMenuButton,
+            out PathIcon filteringCheckIcon);
+        ModeMenuButton = modeMenuButton;
+        _filteringCheckIcon = filteringCheckIcon;
+        ModeMenu = CreateModeMenu(
+            events,
+            out PathIcon mainModeCheckIcon,
+            out PathIcon channelModeCheckIcon);
+        _mainModeCheckIcon = mainModeCheckIcon;
+        _channelModeCheckIcon = channelModeCheckIcon;
         ImageInformationPanel = CreateImageInformationPanel(
             windowMode,
             out TextBlock imageInformationText);
@@ -128,6 +154,8 @@ internal sealed class ImageViewerView : IDisposable
         SelectionToolbar = selectionToolbar;
         SelectionOpenWithButton = selectionOpenWithButton;
         TitleBarSettingsControls = CreateTitleBarSettingsButton(events.SettingsClicked);
+        UpdateFilteringMenuState(isFilteringEnabled);
+        UpdateImageModeMenuState(ViewerImageMode.Main);
 
         Compose();
     }
@@ -149,6 +177,17 @@ internal sealed class ImageViewerView : IDisposable
             isFilteringEnabled
                 ? BitmapInterpolationMode.HighQuality
                 : BitmapInterpolationMode.None);
+    }
+
+    internal void UpdateFilteringMenuState(bool isFilteringEnabled)
+    {
+        _filteringCheckIcon.IsVisible = isFilteringEnabled;
+    }
+
+    internal void UpdateImageModeMenuState(ViewerImageMode mode)
+    {
+        _mainModeCheckIcon.IsVisible = mode == ViewerImageMode.Main;
+        _channelModeCheckIcon.IsVisible = mode == ViewerImageMode.Channels;
     }
 
     internal void UpdateImageInformation(string information)
@@ -427,36 +466,60 @@ internal sealed class ImageViewerView : IDisposable
         };
     }
 
-    private static StackPanel CreateBottomControls(
-        PixelFilteringToggleSwitch filteringToggle,
-        ImageViewerViewEvents events)
+    private static Grid CreateBottomControls(
+        ImageViewerViewEvents events,
+        out Button toolMenuButton)
     {
-        StackPanel controls = new()
+        Grid controls = new()
         {
-            HorizontalAlignment = HorizontalAlignment.Center,
+            ColumnDefinitions = new ColumnDefinitions("*,*"),
+            Height = ToolButtonSize,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Bottom,
             Margin = new Thickness(0d, 0d, 0d, 26d),
-            Orientation = Orientation.Horizontal,
-            Spacing = 8d,
             Opacity = ImageViewerVisualMetrics.HiddenControlsOpacity,
             Transitions = CreateOpacityTransition(ControlsFadeDuration)
         };
-        controls.Children.Add(CreateIconButton(
+
+        StackPanel centeredControls = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Orientation = Orientation.Horizontal,
+            Spacing = ToolButtonSpacing
+        };
+
+        centeredControls.Children.Add(CreateIconButton(
             "M5,11 L19,11 L19,13 L5,13 Z",
             events.ZoomOutClicked,
             0d,
             Brushes.White));
-        controls.Children.Add(CreateIconButton(
+        centeredControls.Children.Add(CreateIconButton(
             "M12,7 A5,5 0 1 0 12,17 A5,5 0 1 0 12,7",
             events.ResetClicked,
             0d,
             Brushes.White));
-        controls.Children.Add(CreateIconButton(
+        centeredControls.Children.Add(CreateIconButton(
             "M11,5 L13,5 L13,11 L19,11 L19,13 L13,13 L13,19 L11,19 L11,13 L5,13 L5,11 L11,11 Z",
             events.ZoomInClicked,
             0d,
             Brushes.White));
-        controls.Children.Add(filteringToggle);
+
+        Grid.SetColumnSpan(centeredControls, 2);
+        toolMenuButton = CreateIconButton(
+            ToolMenuIconGeometry,
+            events.ToolMenuClicked,
+            0d,
+            Brushes.White);
+        toolMenuButton.HorizontalAlignment = HorizontalAlignment.Left;
+        toolMenuButton.Margin = new Thickness(
+            ToolMenuButtonLeftMargin,
+            0d,
+            0d,
+            0d);
+        Grid.SetColumn(toolMenuButton, 1);
+
+        controls.Children.Add(centeredControls);
+        controls.Children.Add(toolMenuButton);
 
         return controls;
     }
@@ -633,6 +696,53 @@ internal sealed class ImageViewerView : IDisposable
         return CreateFloatingMenu(items);
     }
 
+    private static Border CreateToolMenu(
+        ImageViewerViewEvents events,
+        out Button modeMenuButton,
+        out PathIcon filteringCheckIcon)
+    {
+        StackPanel items = new()
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 2d
+        };
+
+        items.Children.Add(CreateCheckMenuButton(
+            ViewerUiStrings.Filtering,
+            events.FilteringMenuClicked,
+            out filteringCheckIcon));
+
+        modeMenuButton = CreateSubmenuButton(
+            ViewerUiStrings.Mode,
+            events.ModeMenuClicked);
+        items.Children.Add(modeMenuButton);
+
+        return CreateFloatingMenu(items);
+    }
+
+    private static Border CreateModeMenu(
+        ImageViewerViewEvents events,
+        out PathIcon mainModeCheckIcon,
+        out PathIcon channelModeCheckIcon)
+    {
+        StackPanel items = new()
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 2d
+        };
+
+        items.Children.Add(CreateCheckMenuButton(
+            ViewerUiStrings.MainMode,
+            events.MainModeMenuClicked,
+            out mainModeCheckIcon));
+        items.Children.Add(CreateCheckMenuButton(
+            ViewerUiStrings.ChannelsMode,
+            events.ChannelModeMenuClicked,
+            out channelModeCheckIcon));
+
+        return CreateFloatingMenu(items);
+    }
+
     private static Canvas CreateClippedMenuLayer()
     {
         return new Canvas
@@ -778,19 +888,61 @@ internal sealed class ImageViewerView : IDisposable
         string geometry,
         EventHandler<RoutedEventArgs> clickHandler)
     {
+        StackPanel label = CreateMenuButtonContent(text, geometry, 0d);
+
+        return CreateSubmenuButton(label, clickHandler);
+    }
+
+    private static Button CreateSubmenuButton(
+        string text,
+        EventHandler<RoutedEventArgs> clickHandler)
+    {
+        StackPanel label = CreateMenuButtonPanel();
+
+        label.Children.Add(CreateMenuIconHost(null));
+        label.Children.Add(CreateMenuTextBlock(text));
+
+        return CreateSubmenuButton(label, clickHandler);
+    }
+
+    private static Button CreateSubmenuButton(
+        Control label,
+        EventHandler<RoutedEventArgs> clickHandler)
+    {
         Grid content = new()
         {
             ColumnDefinitions = new ColumnDefinitions("*,Auto")
         };
-        StackPanel label = CreateMenuButtonContent(text, geometry, 0d);
+
         content.Children.Add(label);
+
         PathIcon indicator = CreatePathIcon(
             SubmenuIconGeometry,
             14d,
             0d,
             Brushes.White);
+
         Grid.SetColumn(indicator, 1);
         content.Children.Add(indicator);
+
+        return CreateMenuButton(content, clickHandler);
+    }
+
+    private static Button CreateCheckMenuButton(
+        string text,
+        EventHandler<RoutedEventArgs> clickHandler,
+        out PathIcon checkIcon)
+    {
+        StackPanel content = CreateMenuButtonPanel();
+
+        checkIcon = CreatePathIcon(
+            CheckIconGeometry,
+            18d,
+            0d,
+            Brushes.White);
+
+        content.Children.Add(CreateMenuIconHost(checkIcon));
+        content.Children.Add(CreateMenuTextBlock(text));
 
         return CreateMenuButton(content, clickHandler);
     }
@@ -854,6 +1006,22 @@ internal sealed class ImageViewerView : IDisposable
             Orientation = Orientation.Horizontal,
             Spacing = 8d
         };
+    }
+
+    private static Grid CreateMenuIconHost(Control? icon)
+    {
+        Grid host = new()
+        {
+            Width = 18d,
+            Height = 18d
+        };
+
+        if (icon is not null)
+        {
+            host.Children.Add(icon);
+        }
+
+        return host;
     }
 
     private static StackPanel CreateMenuButtonContent(
@@ -1032,6 +1200,9 @@ internal sealed class ImageViewerView : IDisposable
         ViewerArea.Children.Add(SelectionOverlay);
         OpenWithMenuLayer.Children.Add(OpenWithMenu);
         ViewerArea.Children.Add(OpenWithMenuLayer);
+        ToolMenuLayer.Children.Add(ToolMenu);
+        ToolMenuLayer.Children.Add(ModeMenu);
+        ViewerArea.Children.Add(ToolMenuLayer);
         ViewerArea.Children.Add(FadeOverlay);
         Root.Children.Add(ViewerArea);
         Root.Children.Add(WindowResizeOverlay);

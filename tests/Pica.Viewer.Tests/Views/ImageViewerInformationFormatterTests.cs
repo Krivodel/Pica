@@ -3,6 +3,7 @@ using Avalonia;
 using FluentAssertions;
 using Xunit;
 
+using Pica.Viewer.Services;
 using Pica.Viewer.Views;
 
 namespace Pica.Viewer.Tests.Views;
@@ -23,11 +24,12 @@ public sealed class ImageViewerInformationFormatterTests
         string result = ImageViewerInformationFormatter.Format(
             "image.png",
             new PixelSize(1920, 1080),
+            null,
             ModificationDate,
             CreateOptions());
 
         result.Should().Be(
-            "image.png · 1920×1080 · 27.07.2026 19:28");
+            "image.png · 27.07.2026 19:28 · 1920×1080");
     }
 
     [Fact]
@@ -36,6 +38,7 @@ public sealed class ImageViewerInformationFormatterTests
         string result = ImageViewerInformationFormatter.Format(
             "image.png",
             new PixelSize(),
+            null,
             null,
             CreateOptions(
                 showFormat: false,
@@ -52,6 +55,7 @@ public sealed class ImageViewerInformationFormatterTests
             "image.JPG",
             new PixelSize(),
             null,
+            null,
             CreateOptions(
                 showName: false,
                 showResolution: false,
@@ -66,12 +70,13 @@ public sealed class ImageViewerInformationFormatterTests
         string result = ImageViewerInformationFormatter.Format(
             "image.png",
             new PixelSize(640, 480),
+            null,
             ModificationDate,
             CreateOptions(
                 showName: false,
                 showFormat: false));
 
-        result.Should().Be("640×480 · 27.07.2026 19:28");
+        result.Should().Be("27.07.2026 19:28 · 640×480");
     }
 
     [Fact]
@@ -80,6 +85,7 @@ public sealed class ImageViewerInformationFormatterTests
         string result = ImageViewerInformationFormatter.Format(
             "image.png",
             new PixelSize(),
+            null,
             null,
             CreateOptions());
 
@@ -92,6 +98,7 @@ public sealed class ImageViewerInformationFormatterTests
         string result = ImageViewerInformationFormatter.Format(
             "image.png",
             new PixelSize(1920, 1080),
+            null,
             ModificationDate,
             CreateOptions(
                 showName: false,
@@ -100,6 +107,37 @@ public sealed class ImageViewerInformationFormatterTests
                 showModificationDate: false));
 
         result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Format_WithSelectedChannel_PlacesChannelAfterResolution()
+    {
+        string result = ImageViewerInformationFormatter.Format(
+            "image.png",
+            new PixelSize(1920, 1080),
+            ImageChannel.Red,
+            ModificationDate,
+            CreateOptions());
+
+        result.Should().Be(
+            "image.png · 27.07.2026 19:28 · 1920×1080 · Канал R");
+    }
+
+    [Fact]
+    public void Format_WithOnlySelectedChannel_ReturnsChannelInformation()
+    {
+        string result = ImageViewerInformationFormatter.Format(
+            "image.png",
+            new PixelSize(1920, 1080),
+            ImageChannel.Green,
+            ModificationDate,
+            CreateOptions(
+                showName: false,
+                showFormat: false,
+                showResolution: false,
+                showModificationDate: false));
+
+        result.Should().Be("Канал G");
     }
 
     private static ImageViewerInformationOptions CreateOptions(

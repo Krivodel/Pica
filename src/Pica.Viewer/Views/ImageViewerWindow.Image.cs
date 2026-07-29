@@ -1,10 +1,12 @@
+using Microsoft.Extensions.Logging;
+
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
-using Microsoft.Extensions.Logging;
 using SukiUI.Controls;
-using Pica.Viewer.Services;
+
 using Pica.Protocol;
+using Pica.Viewer.Services;
 
 namespace Pica.Viewer.Views;
 
@@ -58,6 +60,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
             ReplaceDisplayedBitmap(item, fullPath, bitmap, bitmap.PixelSize);
             _isFullResolutionImageReady = true;
+            StartSelectedChannelLoad();
             _logger.LogInformation(
                 "Loaded Pica image {ItemId} at full resolution {Width}x{Height}",
                 item.Id,
@@ -155,6 +158,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 preview,
                 fullResolutionBitmap);
             _isFullResolutionImageReady = true;
+            StartSelectedChannelLoad();
             _logger.LogInformation(
                 "Progressively loaded Pica image {ItemId} at full resolution {Width}x{Height}",
                 item.Id,
@@ -425,14 +429,11 @@ public sealed partial class ImageViewerWindow : SukiWindow
         Bitmap bitmap,
         PixelSize sourcePixelSize)
     {
-        Bitmap? previousBitmap = _bitmap;
         PicaImageItem displayedItem = item with { FilePath = fullPath };
-        _bitmap = bitmap;
+        ReplaceSourceBitmap(bitmap);
         _currentItem = displayedItem;
         _sourcePixelSize = sourcePixelSize;
-        _view.Image.Source = bitmap;
         UpdateImageInformation(displayedItem, sourcePixelSize);
-        previousBitmap?.Dispose();
     }
 
     private void UpdateSelectedImageInformation()
@@ -465,6 +466,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         string information = ImageViewerInformationFormatter.Format(
             item.FileName,
             sourcePixelSize,
+            _channelSelection.SelectedChannel,
             _settings.ShowImageModificationDate
                 ? GetModificationDate(item.FilePath)
                 : null,
@@ -492,10 +494,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private void ReleaseDisplayedBitmap()
     {
-        Bitmap? bitmap = _bitmap;
-        _bitmap = null;
-        _view.Image.Source = null;
-        bitmap?.Dispose();
+        ReleaseImageBitmaps();
     }
 
     private void ApplyLoadedImageLayout(out bool fittedWindow)
@@ -722,6 +721,12 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private void Navigate(int direction)
     {
+        if (_channelSelection.IsActive)
+        {
+            NavigateChannel(direction);
+            return;
+        }
+
         IReadOnlyList<PicaImageItem> items = _request.Items;
         if (items.Count == 0)
         {

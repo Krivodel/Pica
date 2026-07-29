@@ -6,10 +6,11 @@ A convenient image viewer. It can run as a standalone application or be used by 
 
 ## Main features
 
+- Viewing individual channels with the same functionality as regular images.
 - Automatic fitting of the window size to the image.
 - Pinning the window on top of other windows.
-- Display of the name, format, resolution, and modification date. Each item can be enabled independently.
 - Area selection (pixels are taken directly from the image without any modifications).
+- Customizable display of information, such as the name, format, resolution, or modification date.
 - Useful context menu items, including a proper "Open with" menu.
 - Supported formats: `.png`, `.jpeg`, `.webp`, `.bmp`, `.gif`, `.ico`, `.avif`, `.heic`, `.heif`, `.tif`.
 
@@ -17,20 +18,21 @@ A convenient image viewer. It can run as a standalone application or be used by 
 
 | Action                                                    | Hotkeys                                            |
 |-----------------------------------------------------------|----------------------------------------------------|
-| Previous image                                            | `A` or `←`                                         |
-| Next image                                                | `D` or `→`                                         |
+| Previous image or channel                                 | `A` or `←`                                         |
+| Next image or channel                                     | `D` or `→`                                         |
 | Zoom                                                      | Mouse wheel                                        |
 | Slow zoom                                                 | Hold `Shift`, `Ctrl`, or `Alt` while zooming       |
 | Pan                                                       | Drag with `LMB` or `MMB`                           |
 | Slow pan                                                  | Hold `Shift` or `Alt` while panning                |
 | Reset zoom and position                                   | `Space`                                            |
+| Channel mode                                              | `Tab`                                              |
 | Image filtering                                           | `F`                                                |
 | Copy                                                      | `Ctrl + C`                                         |
 | Select area                                               | `Ctrl` + drag with `LMB`                           |
 | Select the entire image                                   | `Ctrl + A`                                         |
 | Pan the image while an area selection is active           | Drag with `MMB`                                    |
 | Switch between windowed and fullscreen modes              | Double-click with `LMB`, if enabled in the settings |
-| Close settings, cancel selection, or close the window     | `Esc`                                              |
+| Close window or cancel                                    | `Esc`                                              |
 
 ## Using in your own applications
 

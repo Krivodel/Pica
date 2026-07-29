@@ -7,4 +7,4 @@ internal sealed record PreparedClipboardImage(
     int RowBytes,
     byte[] BgraPixels,
     byte[] PngContent)
-    : PreparedClipboardBitmap(PixelSize, RowBytes, BgraPixels);
+    : PreparedBitmapPixels(PixelSize, RowBytes, BgraPixels);

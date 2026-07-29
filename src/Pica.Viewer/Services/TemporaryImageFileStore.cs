@@ -2,15 +2,16 @@ using Microsoft.Extensions.Logging;
 
 namespace Pica.Viewer.Services;
 
-internal sealed class TemporarySelectionFileStore : IDisposable
+internal sealed class TemporaryImageFileStore : IDisposable
 {
-    private const string FilePrefix = "Pica-selection-";
+    private const string ChannelFilePrefix = "Pica-channel-";
+    private const string SelectionFilePrefix = "Pica-selection-";
 
-    private readonly ILogger<TemporarySelectionFileStore> _logger;
+    private readonly ILogger<TemporaryImageFileStore> _logger;
     private readonly HashSet<string> _filePaths = [];
     private readonly object _sync = new();
 
-    internal TemporarySelectionFileStore(ILogger<TemporarySelectionFileStore> logger)
+    internal TemporaryImageFileStore(ILogger<TemporaryImageFileStore> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -35,22 +36,27 @@ internal sealed class TemporarySelectionFileStore : IDisposable
             {
                 _logger.LogWarning(
                     ex,
-                    "Failed to delete the Pica selection temporary file.");
+                    "Failed to delete a temporary Pica image file.");
             }
             catch (UnauthorizedAccessException ex)
             {
                 _logger.LogWarning(
                     ex,
-                    "Access was denied while deleting the Pica selection temporary file.");
+                    "Access was denied while deleting a temporary Pica image file.");
             }
         }
     }
 
-    internal string CreateFilePath()
+    internal string CreateChannelFilePath(ImageChannel channel)
     {
-        string fileName = $"{FilePrefix}{Guid.NewGuid():N}{PicaImageFormats.PngExtension}";
+        ArgumentNullException.ThrowIfNull(channel);
 
-        return Path.Combine(Path.GetTempPath(), fileName);
+        return CreateFilePath($"{ChannelFilePrefix}{channel.Code}-");
+    }
+
+    internal string CreateSelectionFilePath()
+    {
+        return CreateFilePath(SelectionFilePrefix);
     }
 
     internal async Task SaveAsync(
@@ -66,5 +72,12 @@ internal sealed class TemporarySelectionFileStore : IDisposable
         {
             _filePaths.Add(filePath);
         }
+    }
+
+    private static string CreateFilePath(string prefix)
+    {
+        string fileName = $"{prefix}{Guid.NewGuid():N}{PicaImageFormats.PngExtension}";
+
+        return Path.Combine(Path.GetTempPath(), fileName);
     }
 }
