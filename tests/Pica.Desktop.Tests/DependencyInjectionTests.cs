@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using FluentAssertions;
 using Xunit;
@@ -28,5 +30,22 @@ public sealed class DependencyInjectionTests
             provider.GetRequiredService<IImageViewerWindowFactory>();
 
         factory.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddPicaViewer_WithHostLoggingProvider_PreservesHostProvider()
+    {
+        ServiceCollection services = new();
+        services.AddLogging(builder =>
+            builder.AddProvider(NullLoggerProvider.Instance));
+        services.AddPicaViewer();
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        IReadOnlyList<ILoggerProvider> loggerProviders = provider
+            .GetServices<ILoggerProvider>()
+            .ToList();
+
+        loggerProviders.Should().ContainSingle()
+            .Which.Should().BeSameAs(NullLoggerProvider.Instance);
     }
 }

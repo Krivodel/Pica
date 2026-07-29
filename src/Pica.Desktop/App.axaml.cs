@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using SukiUI.Toasts;
 
 using Pica.Desktop.Services;
+using Pica.Desktop.Services.Logging;
 using Pica.Desktop.Services.Updates;
 using Pica.Desktop.Views;
 using Pica.Desktop.Views.Updates;
@@ -55,7 +56,7 @@ public sealed partial class App : Application
     private void ConfigureServices()
     {
         ServiceCollection services = new();
-        services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Information));
+        services.AddPicaFileLogging();
         services.AddPicaViewer();
         services.AddSingleton<PicaStartupRequestFactory>();
         services.AddSingleton<ISukiToastManager, SukiToastManager>();
