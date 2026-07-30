@@ -12,6 +12,8 @@ internal sealed class ImageViewerWindowComposition : IDisposable
     internal ImageViewerSettingsServices SettingsServices { get; }
     internal ImageViewerInteractionServices InteractionServices { get; }
     internal ViewerWindowPlacementProvider WindowPlacementProvider { get; }
+    internal IReadOnlyList<ViewerSettingContribution>
+        SettingContributions { get; }
 
     private readonly ImageViewerWindowLifetime _lifetime;
 
@@ -23,6 +25,7 @@ internal sealed class ImageViewerWindowComposition : IDisposable
         ImageViewerSettingsServices settingsServices,
         ImageViewerInteractionServices interactionServices,
         ViewerWindowPlacementProvider windowPlacementProvider,
+        IReadOnlyList<ViewerSettingContribution> settingContributions,
         ILogger<ImageViewerWindowLifetime> lifetimeLogger)
     {
         ArgumentNullException.ThrowIfNull(window);
@@ -36,6 +39,8 @@ internal sealed class ImageViewerWindowComposition : IDisposable
             ?? throw new ArgumentNullException(nameof(interactionServices));
         WindowPlacementProvider = windowPlacementProvider
             ?? throw new ArgumentNullException(nameof(windowPlacementProvider));
+        SettingContributions = settingContributions
+            ?? throw new ArgumentNullException(nameof(settingContributions));
         _lifetime = new ImageViewerWindowLifetime(
             window,
             frameScheduler,

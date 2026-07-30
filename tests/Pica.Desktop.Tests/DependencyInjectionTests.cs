@@ -52,6 +52,28 @@ public sealed class DependencyInjectionTests
             provider.GetRequiredService<IImageViewerWindowFactory>();
 
         factory.Should().NotBeNull();
+        provider.GetServices<IViewerSettingContributionProvider>()
+            .Should()
+            .BeEmpty();
+    }
+
+    [Fact]
+    public void AddPicaDesktop_WhenProviderBuilt_RegistersDesktopSetting()
+    {
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddPicaViewer();
+        services.AddPicaDesktop();
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        IReadOnlyList<IViewerSettingContributionProvider> contributions =
+            provider
+                .GetServices<IViewerSettingContributionProvider>()
+                .ToList();
+
+        contributions.Should().ContainSingle()
+            .Which.Should().BeOfType<
+                PicaBackgroundIdleSettingContributionProvider>();
     }
 
     [Fact]

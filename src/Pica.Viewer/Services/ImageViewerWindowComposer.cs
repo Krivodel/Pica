@@ -36,11 +36,13 @@ internal sealed class ImageViewerWindowComposer
     internal ImageViewerWindow Create(
         PicaViewerRequest request,
         IViewerActionDispatcher actionDispatcher,
-        ImageViewerState state)
+        ImageViewerState state,
+        IReadOnlyList<ViewerSettingContribution> settingContributions)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(actionDispatcher);
         ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(settingContributions);
 
         return ImageViewerWindow.Create(
             (window, frameScheduler) => CreateComposition(
@@ -48,7 +50,8 @@ internal sealed class ImageViewerWindowComposer
                 frameScheduler,
                 request,
                 actionDispatcher,
-                state),
+                state,
+                settingContributions),
             _windowLogger);
     }
 
@@ -57,7 +60,8 @@ internal sealed class ImageViewerWindowComposer
         AvaloniaUiFrameScheduler frameScheduler,
         PicaViewerRequest request,
         IViewerActionDispatcher actionDispatcher,
-        ImageViewerState state)
+        ImageViewerState state,
+        IReadOnlyList<ViewerSettingContribution> settingContributions)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(frameScheduler);
@@ -105,6 +109,7 @@ internal sealed class ImageViewerWindowComposer
                 settingsServices,
                 interactionServices,
                 windowPlacementProvider,
+                settingContributions,
                 _lifetimeLogger);
         }
         catch (Exception)

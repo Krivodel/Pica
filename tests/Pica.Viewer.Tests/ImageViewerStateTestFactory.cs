@@ -8,7 +8,6 @@ internal static class ImageViewerStateTestFactory
     {
         return new ImageViewerState
         {
-            BackgroundIdleTimeoutSeconds = 120,
             IsCheckerboardBackgroundEnabled = true,
             IsFilteringEnabled = false,
             MovementSpeed = 2,

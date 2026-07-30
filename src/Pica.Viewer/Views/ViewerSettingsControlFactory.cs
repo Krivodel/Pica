@@ -9,9 +9,11 @@ internal static class ViewerSettingsControlFactory
     private const double ImageInformationSettingsTopSpacing = 10d;
 
     internal static IReadOnlyList<ViewerSettingControl> Create(
-        ImageViewerSettingsViewModel settings)
+        ImageViewerSettingsViewModel settings,
+        IReadOnlyList<ViewerSettingContribution> settingContributions)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(settingContributions);
 
         List<ViewerSettingControl> settingControls =
         [
@@ -45,12 +47,14 @@ internal static class ViewerSettingsControlFactory
             new ViewerCheckBoxSettingControl(
                 "Запоминать положение и размер окна",
                 settings.RememberWindowPlacement,
-                settings.ChangeRememberWindowPlacementCommand),
-            new ViewerChoiceSettingControl<int>(
-                "Оставаться в фоне после закрытия",
-                ViewerSettingChoices.BackgroundIdleTimeoutOptions,
-                settings.BackgroundIdleTimeoutSeconds,
-                settings.ChangeBackgroundIdleTimeoutCommand),
+                settings.ChangeRememberWindowPlacementCommand)
+        ];
+
+        settingControls.AddRange(settingContributions.Select(
+            contribution => contribution.CreateControl()));
+        settingControls.AddRange(
+        new List<ViewerSettingControl>
+        {
             new ViewerCheckBoxSettingControl(
                 "Быстрая загрузка",
                 settings.IsFastLoadingEnabled,
@@ -72,7 +76,7 @@ internal static class ViewerSettingsControlFactory
                 "Показывать разрешение",
                 settings.ShowImageResolution,
                 settings.ChangeShowImageResolutionCommand)
-        ];
+        });
 
         return settingControls;
     }

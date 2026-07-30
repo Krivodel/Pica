@@ -17,7 +17,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
     private readonly PicaDesktopViewerWindowFactory _windowFactory;
     private readonly IPicaBackgroundIdleCoordinator _backgroundIdleCoordinator;
     private readonly PicaBackgroundIdlePreparation _backgroundIdlePreparation;
-    private readonly IImageViewerStateService _stateService;
+    private readonly IPicaDesktopStateService _desktopStateService;
     private readonly IClipboardImageWriter _clipboardImageWriter;
     private readonly ApplicationUpdateCoordinator _updateCoordinator;
     private readonly IApplicationUpdateService _updateService;
@@ -38,7 +38,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
         PicaDesktopViewerWindowFactory windowFactory,
         IPicaBackgroundIdleCoordinator backgroundIdleCoordinator,
         PicaBackgroundIdlePreparation backgroundIdlePreparation,
-        IImageViewerStateService stateService,
+        IPicaDesktopStateService desktopStateService,
         IClipboardImageWriter clipboardImageWriter,
         ApplicationUpdateCoordinator updateCoordinator,
         IApplicationUpdateService updateService,
@@ -52,8 +52,8 @@ internal sealed class PicaApplicationLifecycle : IDisposable
             ?? throw new ArgumentNullException(nameof(backgroundIdleCoordinator));
         _backgroundIdlePreparation = backgroundIdlePreparation
             ?? throw new ArgumentNullException(nameof(backgroundIdlePreparation));
-        _stateService = stateService
-            ?? throw new ArgumentNullException(nameof(stateService));
+        _desktopStateService = desktopStateService
+            ?? throw new ArgumentNullException(nameof(desktopStateService));
         _clipboardImageWriter = clipboardImageWriter
             ?? throw new ArgumentNullException(nameof(clipboardImageWriter));
         _updateCoordinator = updateCoordinator
@@ -242,7 +242,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
         Task closeCleanupCompletion)
     {
         ArgumentNullException.ThrowIfNull(closeCleanupCompletion);
-        ImageViewerState state = await _stateService.LoadAsync(
+        PicaDesktopState state = await _desktopStateService.LoadAsync(
             _applicationCancellationSource.Token);
         TimeSpan idleTimeout = TimeSpan.FromSeconds(
             state.BackgroundIdleTimeoutSeconds);

@@ -22,17 +22,6 @@ public sealed class ImageViewerStateServiceTests
     }
 
     [Fact]
-    public async Task LoadAsync_WithoutSavedState_UsesSixtySecondBackgroundIdleTimeout()
-    {
-        using ImageViewerStateTestContext context = new();
-
-        ImageViewerState state = await context.Service.LoadAsync(
-            CancellationToken.None);
-
-        state.BackgroundIdleTimeoutSeconds.Should().Be(60);
-    }
-
-    [Fact]
     public async Task SaveAsync_WithCheckerboardBackgroundDisabled_RoundTripsDisabledState()
     {
         using ImageViewerStateTestContext context = new();
@@ -50,6 +39,22 @@ public sealed class ImageViewerStateServiceTests
     }
 
     [Fact]
+    public async Task SaveAsync_WithViewerState_DoesNotPersistDesktopTimeout()
+    {
+        using ImageViewerStateTestContext context = new();
+
+        await context.Service.SaveAsync(
+            new ImageViewerState(),
+            CancellationToken.None);
+        string stateJson = await File.ReadAllTextAsync(
+            context.StateFilePath,
+            CancellationToken.None);
+
+        stateJson.Should().NotContain(
+            "backgroundIdleTimeoutSeconds");
+    }
+
+    [Fact]
     public async Task SaveAsync_WithWindowPlacement_RoundTripsState()
     {
         using ImageViewerStateTestContext context = new();
@@ -61,7 +66,6 @@ public sealed class ImageViewerStateServiceTests
         ImageViewerState restoredState = await reader.LoadAsync(CancellationToken.None);
 
         restoredState.IsCheckerboardBackgroundEnabled.Should().BeTrue();
-        restoredState.BackgroundIdleTimeoutSeconds.Should().Be(120);
         restoredState.IsFilteringEnabled.Should().BeFalse();
         restoredState.MovementSpeed.Should().Be(2);
         restoredState.ZoomSpeed.Should().Be(1);
@@ -136,29 +140,6 @@ public sealed class ImageViewerStateServiceTests
         restoredState.ShowImageFormat.Should().BeTrue();
         restoredState.ShowImageResolution.Should().BeTrue();
         restoredState.ShowImageModificationDate.Should().BeTrue();
-    }
-
-    [Theory]
-    [InlineData(-1)]
-    [InlineData(3601)]
-    public async Task LoadAsync_WithOutOfRangeBackgroundIdleTimeout_UsesDefault(
-        int timeoutSeconds)
-    {
-        using ImageViewerStateTestContext context = new();
-        string stateJson = $$"""
-            {
-              "backgroundIdleTimeoutSeconds": {{timeoutSeconds}}
-            }
-            """;
-        await File.WriteAllTextAsync(
-            context.StateFilePath,
-            stateJson,
-            CancellationToken.None);
-
-        ImageViewerState restoredState = await context.Service.LoadAsync(
-            CancellationToken.None);
-
-        restoredState.BackgroundIdleTimeoutSeconds.Should().Be(60);
     }
 
     [Fact]

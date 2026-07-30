@@ -21,7 +21,6 @@ public sealed class ImageViewerSettingsViewModelTests
             out _);
 
         viewModel.IsCheckerboardBackgroundEnabled.Should().BeTrue();
-        viewModel.BackgroundIdleTimeoutSeconds.Should().Be(120);
         viewModel.MovementSpeed.Should().Be(2);
         viewModel.ZoomSpeed.Should().Be(4);
         viewModel.ExpandOnDoubleClick.Should().BeFalse();
@@ -44,23 +43,6 @@ public sealed class ImageViewerSettingsViewModelTests
         viewModel.ErrorMessage.Should().BeNull();
         viewModel.HasErrorMessage.Should().BeFalse();
 
-        viewModel.Dispose();
-    }
-
-    [Fact]
-    public async Task ChangeBackgroundIdleTimeoutCommand_WithValue_UpdatesAndSavesState()
-    {
-        ImageViewerSettingsViewModel viewModel = CreateViewModel(
-            CreateState(),
-            out RecordingImageViewerStateService stateService,
-            out _,
-            out _);
-
-        await viewModel.ChangeBackgroundIdleTimeoutCommand.ExecuteAsync(300);
-
-        viewModel.BackgroundIdleTimeoutSeconds.Should().Be(300);
-        stateService.LastSavedState?
-            .BackgroundIdleTimeoutSeconds.Should().Be(300);
         viewModel.Dispose();
     }
 
@@ -403,7 +385,6 @@ public sealed class ImageViewerSettingsViewModelTests
     {
         return new ImageViewerState
         {
-            BackgroundIdleTimeoutSeconds = 120,
             IsCheckerboardBackgroundEnabled = true,
             IsFilteringEnabled = true,
             MovementSpeed = 2,

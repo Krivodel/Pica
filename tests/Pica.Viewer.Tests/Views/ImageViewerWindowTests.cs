@@ -520,7 +520,8 @@ public sealed class ImageViewerWindowTests
         return composer.Create(
             request,
             new RecordingViewerActionDispatcher(),
-            state);
+            state,
+            Array.Empty<ViewerSettingContribution>());
     }
 
     private static IImageViewerWindowFactory CreateWindowFactory(
@@ -539,7 +540,8 @@ public sealed class ImageViewerWindowTests
         return new ImageViewerWindowFactory(
             stateService,
             uiDispatcher,
-            composer);
+            composer,
+            Array.Empty<IViewerSettingContributionProvider>());
     }
 
     private static ImageViewerWindowComposer CreateWindowComposer(

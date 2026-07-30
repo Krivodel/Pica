@@ -317,7 +317,9 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 WindowResizePointerReleased = OnWindowResizePointerReleased
             };
             IReadOnlyList<ViewerSettingControl> settingControls =
-                ViewerSettingsControlFactory.Create(settings);
+                ViewerSettingsControlFactory.Create(
+                    settings,
+                    composition.SettingContributions);
             view = new ImageViewerView(
                 composition.Session,
                 settingsServices.ToolMenu,

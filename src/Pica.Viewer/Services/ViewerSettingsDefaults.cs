@@ -2,9 +2,6 @@ namespace Pica.Viewer.Services;
 
 internal static class ViewerSettingsDefaults
 {
-    public const int BackgroundIdleTimeoutSeconds = 60;
-    public const int MaximumBackgroundIdleTimeoutSeconds = 3600;
-    public const int MinimumBackgroundIdleTimeoutSeconds = 0;
     public const int MovementSpeed = 3;
     public const int ZoomSpeed = 4;
     public const bool CheckerboardBackgroundEnabled = true;
@@ -22,14 +19,6 @@ internal static class ViewerSettingsDefaults
 
     public static int MinimumSpeed => SpeedValues[0];
     public static IReadOnlyList<int> SpeedValues { get; } = [1, 2, 3, 4];
-
-    public static int NormalizeBackgroundIdleTimeoutSeconds(int timeoutSeconds)
-    {
-        return timeoutSeconds is >= MinimumBackgroundIdleTimeoutSeconds
-            and <= MaximumBackgroundIdleTimeoutSeconds
-            ? timeoutSeconds
-            : BackgroundIdleTimeoutSeconds;
-    }
 
     public static int NormalizeSpeed(int speed, int defaultSpeed)
     {

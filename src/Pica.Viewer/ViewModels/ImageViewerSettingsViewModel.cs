@@ -10,8 +10,6 @@ internal sealed partial class ImageViewerSettingsViewModel :
     ObservableObject,
     IDisposable
 {
-    public int BackgroundIdleTimeoutSeconds =>
-        _state.BackgroundIdleTimeoutSeconds;
     public bool IsCheckerboardBackgroundEnabled =>
         _state.IsCheckerboardBackgroundEnabled;
     public bool IsFilteringEnabled => _state.IsFilteringEnabled;
@@ -81,21 +79,6 @@ internal sealed partial class ImageViewerSettingsViewModel :
             ShowImageFormat,
             ShowImageResolution,
             ShowImageModificationDate);
-    }
-
-    [RelayCommand]
-    private async Task ChangeBackgroundIdleTimeoutAsync(
-        int timeoutSeconds,
-        CancellationToken ct)
-    {
-        await ChangeSettingAsync(
-            () =>
-            {
-                _state.BackgroundIdleTimeoutSeconds = timeoutSeconds;
-                OnPropertyChanged(nameof(BackgroundIdleTimeoutSeconds));
-            },
-            nameof(ChangeBackgroundIdleTimeoutAsync),
-            ct);
     }
 
     [RelayCommand]

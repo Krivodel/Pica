@@ -6,6 +6,7 @@ using Pica.Desktop.Services;
 using Pica.Desktop.Services.Background;
 using Pica.Desktop.Services.Updates;
 using Pica.Desktop.Views.Updates;
+using Pica.Viewer.Services;
 
 namespace Pica.Desktop;
 
@@ -18,6 +19,12 @@ public static class DependencyInjection
 
         services.AddSingleton<PicaStartupRequestFactory>();
         services.AddSingleton<PicaDesktopViewerWindowFactory>();
+        services.AddSingleton<
+            IPicaDesktopStateService,
+            PicaDesktopStateService>();
+        services.AddSingleton<
+            IViewerSettingContributionProvider,
+            PicaBackgroundIdleSettingContributionProvider>();
         services.AddSingleton<PicaBackgroundIdleCoordinator>();
         services.AddSingleton<IPicaBackgroundIdleCoordinator>(provider =>
             provider.GetRequiredService<PicaBackgroundIdleCoordinator>());
