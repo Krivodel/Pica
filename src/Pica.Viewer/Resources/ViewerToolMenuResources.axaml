@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <x:String x:Key="ViewerCheckerboardBackgroundText">Прозрачный фон</x:String>
     <x:String x:Key="ViewerFilteringText">Фильтрация</x:String>
     <x:String x:Key="ViewerModeText">Режим</x:String>
     <x:String x:Key="ViewerMainModeText">Основной</x:String>

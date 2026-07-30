@@ -25,6 +25,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     internal ViewerSettingsPanel SettingsPanel { get; }
     internal Border FadeOverlay { get; }
     internal Canvas ImageCanvas { get; }
+    internal Border CheckerboardBackground { get; }
+    internal Border CheckerboardPattern { get; }
     internal Image Image { get; }
     internal Border LeftNavigationArea { get; }
     internal Border RightNavigationArea { get; }
@@ -85,6 +87,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     private readonly List<Bitmap> _openWithIcons = [];
     private readonly ImageViewerToolMenuControl _toolMenuControl;
     private readonly Grid _viewerDynamicLayer;
+    private readonly double _checkerboardTileSize;
+    private readonly TranslateTransform _checkerboardPatternTransform;
 
     internal ImageViewerView(
         ImageViewerSessionViewModel session,
@@ -116,6 +120,31 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         ImageCanvas = this.FindControl<Canvas>("ImageCanvasControl")
             ?? throw new InvalidOperationException(
                 "The image viewer is missing its image canvas.");
+        CheckerboardBackground =
+            this.FindControl<Border>("CheckerboardBackgroundControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its checkerboard background.");
+        CheckerboardPattern =
+            this.FindControl<Border>("CheckerboardPatternControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its checkerboard pattern.");
+        VisualBrush checkerboardBrush =
+            CheckerboardPattern.Background as VisualBrush
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its checkerboard brush.");
+        _checkerboardTileSize =
+            checkerboardBrush.DestinationRect.Rect.Width;
+
+        if (_checkerboardTileSize <= 0d)
+        {
+            throw new InvalidOperationException(
+                "The image viewer checkerboard tile must have a positive size.");
+        }
+
+        _checkerboardPatternTransform = new TranslateTransform();
+        CheckerboardPattern.Margin = new Thickness(-_checkerboardTileSize);
+        CheckerboardPattern.RenderTransformOrigin = RelativePoint.TopLeft;
+        CheckerboardPattern.RenderTransform = _checkerboardPatternTransform;
         Image = this.FindControl<Image>("ImageControl")
             ?? throw new InvalidOperationException(
                 "The image viewer is missing its image control.");
@@ -153,6 +182,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         zoomInButton.Click += events.ZoomInClicked;
         ToolMenuButton.Click += events.ToolMenuClicked;
         ImageViewerToolMenuControl toolMenuControl = new(toolMenu);
+        toolMenuControl.CheckerboardBackgroundMenuItem.Click +=
+            events.CheckerboardBackgroundMenuClicked;
         toolMenuControl.FilteringMenuItem.Click += events.FilteringMenuClicked;
         toolMenuControl.ModeMenuButton.Click += events.ModeMenuClicked;
         toolMenuControl.MainModeMenuItem.Click += events.MainModeMenuClicked;
@@ -236,6 +267,21 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             isFilteringEnabled
                 ? BitmapInterpolationMode.HighQuality
                 : BitmapInterpolationMode.None);
+    }
+
+    internal void ApplyCheckerboardBackground(bool isEnabled)
+    {
+        CheckerboardBackground.IsVisible = isEnabled;
+    }
+
+    internal void UpdateCheckerboardPatternOffset(
+        double offsetX,
+        double offsetY)
+    {
+        _checkerboardPatternTransform.X =
+            NormalizeCheckerboardPatternOffset(offsetX);
+        _checkerboardPatternTransform.Y =
+            NormalizeCheckerboardPatternOffset(offsetY);
     }
 
     internal void UpdateImageInformation(string information)
@@ -821,6 +867,11 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         ];
 
         return transitions;
+    }
+
+    private double NormalizeCheckerboardPatternOffset(double offset)
+    {
+        return offset % _checkerboardTileSize;
     }
 
     private void DisposeOpenWithIcons()

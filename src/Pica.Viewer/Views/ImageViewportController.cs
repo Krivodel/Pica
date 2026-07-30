@@ -38,6 +38,8 @@ internal sealed class ImageViewportController
     private double _scale = 1d;
     private double _offsetX;
     private double _offsetY;
+    private double _checkerboardPatternOffsetX;
+    private double _checkerboardPatternOffsetY;
     private long _scaleAnimationId;
     private bool _isPanning;
     private bool _isPanAnimationFramePending;
@@ -65,6 +67,20 @@ internal sealed class ImageViewportController
             ?? throw new ArgumentNullException(nameof(animationRunner));
     }
 
+    internal static Vector CalculateCheckerboardPatternOffsetAfterPan(
+        Vector currentPatternOffset,
+        Point previousImageOffset,
+        Point currentImageOffset)
+    {
+        return new Vector(
+            currentPatternOffset.X
+                + previousImageOffset.X
+                - currentImageOffset.X,
+            currentPatternOffset.Y
+                + previousImageOffset.Y
+                - currentImageOffset.Y);
+    }
+
     internal void ResetScaleAndCenter()
     {
         if (!TryGetResetImagePlacement(
@@ -78,6 +94,7 @@ internal sealed class ImageViewportController
         _scale = targetScale;
         _offsetX = targetOffsetX;
         _offsetY = targetOffsetY;
+        ResetCheckerboardPatternOffset();
         ApplyImageLayout();
         ResetPanMotion();
     }
@@ -97,6 +114,10 @@ internal sealed class ImageViewportController
         double startScale = _scale;
         double startOffsetX = _offsetX;
         double startOffsetY = _offsetY;
+        double startCheckerboardPatternOffsetX =
+            _checkerboardPatternOffsetX;
+        double startCheckerboardPatternOffsetY =
+            _checkerboardPatternOffsetY;
 
         StartScaleFrameAnimation(
             easedProgress =>
@@ -107,6 +128,13 @@ internal sealed class ImageViewportController
                     + ((targetOffsetX - startOffsetX) * easedProgress);
                 _offsetY = startOffsetY
                     + ((targetOffsetY - startOffsetY) * easedProgress);
+                _checkerboardPatternOffsetX =
+                    startCheckerboardPatternOffsetX
+                    * (1d - easedProgress);
+                _checkerboardPatternOffsetY =
+                    startCheckerboardPatternOffsetY
+                    * (1d - easedProgress);
+                ApplyCheckerboardPatternOffset();
                 ApplyImageLayout();
             });
     }
@@ -172,9 +200,19 @@ internal sealed class ImageViewportController
             return;
         }
 
-        _view.Image.Width = GetImageDipWidth();
-        _view.Image.Height = GetImageDipHeight();
+        double imageWidth = GetImageDipWidth();
+        double imageHeight = GetImageDipHeight();
+        _view.CheckerboardBackground.Width = imageWidth;
+        _view.CheckerboardBackground.Height = imageHeight;
+        _view.Image.Width = imageWidth;
+        _view.Image.Height = imageHeight;
         ClampImageOffset();
+        Canvas.SetLeft(
+            _view.CheckerboardBackground,
+            _offsetX);
+        Canvas.SetTop(
+            _view.CheckerboardBackground,
+            _offsetY);
         Canvas.SetLeft(_view.Image, _offsetX);
         Canvas.SetTop(_view.Image, _offsetY);
         LayoutChanged?.Invoke(this, EventArgs.Empty);
@@ -455,9 +493,38 @@ internal sealed class ImageViewportController
 
     private void ApplyPanMotionOffset()
     {
+        double previousOffsetX = _offsetX;
+        double previousOffsetY = _offsetY;
         _offsetX = _panMotion.CurrentOffset.X;
         _offsetY = _panMotion.CurrentOffset.Y;
+        ClampImageOffset();
+        Vector checkerboardPatternOffset =
+            CalculateCheckerboardPatternOffsetAfterPan(
+                new Vector(
+                    _checkerboardPatternOffsetX,
+                    _checkerboardPatternOffsetY),
+                new Point(previousOffsetX, previousOffsetY),
+                new Point(_offsetX, _offsetY));
+        _checkerboardPatternOffsetX =
+            checkerboardPatternOffset.X;
+        _checkerboardPatternOffsetY =
+            checkerboardPatternOffset.Y;
+        ApplyCheckerboardPatternOffset();
         ApplyImageLayout();
+    }
+
+    private void ApplyCheckerboardPatternOffset()
+    {
+        _view.UpdateCheckerboardPatternOffset(
+            _checkerboardPatternOffsetX,
+            _checkerboardPatternOffsetY);
+    }
+
+    private void ResetCheckerboardPatternOffset()
+    {
+        _checkerboardPatternOffsetX = 0d;
+        _checkerboardPatternOffsetY = 0d;
+        ApplyCheckerboardPatternOffset();
     }
 
     private void SchedulePanAnimationFrame()

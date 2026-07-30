@@ -8,6 +8,7 @@ internal static class ImageViewerStateTestFactory
     {
         return new ImageViewerState
         {
+            IsCheckerboardBackgroundEnabled = true,
             IsFilteringEnabled = false,
             MovementSpeed = 2,
             ZoomSpeed = 1,

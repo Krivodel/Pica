@@ -77,6 +77,18 @@ internal sealed class ViewerSettingsChangeController : IDisposable
 
         if (string.Equals(
             e.PropertyName,
+            nameof(
+                ImageViewerSettingsViewModel
+                    .IsCheckerboardBackgroundEnabled),
+            StringComparison.Ordinal))
+        {
+            _view.ApplyCheckerboardBackground(
+                _settings.IsCheckerboardBackgroundEnabled);
+            return;
+        }
+
+        if (string.Equals(
+            e.PropertyName,
             nameof(ImageViewerSettingsViewModel.IsFilteringEnabled),
             StringComparison.Ordinal))
         {

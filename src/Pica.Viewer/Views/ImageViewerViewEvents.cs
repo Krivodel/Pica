@@ -9,6 +9,7 @@ internal sealed class ImageViewerViewEvents
     internal required EventHandler<RoutedEventArgs> ResetClicked { get; init; }
     internal required EventHandler<RoutedEventArgs> ZoomInClicked { get; init; }
     internal required EventHandler<RoutedEventArgs> ToolMenuClicked { get; init; }
+    internal required EventHandler<RoutedEventArgs> CheckerboardBackgroundMenuClicked { get; init; }
     internal required EventHandler<RoutedEventArgs> FilteringMenuClicked { get; init; }
     internal required EventHandler<RoutedEventArgs> ModeMenuClicked { get; init; }
     internal required EventHandler<RoutedEventArgs> MainModeMenuClicked { get; init; }

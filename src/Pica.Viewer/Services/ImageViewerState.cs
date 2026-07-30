@@ -2,6 +2,8 @@ namespace Pica.Viewer.Services;
 
 public sealed class ImageViewerState
 {
+    public bool IsCheckerboardBackgroundEnabled { get; set; } =
+        ViewerSettingsDefaults.CheckerboardBackgroundEnabled;
     public bool IsFilteringEnabled { get; set; } = ViewerSettingsDefaults.FilteringEnabled;
     public int MovementSpeed { get; set; } = ViewerSettingsDefaults.MovementSpeed;
     public int ZoomSpeed { get; set; } = ViewerSettingsDefaults.ZoomSpeed;

@@ -9,6 +9,8 @@ internal sealed partial class ImageViewerToolMenuControl : UserControl
 {
     internal Canvas MenuLayer => MenuLayerControl;
     internal Border ToolMenu => ToolMenuControl;
+    internal Button CheckerboardBackgroundMenuItem =>
+        CheckerboardBackgroundButtonControl;
     internal Button FilteringMenuItem => FilteringButtonControl;
     internal Button ModeMenuButton => ModeMenuButtonControl;
     internal Border ModeMenu => ModeMenuControl;
@@ -23,6 +25,8 @@ internal sealed partial class ImageViewerToolMenuControl : UserControl
         this.FindControl<Border>("ToolMenuBorder")
         ?? throw new InvalidOperationException(
             "The tool menu control is missing its primary menu.");
+    private Button CheckerboardBackgroundButtonControl =>
+        GetRequiredButton("CheckerboardBackgroundButton");
     private Button FilteringButtonControl =>
         GetRequiredButton("FilteringButton");
     private Button ModeMenuButtonControl =>

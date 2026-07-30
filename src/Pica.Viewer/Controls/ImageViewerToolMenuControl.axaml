@@ -17,6 +17,20 @@
                 Classes="viewer-floating-menu"
                 IsVisible="False">
             <StackPanel Classes="viewer-menu-items">
+                <Button x:Name="CheckerboardBackgroundButton"
+                        Classes="viewer-menu-button"
+                        Command="{Binding Settings.ToggleCheckerboardBackgroundCommand}">
+                    <StackPanel Classes="viewer-menu-content">
+                        <Grid Classes="viewer-menu-icon-host">
+                            <PathIcon Classes="viewer-menu-icon"
+                                      Data="{StaticResource ViewerCheckIconGeometry}"
+                                      IsVisible="{Binding Settings.IsCheckerboardBackgroundEnabled}" />
+                        </Grid>
+                        <TextBlock Classes="viewer-menu-text"
+                                   Text="{StaticResource ViewerCheckerboardBackgroundText}" />
+                    </StackPanel>
+                </Button>
+
                 <Button x:Name="FilteringButton"
                         Classes="viewer-menu-button"
                         Command="{Binding Settings.ToggleFilteringCommand}">

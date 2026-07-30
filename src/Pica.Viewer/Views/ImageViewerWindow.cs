@@ -181,6 +181,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 ResetClicked = OnResetClicked,
                 ZoomInClicked = OnZoomInClicked,
                 ToolMenuClicked = OnToolMenuClicked,
+                CheckerboardBackgroundMenuClicked =
+                    OnToolMenuActionClicked,
                 FilteringMenuClicked = OnToolMenuActionClicked,
                 ModeMenuClicked = OnModeMenuClicked,
                 MainModeMenuClicked = OnToolMenuActionClicked,
@@ -236,6 +238,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 interactionServices.OpenWith.IsSupported;
             View.SelectionOpenWithButton.IsVisible =
                 interactionServices.OpenWith.IsSupported;
+            View.ApplyCheckerboardBackground(
+                settings.IsCheckerboardBackgroundEnabled);
             View.ApplyImageFiltering(settings.IsFilteringEnabled);
 
             ConfigureWindow();

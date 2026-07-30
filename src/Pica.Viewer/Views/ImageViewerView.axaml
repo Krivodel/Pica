@@ -27,6 +27,31 @@
             <Canvas x:Name="ImageCanvasControl"
                     ClipToBounds="False"
                     Background="{StaticResource ViewerTransparentBrush}">
+                <Border x:Name="CheckerboardBackgroundControl"
+                        IsHitTestVisible="False"
+                        IsVisible="False"
+                        ClipToBounds="True">
+                    <Border x:Name="CheckerboardPatternControl">
+                        <Border.Background>
+                            <VisualBrush DestinationRect="0,0,10,10"
+                                         Stretch="Fill"
+                                         TileMode="Tile">
+                                <VisualBrush.Visual>
+                                    <Grid Width="2"
+                                          Height="2"
+                                          Background="{StaticResource ViewerCheckerboardLightBrush}"
+                                          ColumnDefinitions="*,*"
+                                          RowDefinitions="*,*">
+                                        <Border Grid.Column="1"
+                                                Background="{StaticResource ViewerCheckerboardDarkBrush}" />
+                                        <Border Grid.Row="1"
+                                                Background="{StaticResource ViewerCheckerboardDarkBrush}" />
+                                    </Grid>
+                                </VisualBrush.Visual>
+                            </VisualBrush>
+                        </Border.Background>
+                    </Border>
+                </Border>
                 <Image x:Name="ImageControl"
                        Stretch="Fill" />
             </Canvas>

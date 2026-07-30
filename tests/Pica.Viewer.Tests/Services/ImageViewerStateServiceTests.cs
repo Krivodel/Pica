@@ -11,6 +11,34 @@ namespace Pica.Viewer.Tests.Services;
 public sealed class ImageViewerStateServiceTests
 {
     [Fact]
+    public async Task LoadAsync_WithoutSavedState_EnablesCheckerboardBackgroundByDefault()
+    {
+        using ImageViewerStateTestContext context = new();
+
+        ImageViewerState state = await context.Service.LoadAsync(
+            CancellationToken.None);
+
+        state.IsCheckerboardBackgroundEnabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithCheckerboardBackgroundDisabled_RoundTripsDisabledState()
+    {
+        using ImageViewerStateTestContext context = new();
+        ImageViewerState state = new()
+        {
+            IsCheckerboardBackgroundEnabled = false
+        };
+
+        await context.Service.SaveAsync(state, CancellationToken.None);
+        ImageViewerStateService reader = context.CreateService();
+        ImageViewerState restoredState = await reader.LoadAsync(
+            CancellationToken.None);
+
+        restoredState.IsCheckerboardBackgroundEnabled.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task SaveAsync_WithWindowPlacement_RoundTripsState()
     {
         using ImageViewerStateTestContext context = new();
@@ -21,6 +49,7 @@ public sealed class ImageViewerStateServiceTests
 
         ImageViewerState restoredState = await reader.LoadAsync(CancellationToken.None);
 
+        restoredState.IsCheckerboardBackgroundEnabled.Should().BeTrue();
         restoredState.IsFilteringEnabled.Should().BeFalse();
         restoredState.MovementSpeed.Should().Be(2);
         restoredState.ZoomSpeed.Should().Be(1);
@@ -86,6 +115,7 @@ public sealed class ImageViewerStateServiceTests
         ImageViewerState restoredState = await context.Service.LoadAsync(CancellationToken.None);
 
         restoredState.IsWindowed.Should().BeTrue();
+        restoredState.IsCheckerboardBackgroundEnabled.Should().BeTrue();
         restoredState.IsFilteringEnabled.Should().BeTrue();
         restoredState.IsFastLoadingEnabled.Should().BeFalse();
         restoredState.AllowFreeZoomOut.Should().BeFalse();

@@ -139,6 +139,13 @@ internal sealed class ViewerKeyboardInputController
             return;
         }
 
+        if (e.Key == Key.T)
+        {
+            _settings.ToggleCheckerboardBackgroundCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (_selection.IsActive)
         {
             await HandleSelectionKeyDownAsync(e);

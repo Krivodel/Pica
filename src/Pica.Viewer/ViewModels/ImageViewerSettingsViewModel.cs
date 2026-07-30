@@ -10,6 +10,8 @@ internal sealed partial class ImageViewerSettingsViewModel :
     ObservableObject,
     IDisposable
 {
+    public bool IsCheckerboardBackgroundEnabled =>
+        _state.IsCheckerboardBackgroundEnabled;
     public bool IsFilteringEnabled => _state.IsFilteringEnabled;
     public int MovementSpeed => _state.MovementSpeed;
     public int ZoomSpeed => _state.ZoomSpeed;
@@ -77,6 +79,22 @@ internal sealed partial class ImageViewerSettingsViewModel :
             ShowImageFormat,
             ShowImageResolution,
             ShowImageModificationDate);
+    }
+
+    [RelayCommand]
+    private async Task ToggleCheckerboardBackgroundAsync(
+        CancellationToken ct)
+    {
+        await ChangeSettingAsync(
+            () =>
+            {
+                _state.IsCheckerboardBackgroundEnabled =
+                    !_state.IsCheckerboardBackgroundEnabled;
+                OnPropertyChanged(
+                    nameof(IsCheckerboardBackgroundEnabled));
+            },
+            nameof(ToggleCheckerboardBackgroundAsync),
+            ct);
     }
 
     [RelayCommand]

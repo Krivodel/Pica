@@ -19,7 +19,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     private const double OpenWithMenuFallbackWidth = 220d;
     private const double OpenWithMenuFallbackHeight = 52d;
     private const double ToolMenuFallbackWidth = 160d;
-    private const double ToolMenuFallbackHeight = 86d;
+    private const double ToolMenuFallbackHeight = 126d;
     private const double ModeMenuFallbackWidth = 160d;
     private const double ModeMenuFallbackHeight = 86d;
     private const int SubmenuHideDelayMilliseconds = 120;

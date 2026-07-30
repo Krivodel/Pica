@@ -38,6 +38,112 @@ public sealed class ImageViewerWindowTests
     }
 
     [Fact]
+    public async Task Constructor_WithCheckerboardBackgroundEnabled_ShowsLayer()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerState state = new()
+            {
+                IsCheckerboardBackgroundEnabled = true
+            };
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                state,
+                new RecordingImageChannelBitmapLoader());
+
+            try
+            {
+                window.Show();
+                ImageViewerView view = window.Content as ImageViewerView
+                    ?? throw new InvalidOperationException(
+                        "The viewer content must be created.");
+
+                view.CheckerboardBackground.IsVisible.Should().BeTrue();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task OnKeyDown_WithLoadedImage_TogglesCheckerboardLayerWithoutReplacingSource()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            PicaImageItem item = new(
+                ItemId,
+                imagePath,
+                "image.png");
+            PicaViewerRequest request = new(
+                new List<PicaImageItem> { item },
+                ItemId);
+            ImageViewerState state = new()
+            {
+                IsCheckerboardBackgroundEnabled = false
+            };
+            ImageViewerWindow window = CreateWindow(
+                request,
+                state,
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+            TaskCompletionSource<Bitmap> loadedSource = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            view.Image.PropertyChanged += (_, e) =>
+            {
+                if ((e.Property == Image.SourceProperty)
+                    && (view.Image.Source is Bitmap source))
+                {
+                    loadedSource.TrySetResult(source);
+                }
+            };
+
+            try
+            {
+                window.Show();
+                Bitmap source = await loadedSource.Task.WaitAsync(
+                    TimeSpan.FromSeconds(TestTimeoutSeconds));
+
+                window.KeyPress(
+                    Key.T,
+                    RawInputModifiers.None,
+                    PhysicalKey.T,
+                    null);
+
+                view.CheckerboardBackground.IsVisible.Should().BeTrue();
+                view.Image.Source.Should().BeSameAs(source);
+                view.CheckerboardBackground.Width.Should().Be(
+                    view.Image.Width);
+                view.CheckerboardBackground.Height.Should().Be(
+                    view.Image.Height);
+                Canvas.GetLeft(view.CheckerboardBackground).Should().Be(
+                    Canvas.GetLeft(view.Image));
+                Canvas.GetTop(view.CheckerboardBackground).Should().Be(
+                    Canvas.GetTop(view.Image));
+
+                window.KeyPress(
+                    Key.T,
+                    RawInputModifiers.None,
+                    PhysicalKey.T,
+                    null);
+
+                view.CheckerboardBackground.IsVisible.Should().BeFalse();
+                view.Image.Source.Should().BeSameAs(source);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public async Task Constructor_WithViewerContent_HostsCompleteView()
     {
         await DispatchAsync(() =>

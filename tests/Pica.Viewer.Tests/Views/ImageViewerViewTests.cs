@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using FluentAssertions;
+using SkiaSharp;
 using Xunit;
 
 using Pica.Protocol;
@@ -16,6 +17,8 @@ using Pica.Viewer.Services;
 using Pica.Viewer.Tests.TestDoubles;
 using Pica.Viewer.ViewModels;
 using Pica.Viewer.Views;
+
+using AvaloniaBitmap = Avalonia.Media.Imaging.Bitmap;
 
 namespace Pica.Viewer.Tests.Views;
 
@@ -29,6 +32,142 @@ public sealed class ImageViewerViewTests
         return AppBuilder
             .Configure<Application>()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions());
+    }
+
+    [Fact]
+    public async Task Constructor_WithCheckerboardBackground_CreatesTiledLayerBehindImage()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            VisualBrush checkerboardBrush = view
+                .CheckerboardPattern
+                .Background
+                .Should()
+                .BeOfType<VisualBrush>()
+                .Subject;
+            RelativeRect expectedDestinationRect = new(
+                0d,
+                0d,
+                10d,
+                10d,
+                RelativeUnit.Absolute);
+            Grid checkerboardTile = checkerboardBrush
+                .Visual
+                .Should()
+                .BeOfType<Grid>()
+                .Subject;
+            SolidColorBrush lightBrush = checkerboardTile
+                .Background
+                .Should()
+                .BeOfType<SolidColorBrush>()
+                .Subject;
+            List<SolidColorBrush> darkBrushes = checkerboardTile
+                .Children
+                .OfType<Border>()
+                .Select(border => border.Background)
+                .OfType<SolidColorBrush>()
+                .ToList();
+            TranslateTransform checkerboardTransform =
+                view.CheckerboardPattern
+                    .RenderTransform
+                    .Should()
+                    .BeOfType<TranslateTransform>()
+                    .Subject;
+            const double patternOffsetX = 17d;
+            const double patternOffsetY = -9d;
+            const double expectedPatternOffsetX = 7d;
+
+            view.UpdateCheckerboardPatternOffset(
+                patternOffsetX,
+                patternOffsetY);
+
+            view.ImageCanvas.Children.IndexOf(
+                    view.CheckerboardBackground)
+                .Should()
+                .BeLessThan(view.ImageCanvas.Children.IndexOf(view.Image));
+            view.CheckerboardBackground.IsVisible.Should().BeFalse();
+            view.CheckerboardBackground.ClipToBounds.Should().BeTrue();
+            view.CheckerboardBackground.Child.Should().BeSameAs(
+                view.CheckerboardPattern);
+            view.CheckerboardPattern.Margin.Should().Be(
+                new Thickness(-10d));
+            checkerboardBrush.DestinationRect.Should().Be(
+                expectedDestinationRect);
+            checkerboardBrush.TileMode.Should().Be(TileMode.Tile);
+            lightBrush.Color.Should().Be(Color.Parse("#FFD5D9DE"));
+            darkBrushes.Should().HaveCount(2);
+            darkBrushes.Should().OnlyContain(
+                brush => brush.Color == Color.Parse("#FFB4BAC2"));
+            view.CheckerboardPattern.RenderTransformOrigin.Should().Be(
+                RelativePoint.TopLeft);
+            checkerboardTransform.X.Should().Be(expectedPatternOffsetX);
+            checkerboardTransform.Y.Should().Be(patternOffsetY);
+        });
+    }
+
+    [Fact]
+    public async Task UpdateCheckerboardPatternOffset_WhenBackgroundMoves_KeepsRenderedPatternFixed()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Window window = new()
+            {
+                Width = 160d,
+                Height = 120d,
+                Content = view
+            };
+
+            try
+            {
+                view.CheckerboardBackground.Width = 80d;
+                view.CheckerboardBackground.Height = 80d;
+                view.CheckerboardBackground.IsVisible = true;
+                view.FadeOverlay.IsVisible = false;
+                Canvas.SetLeft(view.CheckerboardBackground, 20d);
+                Canvas.SetTop(view.CheckerboardBackground, 20d);
+                window.Show();
+                using AvaloniaBitmap beforeMove =
+                    window.CaptureRenderedFrame()
+                    ?? throw new InvalidOperationException(
+                        "The checkerboard frame was not rendered.");
+
+                Canvas.SetLeft(view.CheckerboardBackground, 23d);
+                view.UpdateCheckerboardPatternOffset(-3d, 0d);
+                using AvaloniaBitmap afterMove =
+                    window.CaptureRenderedFrame()
+                    ?? throw new InvalidOperationException(
+                        "The moved checkerboard frame was not rendered.");
+
+                AssertRenderedRegionEqual(
+                    beforeMove,
+                    afterMove,
+                    new PixelRect(30, 30, 60, 60));
+            }
+            finally
+            {
+                window.Close();
+                view.Dispose();
+            }
+        });
     }
 
     [Fact]
@@ -364,11 +503,40 @@ public sealed class ImageViewerViewTests
             await toolMenu.Settings.ToggleFilteringCommand.ExecuteAsync(
                 null);
 
-            GetMenuCheckIcons(view.ToolMenu)
-                .First()
+            GetMenuCheckIcons(view.ToolMenu)[1]
                 .IsVisible
                 .Should()
                 .BeFalse();
+            toolMenu.Settings.Dispose();
+        });
+    }
+
+    [Fact]
+    public async Task ToggleCheckerboardBackgroundCommand_WhenEnabled_ShowsMenuCheck()
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                true,
+                new List<PicaActionDefinition>());
+            ImageViewerToolMenuViewModel toolMenu =
+                CreateToolMenu(session, true);
+            using ImageViewerView view = new(
+                session,
+                toolMenu,
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            await toolMenu
+                .Settings
+                .ToggleCheckerboardBackgroundCommand
+                .ExecuteAsync(null);
+
+            GetMenuCheckIcons(view.ToolMenu)[0]
+                .IsVisible
+                .Should()
+                .BeTrue();
             toolMenu.Settings.Dispose();
         });
     }
@@ -416,12 +584,76 @@ public sealed class ImageViewerViewTests
             List<Button> modeMenuButtons = GetMenuButtons(view.ModeMenu);
 
             toolMenuButtons[0].Command.Should().BeSameAs(
+                toolMenu.Settings.ToggleCheckerboardBackgroundCommand);
+            toolMenuButtons[1].Command.Should().BeSameAs(
                 toolMenu.Settings.ToggleFilteringCommand);
             modeMenuButtons[0].Command.Should().BeSameAs(
                 session.SelectMainImageModeCommand);
             modeMenuButtons[1].Command.Should().BeSameAs(
                 session.SelectChannelImageModeCommand);
         });
+    }
+
+    [Fact]
+    public async Task Constructor_WithToolMenu_DisplaysTransparencyBackgroundText()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            ImageViewerToolMenuViewModel toolMenu =
+                CreateToolMenu(session, false);
+            using ImageViewerView view = new(
+                session,
+                toolMenu,
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            string? text = GetMenuButtonText(
+                GetMenuButtons(view.ToolMenu)[0]);
+
+            text.Should().Be("Прозрачный фон");
+        });
+    }
+
+    private static void AssertRenderedRegionEqual(
+        AvaloniaBitmap expected,
+        AvaloniaBitmap actual,
+        PixelRect region)
+    {
+        using MemoryStream expectedStream = new();
+        expected.Save(expectedStream);
+        expectedStream.Position = 0;
+        using SKBitmap expectedPixels =
+            SKBitmap.Decode(expectedStream)
+            ?? throw new InvalidOperationException(
+                "The expected checkerboard frame could not be decoded.");
+        using MemoryStream actualStream = new();
+        actual.Save(actualStream);
+        actualStream.Position = 0;
+        using SKBitmap actualPixels =
+            SKBitmap.Decode(actualStream)
+            ?? throw new InvalidOperationException(
+                "The actual checkerboard frame could not be decoded.");
+        List<SKColor> expectedRegion = [];
+        List<SKColor> actualRegion = [];
+
+        for (int y = region.Y; y < region.Bottom; y++)
+        {
+            for (int x = region.X; x < region.Right; x++)
+            {
+                expectedRegion.Add(expectedPixels.GetPixel(x, y));
+                actualRegion.Add(actualPixels.GetPixel(x, y));
+            }
+        }
+
+        expectedRegion.Should().Contain(
+            new SKColor(213, 217, 222, 255));
+        expectedRegion.Should().Contain(
+            new SKColor(180, 186, 194, 255));
+        actualRegion.Should().Equal(expectedRegion);
     }
 
     private static ImageViewerViewEvents CreateEvents()
@@ -432,6 +664,7 @@ public sealed class ImageViewerViewTests
             ResetClicked = IgnoreRoutedEvent,
             ZoomInClicked = IgnoreRoutedEvent,
             ToolMenuClicked = IgnoreRoutedEvent,
+            CheckerboardBackgroundMenuClicked = IgnoreRoutedEvent,
             FilteringMenuClicked = IgnoreRoutedEvent,
             ModeMenuClicked = IgnoreRoutedEvent,
             MainModeMenuClicked = IgnoreRoutedEvent,
@@ -489,6 +722,7 @@ public sealed class ImageViewerViewTests
             isFilteringEnabled);
         ImageViewerState state = new()
         {
+            IsCheckerboardBackgroundEnabled = false,
             IsFilteringEnabled = isFilteringEnabled
         };
         ViewerWindowPlacement placement = new(

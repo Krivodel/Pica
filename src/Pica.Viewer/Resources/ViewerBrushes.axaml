@@ -2,6 +2,10 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="ViewerBackgroundBrush"
                      Color="{StaticResource ViewerBackgroundColor}" />
+    <SolidColorBrush x:Key="ViewerCheckerboardDarkBrush"
+                     Color="{StaticResource ViewerCheckerboardDarkColor}" />
+    <SolidColorBrush x:Key="ViewerCheckerboardLightBrush"
+                     Color="{StaticResource ViewerCheckerboardLightColor}" />
     <SolidColorBrush x:Key="ViewerDestructiveIconBrush"
                      Color="{StaticResource ViewerDestructiveIconColor}" />
     <SolidColorBrush x:Key="ViewerFloatingMenuBrush"

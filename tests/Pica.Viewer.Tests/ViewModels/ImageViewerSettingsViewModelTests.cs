@@ -20,6 +20,7 @@ public sealed class ImageViewerSettingsViewModelTests
             out _,
             out _);
 
+        viewModel.IsCheckerboardBackgroundEnabled.Should().BeTrue();
         viewModel.MovementSpeed.Should().Be(2);
         viewModel.ZoomSpeed.Should().Be(4);
         viewModel.ExpandOnDoubleClick.Should().BeFalse();
@@ -304,6 +305,25 @@ public sealed class ImageViewerSettingsViewModelTests
     }
 
     [Fact]
+    public async Task ToggleCheckerboardBackgroundCommand_WhenEnabled_DisablesAndSavesState()
+    {
+        ImageViewerSettingsViewModel viewModel = CreateViewModel(
+            CreateState(),
+            out RecordingImageViewerStateService stateService,
+            out _,
+            out _);
+
+        await viewModel
+            .ToggleCheckerboardBackgroundCommand
+            .ExecuteAsync(null);
+
+        viewModel.IsCheckerboardBackgroundEnabled.Should().BeFalse();
+        stateService.LastSavedState?
+            .IsCheckerboardBackgroundEnabled.Should().BeFalse();
+        viewModel.Dispose();
+    }
+
+    [Fact]
     public async Task ChangeMovementSpeedCommand_WhenSaveFails_SetsSafeError()
     {
         ImageViewerSession session = CreateSession();
@@ -365,6 +385,7 @@ public sealed class ImageViewerSettingsViewModelTests
     {
         return new ImageViewerState
         {
+            IsCheckerboardBackgroundEnabled = true,
             IsFilteringEnabled = true,
             MovementSpeed = 2,
             ZoomSpeed = 4,
