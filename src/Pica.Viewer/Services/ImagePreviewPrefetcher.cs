@@ -7,13 +7,13 @@ namespace Pica.Viewer.Services;
 internal sealed class ImagePreviewPrefetcher : IDisposable
 {
     private readonly ImageViewerSession _session;
-    private readonly ImagePreviewLoader _previewLoader;
+    private readonly IImagePreviewLoader _previewLoader;
     private readonly ILogger<ImagePreviewPrefetcher> _logger;
     private readonly ImagePreviewCache _previewCache = new();
 
     internal ImagePreviewPrefetcher(
         ImageViewerSession session,
-        ImagePreviewLoader previewLoader,
+        IImagePreviewLoader previewLoader,
         ILogger<ImagePreviewPrefetcher> logger)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));

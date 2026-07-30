@@ -2,7 +2,8 @@ using Avalonia.Media.Imaging;
 
 namespace Pica.Viewer.Services;
 
-internal sealed class FullResolutionImageLoader
+internal sealed class FullResolutionImageLoader :
+    IFullResolutionImageLoader
 {
     private static readonly SemaphoreSlim DecodeLock = new(1, 1);
 

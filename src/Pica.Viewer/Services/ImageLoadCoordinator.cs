@@ -15,8 +15,8 @@ internal sealed class ImageLoadCoordinator :
     internal bool IsFullResolutionReady => _isFullResolutionReady;
 
     private readonly ImageViewerSession _session;
-    private readonly ImagePreviewLoader _imagePreviewLoader;
-    private readonly FullResolutionImageLoader _fullResolutionImageLoader;
+    private readonly IImagePreviewLoader _imagePreviewLoader;
+    private readonly IFullResolutionImageLoader _fullResolutionImageLoader;
     private readonly IImageLoadPresentationSink _presentationSink;
     private readonly IViewerRenderFrameAwaiter _renderFrameAwaiter;
     private readonly IViewerUiDispatcher _uiDispatcher;
@@ -33,8 +33,8 @@ internal sealed class ImageLoadCoordinator :
 
     internal ImageLoadCoordinator(
         ImageViewerSession session,
-        ImagePreviewLoader imagePreviewLoader,
-        FullResolutionImageLoader fullResolutionImageLoader,
+        IImagePreviewLoader imagePreviewLoader,
+        IFullResolutionImageLoader fullResolutionImageLoader,
         IImageLoadPresentationSink presentationSink,
         IViewerRenderFrameAwaiter renderFrameAwaiter,
         IViewerUiDispatcher uiDispatcher,

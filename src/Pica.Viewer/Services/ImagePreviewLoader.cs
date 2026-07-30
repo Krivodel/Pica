@@ -6,7 +6,7 @@ using Pica.Protocol;
 
 namespace Pica.Viewer.Services;
 
-internal sealed class ImagePreviewLoader
+internal sealed class ImagePreviewLoader : IImagePreviewLoader
 {
     internal const int PreviewDecodeWidth = 128;
 
