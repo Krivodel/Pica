@@ -230,9 +230,7 @@ public sealed class ImageViewerInformationViewModelTests
     {
         PicaViewerRequest request = new(
             items,
-            selectedItemId,
-            new List<PicaActionDefinition>(),
-            null);
+            selectedItemId);
 
         return new ImageViewerSession(request, true);
     }

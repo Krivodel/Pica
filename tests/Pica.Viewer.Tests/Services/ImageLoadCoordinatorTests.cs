@@ -153,9 +153,7 @@ public sealed class ImageLoadCoordinatorTests
     {
         PicaViewerRequest request = new(
             new List<PicaImageItem> { item },
-            item.Id,
-            new List<PicaActionDefinition>(),
-            null);
+            item.Id);
 
         return new ImageViewerSession(request, true);
     }

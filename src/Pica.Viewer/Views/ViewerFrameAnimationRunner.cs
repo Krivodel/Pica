@@ -4,10 +4,10 @@ namespace Pica.Viewer.Views;
 
 internal sealed class ViewerFrameAnimationRunner
 {
-    private readonly ViewerAnimationFrameScheduler _animationFrameScheduler;
+    private readonly IUiFrameScheduler _animationFrameScheduler;
 
     internal ViewerFrameAnimationRunner(
-        ViewerAnimationFrameScheduler animationFrameScheduler)
+        IUiFrameScheduler animationFrameScheduler)
     {
         _animationFrameScheduler = animationFrameScheduler
             ?? throw new ArgumentNullException(nameof(animationFrameScheduler));

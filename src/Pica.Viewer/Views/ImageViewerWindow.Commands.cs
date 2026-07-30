@@ -41,7 +41,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = e;
 
         Control anchor =
-            sender as Control ?? _view.ModeMenuButton;
+            sender as Control ?? View.ModeMenuButton;
         _floatingMenus.ShowMode(anchor);
     }
 
@@ -156,7 +156,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         _ = e;
 
-        Control anchor = sender as Control ?? _view.ContextOpenWithButton;
+        Control anchor = sender as Control ?? View.ContextOpenWithButton;
         await _floatingMenus.ShowOpenWithAsync(
             OpenWithTarget.CurrentImage,
             anchor);
@@ -212,7 +212,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         _ = e;
 
-        Control anchor = sender as Control ?? _view.SelectionOpenWithButton;
+        Control anchor = sender as Control ?? View.SelectionOpenWithButton;
         await _floatingMenus.ShowOpenWithAsync(
             OpenWithTarget.Selection,
             anchor);

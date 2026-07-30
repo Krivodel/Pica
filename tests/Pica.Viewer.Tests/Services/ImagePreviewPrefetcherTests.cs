@@ -41,9 +41,7 @@ public sealed class ImagePreviewPrefetcherTests
                     temporaryDirectory.DirectoryPath);
             PicaViewerRequest request = new(
                 items,
-                FirstItemId,
-                new List<PicaActionDefinition>(),
-                null);
+                FirstItemId);
             ImageViewerSession session = new(request, true);
             ImageFormatRegistry formatRegistry = new();
             using ImagePreviewPrefetcher prefetcher = new(

@@ -23,7 +23,7 @@ internal sealed class ViewerWindowModeController : IDisposable
     private readonly ImageViewerSettingsViewModel _settings;
     private readonly ViewerWindowPlacementController _placement;
     private readonly ImageViewportController _viewport;
-    private readonly ViewerAnimationFrameScheduler
+    private readonly IUiFrameScheduler
         _animationFrameScheduler;
     private readonly Action _hideSettingsPanelImmediately;
     private readonly DispatcherTimer _layoutTimer;
@@ -38,7 +38,7 @@ internal sealed class ViewerWindowModeController : IDisposable
         ImageViewerSettingsViewModel settings,
         ViewerWindowPlacementController placement,
         ImageViewportController viewport,
-        ViewerAnimationFrameScheduler animationFrameScheduler,
+        IUiFrameScheduler animationFrameScheduler,
         Action hideSettingsPanelImmediately)
     {
         _window = window

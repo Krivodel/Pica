@@ -5,13 +5,13 @@ using Pica.Viewer.Services;
 
 namespace Pica.Viewer.Tests.Services;
 
-public sealed class ViewerAnimationFrameSchedulerTests
+public sealed class AnimationFrameSchedulerCoreTests
 {
     [Fact]
     public void RequestAnimationFrame_WhenNotPresented_SubmitsAfterPresentationResumes()
     {
         List<Action<TimeSpan>> submittedFrames = [];
-        ViewerAnimationFrameScheduler scheduler =
+        AnimationFrameSchedulerCore scheduler =
             CreateScheduler(submittedFrames);
         int completedFrameCount = 0;
 
@@ -31,7 +31,7 @@ public sealed class ViewerAnimationFrameSchedulerTests
     public void SetPresentation_WhenFrameWasSubmitted_IgnoresStaleFrame()
     {
         List<Action<TimeSpan>> submittedFrames = [];
-        ViewerAnimationFrameScheduler scheduler =
+        AnimationFrameSchedulerCore scheduler =
             CreateScheduler(submittedFrames);
         int completedFrameCount = 0;
         scheduler.SetPresentation(true);
@@ -54,7 +54,7 @@ public sealed class ViewerAnimationFrameSchedulerTests
     public void CancelPendingFrames_WhenStaleFrameArrives_DoesNotInvokeCallback()
     {
         List<Action<TimeSpan>> submittedFrames = [];
-        ViewerAnimationFrameScheduler scheduler =
+        AnimationFrameSchedulerCore scheduler =
             CreateScheduler(submittedFrames);
         int completedFrameCount = 0;
         scheduler.SetPresentation(true);
@@ -67,13 +67,14 @@ public sealed class ViewerAnimationFrameSchedulerTests
         scheduler.HasPendingFrames.Should().BeFalse();
     }
 
-    private static ViewerAnimationFrameScheduler CreateScheduler(
+    private static AnimationFrameSchedulerCore CreateScheduler(
         List<Action<TimeSpan>> submittedFrames)
     {
-        ViewerAnimationFrameScheduler scheduler = new();
-        scheduler.AnimationFrameRequested += (_, e) =>
-            submittedFrames.Add(e.FrameAction);
+        return new AnimationFrameSchedulerCore(frameAction =>
+        {
+            submittedFrames.Add(frameAction);
 
-        return scheduler;
+            return true;
+        });
     }
 }

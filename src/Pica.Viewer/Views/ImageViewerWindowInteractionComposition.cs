@@ -90,7 +90,7 @@ internal sealed class ImageViewerWindowInteractionComposition :
         ImageViewerOpenWithViewModel openWith,
         ImagePresentationController imagePresentation,
         IImagePresentationReadiness presentationReadiness,
-        ViewerAnimationFrameScheduler animationFrameScheduler,
+        IUiFrameScheduler animationFrameScheduler,
         ImageViewerSettingsViewModel settings,
         ViewerWindowPlacementProvider windowPlacementProvider)
     {

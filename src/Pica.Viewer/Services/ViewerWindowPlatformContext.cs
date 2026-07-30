@@ -6,13 +6,14 @@ namespace Pica.Viewer.Services;
 
 internal sealed class ViewerWindowPlatformContext
 {
+    private readonly TopLevel? _topLevel;
     private readonly IStorageProvider? _storageProvider;
     private readonly IClipboard? _clipboard;
-    private readonly TaskCompletionSource<TopLevel> _topLevelSource = new(
-        TaskCreationOptions.RunContinuationsAsynchronously);
 
-    internal ViewerWindowPlatformContext()
+    internal ViewerWindowPlatformContext(TopLevel topLevel)
     {
+        _topLevel = topLevel
+            ?? throw new ArgumentNullException(nameof(topLevel));
     }
 
     internal ViewerWindowPlatformContext(
@@ -23,44 +24,22 @@ internal sealed class ViewerWindowPlatformContext
         _clipboard = clipboard;
     }
 
-    internal void Initialize(TopLevel topLevel)
-    {
-        ArgumentNullException.ThrowIfNull(topLevel);
-
-        if (!_topLevelSource.TrySetResult(topLevel))
-        {
-            throw new InvalidOperationException(
-                "The viewer window platform context has already been initialized.");
-        }
-    }
-
-    internal async Task<IStorageProvider?> GetStorageProviderAsync(
+    internal Task<IStorageProvider?> GetStorageProviderAsync(
         CancellationToken ct)
     {
-        if (_storageProvider is not null)
-        {
-            return _storageProvider;
-        }
+        ct.ThrowIfCancellationRequested();
+        IStorageProvider? storageProvider =
+            _storageProvider ?? _topLevel?.StorageProvider;
 
-        TopLevel topLevel = await _topLevelSource.Task
-            .WaitAsync(ct)
-            .ConfigureAwait(false);
-
-        return topLevel.StorageProvider;
+        return Task.FromResult(storageProvider);
     }
 
-    internal async Task<IClipboard?> GetClipboardAsync(
+    internal Task<IClipboard?> GetClipboardAsync(
         CancellationToken ct)
     {
-        if (_clipboard is not null)
-        {
-            return _clipboard;
-        }
+        ct.ThrowIfCancellationRequested();
+        IClipboard? clipboard = _clipboard ?? _topLevel?.Clipboard;
 
-        TopLevel topLevel = await _topLevelSource.Task
-            .WaitAsync(ct)
-            .ConfigureAwait(false);
-
-        return topLevel.Clipboard;
+        return Task.FromResult(clipboard);
     }
 }

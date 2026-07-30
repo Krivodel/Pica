@@ -57,9 +57,7 @@ internal sealed class ViewerImageCommandTestContext : IDisposable
             "image.png");
         PicaViewerRequest request = new(
             new PicaImageItem[] { item },
-            itemId,
-            Array.Empty<PicaActionDefinition>(),
-            null);
+            itemId);
         ImageViewerSession sessionState = new(request, true);
         ImageViewerSessionViewModel session = new(sessionState);
         RecordingImageChannelBitmapLoader channelLoader = new();

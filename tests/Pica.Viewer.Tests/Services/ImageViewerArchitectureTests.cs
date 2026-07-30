@@ -61,12 +61,13 @@ public sealed class ImageViewerArchitectureTests
         Type[] infrastructureTypes =
         [
             typeof(ImagePresentationController),
-            typeof(ViewerAnimationFrameScheduler),
+            typeof(AvaloniaUiFrameScheduler),
+            typeof(ViewerWindowPlatformContext),
             typeof(ViewerWindowPlacementProvider),
             typeof(AvaloniaViewerFilePickerService),
             typeof(AvaloniaClipboardDataWriter)
         ];
-        string[] forbiddenMethodNames = ["Attach", "Detach"];
+        string[] forbiddenMethodNames = ["Attach", "Detach", "Initialize"];
 
         foreach (Type infrastructureType in infrastructureTypes)
         {
@@ -101,5 +102,39 @@ public sealed class ImageViewerArchitectureTests
             typeof(IImageViewerStateService),
             typeof(IViewerUiDispatcher),
             typeof(ImageViewerWindowComposer));
+    }
+
+    [Fact]
+    public void UiFrameScheduler_WhenInspected_ExposesUsablePublicBoundary()
+    {
+        Type schedulerInterface = typeof(IUiFrameScheduler);
+        ConstructorInfo[] constructors = typeof(AvaloniaUiFrameScheduler)
+            .GetConstructors();
+
+        schedulerInterface.IsPublic.Should().BeTrue();
+        constructors.Should().ContainSingle();
+        constructors[0]
+            .GetParameters()
+            .Select(parameter => parameter.ParameterType)
+            .Should()
+            .Equal(typeof(Avalonia.Controls.TopLevel));
+        typeof(IViewerRenderFrameAwaiter)
+            .IsAssignableFrom(typeof(AvaloniaUiFrameScheduler))
+            .Should()
+            .BeTrue();
+        typeof(AvaloniaUiFrameScheduler)
+            .Assembly
+            .GetType(
+                "Pica.Viewer.Services.ViewerAnimationFrameScheduler",
+                throwOnError: false)
+            .Should()
+            .BeNull();
+        typeof(AvaloniaUiFrameScheduler)
+            .Assembly
+            .GetType(
+                "Pica.Viewer.Services.ViewerAnimationFrameRequestedEventArgs",
+                throwOnError: false)
+            .Should()
+            .BeNull();
     }
 }

@@ -162,9 +162,7 @@ public sealed class ImagePresentationControllerTests
             "image.png");
         PicaViewerRequest request = new(
             new PicaImageItem[] { item },
-            ItemId,
-            Array.Empty<PicaActionDefinition>(),
-            null);
+            ItemId);
 
         return new ImageViewerSession(request, true);
     }

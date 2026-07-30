@@ -6,7 +6,6 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 using FluentAssertions;
 using SkiaSharp;
 using Xunit;
@@ -55,6 +54,63 @@ public sealed class ImageViewerWindowTests
             {
                 window.Close();
             }
+        });
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithoutActionsOrDispatcher_CreatesWindow()
+    {
+        await DispatchAsync(async () =>
+        {
+            IImageViewerWindowFactory factory = CreateWindowFactory(
+                new ImageViewerState(),
+                new RecordingImageChannelBitmapLoader());
+            PicaViewerRequest request = CreateEmptyRequest();
+
+            ImageViewerWindow window = await factory.CreateAsync(
+                request,
+                CancellationToken.None);
+
+            try
+            {
+                window.Show();
+
+                window.Content.Should().BeOfType<ImageViewerView>();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithActionsAndWithoutDispatcher_ThrowsArgumentException()
+    {
+        await DispatchAsync(async () =>
+        {
+            IImageViewerWindowFactory factory = CreateWindowFactory(
+                new ImageViewerState(),
+                new RecordingImageChannelBitmapLoader());
+            PicaActionDefinition action = new(
+                "test.action",
+                "Test action",
+                "M0,0 L1,1",
+                0d,
+                PicaActionTargets.CurrentImage,
+                0);
+            PicaViewerRequest request = new(
+                new List<PicaImageItem>(),
+                Guid.Empty,
+                new List<PicaActionDefinition> { action });
+
+            Func<Task> act = () => factory.CreateAsync(
+                request,
+                CancellationToken.None);
+
+            await act.Should()
+                .ThrowAsync<ArgumentException>()
+                .WithParameterName(nameof(request));
         });
     }
 
@@ -114,31 +170,16 @@ public sealed class ImageViewerWindowTests
                 "image.png");
             PicaViewerRequest request = new(
                 new List<PicaImageItem> { item },
-                ItemId,
-                new List<PicaActionDefinition>(),
-                null);
+                ItemId);
             ImageViewerState state = new()
             {
                 IsFastLoadingEnabled = true
-            };
-            ViewerAnimationFrameScheduler animationFrameScheduler = new();
-            TimeSpan frameTime = TimeSpan.Zero;
-            int requestedFrameCount = 0;
-            animationFrameScheduler.AnimationFrameRequested += (_, e) =>
-            {
-                requestedFrameCount++;
-                frameTime += TimeSpan.FromMilliseconds(16);
-                TimeSpan scheduledFrameTime = frameTime;
-                DispatcherTimer.RunOnce(
-                    () => e.FrameAction(scheduledFrameTime),
-                    TimeSpan.FromMilliseconds(1));
             };
             ImageViewerWindow window = CreateWindow(
                 request,
                 state,
                 new ImageChannelBitmapLoader(
-                    new ImageFormatRegistry()),
-                animationFrameScheduler);
+                    new ImageFormatRegistry()));
             ImageViewerView view = window.Content as ImageViewerView
                 ?? throw new InvalidOperationException(
                     "The viewer content must be created.");
@@ -225,7 +266,6 @@ public sealed class ImageViewerWindowTests
                     + $"Preview: {previewSource.Task.IsCompleted}; "
                     + $"full resolution: {fullResolutionSource.Task.IsCompleted}; "
                     + $"channel: {channelSource.Task.IsCompleted}; "
-                    + $"requested frames: {requestedFrameCount}; "
                     + $"observed sources: {string.Join(", ", observedSourceSizes)}.",
                     ex);
             }
@@ -240,9 +280,7 @@ public sealed class ImageViewerWindowTests
     {
         return new PicaViewerRequest(
             new List<PicaImageItem>(),
-            Guid.Empty,
-            new List<PicaActionDefinition>(),
-            null);
+            Guid.Empty);
     }
 
     private static ImageViewerWindow CreateWindow()
@@ -252,22 +290,58 @@ public sealed class ImageViewerWindowTests
         return CreateWindow(
             CreateEmptyRequest(),
             state,
-            new RecordingImageChannelBitmapLoader(),
-            new ViewerAnimationFrameScheduler());
+            new RecordingImageChannelBitmapLoader());
     }
 
     private static ImageViewerWindow CreateWindow(
         PicaViewerRequest request,
         ImageViewerState state,
-        IImageChannelBitmapLoader channelBitmapLoader,
-        ViewerAnimationFrameScheduler animationFrameScheduler)
+        IImageChannelBitmapLoader channelBitmapLoader)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(channelBitmapLoader);
-        ArgumentNullException.ThrowIfNull(animationFrameScheduler);
-        ImageFormatRegistry formatRegistry = new();
+        RecordingImageViewerStateService stateService = new(state);
         AvaloniaViewerUiDispatcher uiDispatcher = new();
+        ImageViewerWindowComposer composer = CreateWindowComposer(
+            stateService,
+            uiDispatcher,
+            channelBitmapLoader);
+
+        return composer.Create(
+            request,
+            new RecordingViewerActionDispatcher(),
+            state);
+    }
+
+    private static IImageViewerWindowFactory CreateWindowFactory(
+        ImageViewerState state,
+        IImageChannelBitmapLoader channelBitmapLoader)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(channelBitmapLoader);
+        RecordingImageViewerStateService stateService = new(state);
+        AvaloniaViewerUiDispatcher uiDispatcher = new();
+        ImageViewerWindowComposer composer = CreateWindowComposer(
+            stateService,
+            uiDispatcher,
+            channelBitmapLoader);
+
+        return new ImageViewerWindowFactory(
+            stateService,
+            uiDispatcher,
+            composer);
+    }
+
+    private static ImageViewerWindowComposer CreateWindowComposer(
+        IImageViewerStateService stateService,
+        IViewerUiDispatcher uiDispatcher,
+        IImageChannelBitmapLoader channelBitmapLoader)
+    {
+        ArgumentNullException.ThrowIfNull(stateService);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
+        ArgumentNullException.ThrowIfNull(channelBitmapLoader);
+        ImageFormatRegistry formatRegistry = new();
         ViewModelErrorHandler errorHandler = new(
             NullLogger<ViewModelErrorHandler>.Instance);
         ImageViewerPresentationFactory presentationFactory = new(
@@ -281,7 +355,7 @@ public sealed class ImageViewerWindowTests
             NullLogger<ImageLoadCoordinator>.Instance,
             NullLogger<ImagePreviewPrefetcher>.Instance);
         ImageViewerSettingsFactory settingsFactory = new(
-            new RecordingImageViewerStateService(state),
+            stateService,
             new ImageFileMetadataProvider(
                 NullLogger<ImageFileMetadataProvider>.Instance),
             errorHandler);
@@ -309,11 +383,7 @@ public sealed class ImageViewerWindowTests
             NullLogger<ImageViewerWindow>.Instance,
             NullLogger<ImageViewerWindowLifetime>.Instance);
 
-        return composer.Create(
-            request,
-            new RecordingViewerActionDispatcher(),
-            state,
-            animationFrameScheduler);
+        return composer;
     }
 
     private static async Task<string> CreateImageAsync(

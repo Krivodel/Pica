@@ -5,9 +5,10 @@ using Pica.Viewer.Views;
 
 namespace Pica.Viewer.Services;
 
-internal sealed class ImageViewerWindowLifetime
+internal sealed class ImageViewerWindowLifetime : IDisposable
 {
     private readonly ImageViewerWindow _window;
+    private readonly AvaloniaUiFrameScheduler _frameScheduler;
     private readonly ImageViewerSessionViewModel _session;
     private readonly ImageViewerPresentationServices _presentationServices;
     private readonly ImageViewerSettingsServices _settingsServices;
@@ -18,6 +19,7 @@ internal sealed class ImageViewerWindowLifetime
 
     internal ImageViewerWindowLifetime(
         ImageViewerWindow window,
+        AvaloniaUiFrameScheduler frameScheduler,
         ImageViewerSessionViewModel session,
         ImageViewerPresentationServices presentationServices,
         ImageViewerSettingsServices settingsServices,
@@ -25,6 +27,8 @@ internal sealed class ImageViewerWindowLifetime
         ILogger<ImageViewerWindowLifetime> logger)
     {
         _window = window ?? throw new ArgumentNullException(nameof(window));
+        _frameScheduler = frameScheduler
+            ?? throw new ArgumentNullException(nameof(frameScheduler));
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _presentationServices = presentationServices
             ?? throw new ArgumentNullException(nameof(presentationServices));
@@ -35,6 +39,33 @@ internal sealed class ImageViewerWindowLifetime
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _window.ReadyForLoading += OnWindowReadyForLoading;
         _window.Closed += OnWindowClosed;
+    }
+
+    public void Dispose()
+    {
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _isClosed = true;
+        DetachWindowEvents();
+        _interactionServices.DisposeWithoutFlush();
+        DisposeSharedServices();
+    }
+
+    private void DetachWindowEvents()
+    {
+        _window.ReadyForLoading -= OnWindowReadyForLoading;
+        _window.Closed -= OnWindowClosed;
+    }
+
+    private void DisposeSharedServices()
+    {
+        _settingsServices.Dispose();
+        _presentationServices.Dispose();
+        _session.Dispose();
+        _frameScheduler.Dispose();
     }
 
     private async Task FlushInteractionAndDisposeAsync()
@@ -82,12 +113,9 @@ internal sealed class ImageViewerWindowLifetime
         }
 
         _isClosed = true;
-        _window.ReadyForLoading -= OnWindowReadyForLoading;
-        _window.Closed -= OnWindowClosed;
+        DetachWindowEvents();
         _interactionServices.DisposeViewModels();
-        _settingsServices.Dispose();
-        _presentationServices.Dispose();
-        _session.Dispose();
+        DisposeSharedServices();
         _logger.LogInformation("Pica viewer closed");
         _ = FlushInteractionAndDisposeAsync();
     }

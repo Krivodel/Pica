@@ -32,7 +32,7 @@ internal sealed class ImageViewportController
     private readonly ImageViewerView _view;
     private readonly ImagePresentationController _imagePresentation;
     private readonly ImageViewerSettingsViewModel _settings;
-    private readonly ViewerAnimationFrameScheduler _animationFrameScheduler;
+    private readonly IUiFrameScheduler _animationFrameScheduler;
     private readonly ViewerFrameAnimationRunner _animationRunner;
     private readonly ImagePanMotion _panMotion = new();
     private double _scale = 1d;
@@ -49,7 +49,7 @@ internal sealed class ImageViewportController
         ImageViewerView view,
         ImagePresentationController imagePresentation,
         ImageViewerSettingsViewModel settings,
-        ViewerAnimationFrameScheduler animationFrameScheduler,
+        IUiFrameScheduler animationFrameScheduler,
         ViewerFrameAnimationRunner animationRunner)
     {
         _topLevel = topLevel

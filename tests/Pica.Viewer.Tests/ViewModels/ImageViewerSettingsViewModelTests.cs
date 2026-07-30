@@ -390,9 +390,7 @@ public sealed class ImageViewerSettingsViewModelTests
     {
         PicaViewerRequest request = new(
             new List<PicaImageItem>(),
-            Guid.Empty,
-            new List<PicaActionDefinition>(),
-            null);
+            Guid.Empty);
 
         return new ImageViewerSession(request, true);
     }

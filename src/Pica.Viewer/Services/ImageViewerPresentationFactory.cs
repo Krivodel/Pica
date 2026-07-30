@@ -39,11 +39,11 @@ internal sealed class ImageViewerPresentationFactory
 
     internal ImageViewerPresentationServices Create(
         ImageViewerSession session,
-        ViewerAnimationFrameScheduler animationFrameScheduler,
+        IViewerRenderFrameAwaiter renderFrameAwaiter,
         bool isFastLoadingEnabled)
     {
         ArgumentNullException.ThrowIfNull(session);
-        ArgumentNullException.ThrowIfNull(animationFrameScheduler);
+        ArgumentNullException.ThrowIfNull(renderFrameAwaiter);
         ImagePresentationController? presentation = null;
         ImageLoadCoordinator? loadCoordinator = null;
 
@@ -59,7 +59,7 @@ internal sealed class ImageViewerPresentationFactory
                 _imagePreviewLoader,
                 _fullResolutionImageLoader,
                 presentation,
-                animationFrameScheduler,
+                renderFrameAwaiter,
                 _uiDispatcher,
                 _loadLogger,
                 _previewPrefetcherLogger,

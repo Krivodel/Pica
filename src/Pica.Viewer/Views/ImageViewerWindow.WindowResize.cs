@@ -66,12 +66,12 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
 
         if (_selection.IsActive
-            && !_session.IsChannelModeActive)
+            && !Session.IsChannelModeActive)
         {
             return;
         }
 
-        _session.NavigateCommand.Execute(-1);
+        Session.NavigateCommand.Execute(-1);
         e.Handled = true;
     }
 
@@ -82,12 +82,12 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
 
         if (_selection.IsActive
-            && !_session.IsChannelModeActive)
+            && !Session.IsChannelModeActive)
         {
             return;
         }
 
-        _session.NavigateCommand.Execute(1);
+        Session.NavigateCommand.Execute(1);
         e.Handled = true;
     }
 }

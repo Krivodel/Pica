@@ -23,24 +23,18 @@ public sealed class ViewerWindowPlatformContextTests
     }
 
     [Fact]
-    public async Task GetStorageProviderAsync_BeforeInitialization_CompletesAfterWindowBecomesAvailable()
+    public async Task GetStorageProviderAsync_WithWindow_ReturnsWindowStorageProvider()
     {
         await HeadlessTestSessionDispatcher.DispatchAsync(
             typeof(ViewerWindowPlatformContextTests),
             SessionLock,
             async () =>
             {
-                ViewerWindowPlatformContext context = new();
-                Task<IStorageProvider?> storageProviderTask =
-                    context.GetStorageProviderAsync(
-                        CancellationToken.None);
-
-                storageProviderTask.IsCompleted.Should().BeFalse();
-
                 Window window = new();
-                context.Initialize(window);
-                IStorageProvider? storageProvider =
-                    await storageProviderTask;
+                ViewerWindowPlatformContext context = new(window);
+
+                IStorageProvider? storageProvider = await context
+                    .GetStorageProviderAsync(CancellationToken.None);
 
                 storageProvider.Should().BeSameAs(window.StorageProvider);
             });

@@ -38,25 +38,29 @@ internal sealed class ImageViewerWindowComposer
         IViewerActionDispatcher actionDispatcher,
         ImageViewerState state)
     {
-        ViewerAnimationFrameScheduler animationFrameScheduler = new();
-
-        return Create(
-            request,
-            actionDispatcher,
-            state,
-            animationFrameScheduler);
-    }
-
-    internal ImageViewerWindow Create(
-        PicaViewerRequest request,
-        IViewerActionDispatcher actionDispatcher,
-        ImageViewerState state,
-        ViewerAnimationFrameScheduler animationFrameScheduler)
-    {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(actionDispatcher);
         ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(animationFrameScheduler);
+
+        return ImageViewerWindow.Create(
+            (window, frameScheduler) => CreateComposition(
+                window,
+                frameScheduler,
+                request,
+                actionDispatcher,
+                state),
+            _windowLogger);
+    }
+
+    private ImageViewerWindowComposition CreateComposition(
+        ImageViewerWindow window,
+        AvaloniaUiFrameScheduler frameScheduler,
+        PicaViewerRequest request,
+        IViewerActionDispatcher actionDispatcher,
+        ImageViewerState state)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(frameScheduler);
         ImageViewerSession sessionState = new(
             request,
             state.IsFilteringEnabled);
@@ -69,7 +73,7 @@ internal sealed class ImageViewerWindowComposer
         {
             presentationServices = _presentationFactory.Create(
                 sessionState,
-                animationFrameScheduler,
+                frameScheduler,
                 state.IsFastLoadingEnabled);
             ViewerWindowPlacement initialPlacement = new(
                 state.IsWindowed == true,
@@ -86,35 +90,22 @@ internal sealed class ImageViewerWindowComposer
                 presentationServices.LoadCoordinator,
                 windowPlacementProvider,
                 state);
-            ViewerWindowPlatformContext platformContext = new();
+            ViewerWindowPlatformContext platformContext = new(window);
             interactionServices = _interactionFactory.Create(
                 sessionState,
                 presentationServices.Presentation,
                 presentationServices.Readiness,
                 platformContext,
                 actionDispatcher);
-            ImageViewerWindow window = new(
-                session,
-                interactionServices.Actions,
-                interactionServices.OpenWith,
-                settingsServices.Information,
-                settingsServices.ToolMenu,
-                presentationServices.Presentation,
-                presentationServices.Readiness,
-                animationFrameScheduler,
-                settingsServices.Settings,
-                windowPlacementProvider,
-                _windowLogger);
-            platformContext.Initialize(window);
-            _ = new ImageViewerWindowLifetime(
+            return new ImageViewerWindowComposition(
                 window,
+                frameScheduler,
                 session,
                 presentationServices,
                 settingsServices,
                 interactionServices,
+                windowPlacementProvider,
                 _lifetimeLogger);
-
-            return window;
         }
         catch (Exception)
         {

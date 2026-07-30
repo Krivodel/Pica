@@ -468,8 +468,7 @@ public sealed class ImageViewerViewTests
         PicaViewerRequest request = new(
             new PicaImageItem[] { item },
             itemId,
-            actions,
-            null);
+            actions);
 
         ImageViewerSession session = new(
             request,
@@ -484,9 +483,7 @@ public sealed class ImageViewerViewTests
     {
         PicaViewerRequest request = new(
             new List<PicaImageItem>(),
-            Guid.Empty,
-            new List<PicaActionDefinition>(),
-            null);
+            Guid.Empty);
         ImageViewerSession settingsSession = new(
             request,
             isFilteringEnabled);

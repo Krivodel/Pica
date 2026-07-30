@@ -280,9 +280,7 @@ public sealed class ImageViewerActionsViewModelTests
             "image.png");
         PicaViewerRequest request = new(
             new List<PicaImageItem> { item },
-            item.Id,
-            new List<PicaActionDefinition>(),
-            null);
+            item.Id);
         ImageViewerSession session = new(request, true);
         StubImagePresentationInfo presentation = new();
         presentation.SetPresentation(

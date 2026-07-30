@@ -158,9 +158,7 @@ public sealed class ImageViewerSessionViewModelTests
     {
         PicaViewerRequest request = new(
             Array.Empty<PicaImageItem>(),
-            FirstItemId,
-            Array.Empty<PicaActionDefinition>(),
-            null);
+            FirstItemId);
 
         ImageViewerSessionViewModel viewModel = new(
             new ImageViewerSession(request, false));
@@ -174,9 +172,7 @@ public sealed class ImageViewerSessionViewModelTests
     {
         PicaViewerRequest request = new(
             Array.Empty<PicaImageItem>(),
-            FirstItemId,
-            Array.Empty<PicaActionDefinition>(),
-            null);
+            FirstItemId);
         ImageViewerSessionViewModel viewModel = new(
             new ImageViewerSession(request, false));
 
@@ -219,8 +215,6 @@ public sealed class ImageViewerSessionViewModelTests
 
         return new PicaViewerRequest(
             items,
-            selectedItemId,
-            Array.Empty<PicaActionDefinition>(),
-            null);
+            selectedItemId);
     }
 }

@@ -57,9 +57,7 @@ public sealed class PicaStartupRequestFactory
             : CreateStableItemId(selectedPath);
         PicaViewerRequest viewerRequest = new(
             items,
-            selectedItemId,
-            new List<PicaActionDefinition>(),
-            null);
+            selectedItemId);
         _logger.LogInformation(
             "Created standalone Pica request from {ArgumentCount} arguments with {ItemCount} supported images",
             arguments.Length,
