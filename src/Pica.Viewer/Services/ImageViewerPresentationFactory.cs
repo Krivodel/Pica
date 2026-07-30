@@ -4,8 +4,8 @@ namespace Pica.Viewer.Services;
 
 internal sealed class ImageViewerPresentationFactory
 {
-    private readonly ImagePreviewLoader _imagePreviewLoader;
-    private readonly FullResolutionImageLoader _fullResolutionImageLoader;
+    private readonly IImagePreviewLoader _imagePreviewLoader;
+    private readonly IFullResolutionImageLoader _fullResolutionImageLoader;
     private readonly IImageChannelBitmapLoader _imageChannelBitmapLoader;
     private readonly IViewerUiDispatcher _uiDispatcher;
     private readonly ILogger<ImagePresentationController> _presentationLogger;
@@ -13,8 +13,8 @@ internal sealed class ImageViewerPresentationFactory
     private readonly ILogger<ImagePreviewPrefetcher> _previewPrefetcherLogger;
 
     public ImageViewerPresentationFactory(
-        ImagePreviewLoader imagePreviewLoader,
-        FullResolutionImageLoader fullResolutionImageLoader,
+        IImagePreviewLoader imagePreviewLoader,
+        IFullResolutionImageLoader fullResolutionImageLoader,
         IImageChannelBitmapLoader imageChannelBitmapLoader,
         IViewerUiDispatcher uiDispatcher,
         ILogger<ImagePresentationController> presentationLogger,

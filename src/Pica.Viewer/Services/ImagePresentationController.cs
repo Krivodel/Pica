@@ -36,6 +36,7 @@ internal sealed class ImagePresentationController :
     private readonly IViewerUiDispatcher _uiDispatcher;
     private readonly ILogger<ImagePresentationController> _logger;
     private readonly object _bitmapOwnershipSync = new();
+    private readonly object _disposalSync = new();
     private readonly Dictionary<Bitmap, int> _bitmapUseCounts =
         new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Bitmap> _pendingBitmapDisposals =
@@ -44,6 +45,8 @@ internal sealed class ImagePresentationController :
     private long _channelLoadId;
     private OperationCancellation? _channelLoadCancellation;
     private Task? _activeChannelLoadTask;
+    private TaskCompletionSource? _bitmapLeaseReleaseCompletion;
+    private Task? _disposalTask;
     private bool _disposed;
 
     internal ImagePresentationController(
@@ -63,14 +66,12 @@ internal sealed class ImagePresentationController :
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
+        Task disposalTask = BeginDisposal();
 
-        _session.PropertyChanged -= OnSessionPropertyChanged;
-        Release();
-        _disposed = true;
+        if (!disposalTask.IsCompletedSuccessfully)
+        {
+            _ = ObserveDisposalAsync(disposalTask);
+        }
     }
 
     void IImageLoadPresentationSink.BeginImageLoad(PicaImageItem item)
@@ -224,13 +225,34 @@ internal sealed class ImagePresentationController :
         }
     }
 
-    internal void Release()
+    internal async Task DisposeAsync(CancellationToken ct)
     {
-        if (_disposed)
-        {
-            return;
-        }
+        Task disposalTask = BeginDisposal();
 
+        await disposalTask
+            .WaitAsync(ct)
+            .ConfigureAwait(false);
+    }
+
+    private Task BeginDisposal()
+    {
+        lock (_disposalSync)
+        {
+            if (_disposalTask is not null)
+            {
+                return _disposalTask;
+            }
+
+            _session.PropertyChanged -= OnSessionPropertyChanged;
+            _disposed = true;
+            _disposalTask = ReleaseResourcesAsync();
+
+            return _disposalTask;
+        }
+    }
+
+    private async Task ReleaseResourcesAsync()
+    {
         Task? activeChannelLoadTask = _activeChannelLoadTask;
         CancelPendingChannelLoad();
         Bitmap? channelBitmap;
@@ -249,14 +271,18 @@ internal sealed class ImagePresentationController :
             IsFullResolutionReady = false;
         }
 
+        OnDisplayedBitmapChanged();
         DisposeBitmapWhenUnused(channelBitmap);
 
         if (sourceBitmap is not null)
         {
-            DisposeBitmapAfterTask(sourceBitmap, activeChannelLoadTask);
+            await DisposeBitmapForCleanupAsync(
+                sourceBitmap,
+                activeChannelLoadTask)
+                .ConfigureAwait(false);
         }
 
-        OnDisplayedBitmapChanged();
+        await WaitForBitmapLeasesAsync().ConfigureAwait(false);
     }
 
     private bool IsDisplayedBitmapReadyCore(
@@ -326,6 +352,27 @@ internal sealed class ImagePresentationController :
                 ex,
                 "Failed to release a replaced Pica bitmap.");
         }
+    }
+
+    private async Task DisposeBitmapForCleanupAsync(
+        Bitmap bitmap,
+        Task? activeTask)
+    {
+        if (activeTask is not null)
+        {
+            try
+            {
+                await activeTask.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "A channel operation failed while closing the Pica viewer.");
+            }
+        }
+
+        DisposeBitmapWhenUnused(bitmap);
     }
 
     private void StartSelectedChannelLoad()
@@ -570,7 +617,9 @@ internal sealed class ImagePresentationController :
 
         if (previousSourceBitmap is not null)
         {
-            DisposeBitmapAfterTask(previousSourceBitmap, activeChannelLoadTask);
+            DisposeBitmapAfterTask(
+                previousSourceBitmap,
+                activeChannelLoadTask);
         }
 
         OnDisplayedBitmapChanged();
@@ -598,6 +647,7 @@ internal sealed class ImagePresentationController :
     private void ReleaseBitmap(Bitmap bitmap)
     {
         bool shouldDispose = false;
+        TaskCompletionSource? leaseReleaseCompletion = null;
 
         lock (_bitmapOwnershipSync)
         {
@@ -617,11 +667,55 @@ internal sealed class ImagePresentationController :
             _bitmapUseCounts.Remove(bitmap);
             shouldDispose =
                 _pendingBitmapDisposals.Remove(bitmap);
+
+            if (_bitmapUseCounts.Count == 0)
+            {
+                leaseReleaseCompletion =
+                    _bitmapLeaseReleaseCompletion;
+                _bitmapLeaseReleaseCompletion = null;
+            }
         }
 
-        if (shouldDispose)
+        try
         {
-            bitmap.Dispose();
+            if (shouldDispose)
+            {
+                bitmap.Dispose();
+            }
+        }
+        finally
+        {
+            leaseReleaseCompletion?.TrySetResult();
+        }
+    }
+
+    private Task WaitForBitmapLeasesAsync()
+    {
+        lock (_bitmapOwnershipSync)
+        {
+            if (_bitmapUseCounts.Count == 0)
+            {
+                return Task.CompletedTask;
+            }
+
+            _bitmapLeaseReleaseCompletion ??= new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            return _bitmapLeaseReleaseCompletion.Task;
+        }
+    }
+
+    private async Task ObserveDisposalAsync(Task disposalTask)
+    {
+        try
+        {
+            await disposalTask.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to finish disposing Pica image presentation resources.");
         }
     }
 

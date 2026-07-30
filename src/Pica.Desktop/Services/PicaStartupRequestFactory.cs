@@ -22,12 +22,13 @@ public sealed class PicaStartupRequestFactory
     {
         ArgumentNullException.ThrowIfNull(arguments);
 
-        if ((arguments.Length == 2)
-            && string.Equals(arguments[0], PicaProtocolConstants.PipeArgument, StringComparison.Ordinal))
+        string? hostPipeName = PicaLaunchArguments.GetHostPipeName(arguments);
+
+        if (hostPipeName is not null)
         {
             _logger.LogInformation("Creating a hosted Pica viewer session");
             PicaHostConnection connection = await PicaHostConnection
-                .ConnectAsync(arguments[1], ct)
+                .ConnectAsync(hostPipeName, ct)
                 .ConfigureAwait(false);
             PicaViewerRequest request = await connection
                 .ReceiveRequestAsync(ct)

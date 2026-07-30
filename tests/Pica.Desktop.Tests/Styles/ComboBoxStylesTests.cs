@@ -11,6 +11,7 @@ using Pica.Tests.Common;
 
 namespace Pica.Desktop.Tests.Styles;
 
+[Collection(DesktopHeadlessTestCollection.Name)]
 public sealed class ComboBoxStylesTests
 {
     private static readonly Color SelectedItemBackgroundColor =

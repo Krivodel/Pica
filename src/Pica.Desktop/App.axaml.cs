@@ -6,29 +6,17 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-using SukiUI.Toasts;
-
 using Pica.Desktop.Services;
+using Pica.Desktop.Services.Background;
 using Pica.Desktop.Services.Logging;
-using Pica.Desktop.Services.Updates;
-using Pica.Desktop.Views;
-using Pica.Desktop.Views.Updates;
 using Pica.Viewer;
-using Pica.Viewer.Services;
-using Pica.Viewer.Views;
 
 namespace Pica.Desktop;
 
 public sealed partial class App : Application
 {
     private ServiceProvider? _serviceProvider;
-    private PicaHostConnection? _hostConnection;
-    private ApplicationUpdateCoordinator? _updateCoordinator;
-    private PicaApplicationUpdate? _pendingUpdate;
-    private IReadOnlyList<string> _updateRestartArguments = [];
     private ILogger<App>? _logger;
-    private bool _isShutdownStarted;
-    private bool _shouldRestartAfterUpdate;
 
     public override void Initialize()
     {
@@ -37,17 +25,18 @@ public sealed partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        ConfigureServices();
-        AttachExceptionHandlers();
-
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktopLifetime)
+        if (ApplicationLifetime
+            is IClassicDesktopStyleApplicationLifetime desktopLifetime)
         {
             desktopLifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            _ = StartAsync(desktopLifetime);
+            StartClassicDesktopApplication(desktopLifetime);
         }
         else
         {
-            _logger?.LogWarning("Pica was started without a classic desktop application lifetime");
+            ConfigureServices();
+            AttachExceptionHandlers();
+            _logger?.LogWarning(
+                "Pica was started without a classic desktop application lifetime");
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -58,94 +47,104 @@ public sealed partial class App : Application
         ServiceCollection services = new();
         services.AddPicaFileLogging();
         services.AddPicaViewer();
-        services.AddSingleton<PicaStartupRequestFactory>();
-        services.AddSingleton<ISukiToastManager, SukiToastManager>();
-        services.AddSingleton<IApplicationUpdateService, VelopackApplicationUpdateService>();
-        services.AddSingleton<ApplicationUpdateToastPresenter>();
-        services.AddSingleton<ApplicationUpdateCoordinator>();
+        services.AddPicaDesktop();
         _serviceProvider = services.BuildServiceProvider();
         _logger = _serviceProvider.GetRequiredService<ILogger<App>>();
     }
 
-    private void AttachExceptionHandlers()
+    private void LogForwardingFailure(Exception? forwardingException)
     {
-        Dispatcher.UIThread.UnhandledException += OnDispatcherUnhandledException;
-        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+        if (forwardingException is not null)
+        {
+            _logger?.LogWarning(
+                forwardingException,
+                "Pica could not forward startup arguments to a background process; continuing with a normal launch");
+        }
     }
 
-    private async Task StartAsync(IClassicDesktopStyleApplicationLifetime desktopLifetime)
+    private void StartClassicDesktopApplication(
+        IClassicDesktopStyleApplicationLifetime desktopLifetime)
+    {
+        Exception? forwardingException =
+            Program.TakeBackgroundActivationForwardingException();
+
+        if (!PicaBackgroundActivationRouting
+                .RunsBeforeFrameworkInitialization)
+        {
+            PicaBackgroundActivationClient activationClient = new();
+
+            try
+            {
+                if (activationClient.CanForward(
+                        desktopLifetime.Args ?? Array.Empty<string>()))
+                {
+                    _ = ForwardBackgroundActivationAsync(
+                        desktopLifetime,
+                        activationClient);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                forwardingException = ex;
+            }
+        }
+
+        StartApplicationLifecycle(
+            desktopLifetime,
+            forwardingException);
+    }
+
+    private void StartApplicationLifecycle(
+        IClassicDesktopStyleApplicationLifetime desktopLifetime,
+        Exception? forwardingException)
+    {
+        ConfigureServices();
+        AttachExceptionHandlers();
+        desktopLifetime.Exit += OnApplicationExit;
+        LogForwardingFailure(forwardingException);
+        PicaApplicationLifecycle lifecycle =
+            GetRequiredService<PicaApplicationLifecycle>();
+        _ = lifecycle.StartAsync(
+            desktopLifetime,
+            CancellationToken.None);
+    }
+
+    private async Task ForwardBackgroundActivationAsync(
+        IClassicDesktopStyleApplicationLifetime desktopLifetime,
+        PicaBackgroundActivationClient activationClient)
     {
         try
         {
-            PicaStartupRequestFactory startupRequestFactory = GetRequiredService<PicaStartupRequestFactory>();
-            PicaStartupRequest startupRequest = await startupRequestFactory
-                .CreateAsync(desktopLifetime.Args ?? [], CancellationToken.None);
-            _hostConnection = startupRequest.HostConnection;
-            IImageFormatRegistry formatRegistry = GetRequiredService<IImageFormatRegistry>();
-            ILogger<ViewerActionDispatcher> actionLogger =
-                GetRequiredService<ILogger<ViewerActionDispatcher>>();
-            ViewerActionDispatcher actionDispatcher = new(
-                _hostConnection,
-                formatRegistry,
-                actionLogger,
-                startupRequest.ViewerRequest.ActionPayloadDirectory);
-            IImageViewerWindowFactory windowFactory = GetRequiredService<IImageViewerWindowFactory>();
-            ImageViewerWindow window = await windowFactory.CreateAsync(
-                startupRequest.ViewerRequest,
-                actionDispatcher,
+            await activationClient.ForwardAsync(
+                desktopLifetime.Args ?? Array.Empty<string>(),
                 CancellationToken.None);
-
-            ShowMainWindow(desktopLifetime, window);
-            _shouldRestartAfterUpdate = _hostConnection is null;
-            _updateRestartArguments = _shouldRestartAfterUpdate
-                ? desktopLifetime.Args ?? []
-                : [];
-            _updateCoordinator = GetRequiredService<ApplicationUpdateCoordinator>();
-            _updateCoordinator.StartMonitoring(
-                window,
-                update => RequestUpdateRestartAsync(
-                    desktopLifetime,
-                    update));
-
-            _logger?.LogInformation(
-                "Pica viewer window opened with {ItemCount} images",
-                startupRequest.ViewerRequest.Items.Count);
+            desktopLifetime.Shutdown();
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Pica failed to initialize");
-            StartupErrorWindow errorWindow = new();
-            ShowMainWindow(desktopLifetime, errorWindow);
+            StartApplicationLifecycle(desktopLifetime, ex);
         }
     }
 
-    private void ShowMainWindow(
-        IClassicDesktopStyleApplicationLifetime desktopLifetime,
-        Window window)
+    private void AttachExceptionHandlers()
     {
-        window.Closed += OnMainWindowClosed;
-        desktopLifetime.MainWindow = window;
-        window.Show();
+        Dispatcher.UIThread.UnhandledException +=
+            OnDispatcherUnhandledException;
+        TaskScheduler.UnobservedTaskException +=
+            OnUnobservedTaskException;
+        AppDomain.CurrentDomain.UnhandledException +=
+            OnDomainUnhandledException;
     }
 
-    private Task RequestUpdateRestartAsync(
-        IClassicDesktopStyleApplicationLifetime desktopLifetime,
-        PicaApplicationUpdate update)
+    private void DetachExceptionHandlers()
     {
-        ArgumentNullException.ThrowIfNull(update);
-
-        _pendingUpdate = update;
-        Window? mainWindow = desktopLifetime.MainWindow;
-
-        if (mainWindow is null)
-        {
-            throw new InvalidOperationException(
-                "Pica main window is unavailable for an update restart.");
-        }
-
-        mainWindow.Close();
-        return Task.CompletedTask;
+        Dispatcher.UIThread.UnhandledException -=
+            OnDispatcherUnhandledException;
+        TaskScheduler.UnobservedTaskException -=
+            OnUnobservedTaskException;
+        AppDomain.CurrentDomain.UnhandledException -=
+            OnDomainUnhandledException;
     }
 
     private TService GetRequiredService<TService>()
@@ -153,73 +152,26 @@ public sealed partial class App : Application
     {
         if (_serviceProvider is null)
         {
-            throw new InvalidOperationException("Pica service provider has not been created.");
+            throw new InvalidOperationException(
+                "Pica service provider has not been created.");
         }
 
         return _serviceProvider.GetRequiredService<TService>();
     }
 
-    private async void OnMainWindowClosed(object? sender, EventArgs e)
+    private void OnApplicationExit(
+        object? sender,
+        ControlledApplicationLifetimeExitEventArgs e)
     {
-        if (_isShutdownStarted)
+        if (sender is IClassicDesktopStyleApplicationLifetime desktopLifetime)
         {
-            return;
+            desktopLifetime.Exit -= OnApplicationExit;
         }
 
-        _isShutdownStarted = true;
-        _logger?.LogInformation("Pica main window closed; starting graceful shutdown");
-        _ = sender;
         _ = e;
-        _updateCoordinator?.StopMonitoring();
-        _updateCoordinator = null;
-
-        if (_serviceProvider is not null)
-        {
-            IClipboardImageWriter clipboardImageWriter =
-                _serviceProvider.GetRequiredService<IClipboardImageWriter>();
-            await clipboardImageWriter.FlushAsync(CancellationToken.None);
-        }
-
-        if (_hostConnection is not null)
-        {
-            await _hostConnection.DisposeAsync();
-            _hostConnection = null;
-        }
-
-        if ((_pendingUpdate is not null) && (_serviceProvider is not null))
-        {
-            try
-            {
-                IApplicationUpdateService updateService =
-                    _serviceProvider.GetRequiredService<IApplicationUpdateService>();
-                if (_shouldRestartAfterUpdate)
-                {
-                    updateService.ApplyUpdateAndRestart(
-                        _pendingUpdate,
-                        _updateRestartArguments);
-                }
-                else
-                {
-                    updateService.ApplyUpdateAndExit(_pendingUpdate);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(
-                    ex,
-                    "Pica update {UpdateVersion} could not be applied after shutdown.",
-                    _pendingUpdate.Version);
-            }
-        }
-
+        DetachExceptionHandlers();
         _serviceProvider?.Dispose();
         _serviceProvider = null;
-
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktopLifetime)
-        {
-            _logger?.LogInformation("Pica graceful shutdown completed");
-            desktopLifetime.Shutdown();
-        }
     }
 
     private void OnDispatcherUnhandledException(
@@ -227,16 +179,24 @@ public sealed partial class App : Application
         DispatcherUnhandledExceptionEventArgs e)
     {
         _ = sender;
-        _logger?.LogError(e.Exception, "Unhandled Pica UI-thread exception");
+        _logger?.LogError(
+            e.Exception,
+            "Unhandled Pica UI-thread exception");
     }
 
-    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    private void OnUnobservedTaskException(
+        object? sender,
+        UnobservedTaskExceptionEventArgs e)
     {
         _ = sender;
-        _logger?.LogError(e.Exception, "Unobserved Pica task exception");
+        _logger?.LogError(
+            e.Exception,
+            "Unobserved Pica task exception");
     }
 
-    private void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    private void OnDomainUnhandledException(
+        object sender,
+        UnhandledExceptionEventArgs e)
     {
         _ = sender;
 

@@ -24,4 +24,38 @@ internal sealed class ImageViewerPresentationServices : IDisposable
         LoadCoordinator.Dispose();
         Presentation.Dispose();
     }
+
+    internal async Task DisposeAsync(CancellationToken ct)
+    {
+        List<Exception> failures = [];
+
+        try
+        {
+            await LoadCoordinator
+                .DisposeAsync(ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            failures.Add(ex);
+        }
+
+        try
+        {
+            await Presentation
+                .DisposeAsync(ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            failures.Add(ex);
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new AggregateException(
+                "Failed to dispose Pica image presentation services.",
+                failures);
+        }
+    }
 }

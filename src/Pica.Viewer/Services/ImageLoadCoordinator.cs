@@ -22,6 +22,7 @@ internal sealed class ImageLoadCoordinator :
     private readonly IViewerUiDispatcher _uiDispatcher;
     private readonly ILogger<ImageLoadCoordinator> _logger;
     private readonly ImagePreviewPrefetcher _previewPrefetcher;
+    private readonly object _disposalSync = new();
     private bool _isFastLoadingEnabled;
     private bool _isFullResolutionReady;
     private bool _isStarted;
@@ -30,6 +31,7 @@ internal sealed class ImageLoadCoordinator :
     private OperationCancellation? _loadCancellation;
     private Task? _activeLoadTask;
     private Task? _previewCachePrimingTask;
+    private Task? _disposalTask;
 
     internal ImageLoadCoordinator(
         ImageViewerSession session,
@@ -82,19 +84,12 @@ internal sealed class ImageLoadCoordinator :
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
+        Task disposalTask = BeginDisposal();
 
-        if (_isStarted)
+        if (!disposalTask.IsCompletedSuccessfully)
         {
-            _session.PropertyChanged -= OnSessionPropertyChanged;
+            _ = ObserveDisposalAsync(disposalTask);
         }
-
-        CancelPendingWork();
-        _previewPrefetcher.Dispose();
-        _disposed = true;
     }
 
     internal void Start()
@@ -109,6 +104,15 @@ internal sealed class ImageLoadCoordinator :
         _isStarted = true;
         _session.PropertyChanged += OnSessionPropertyChanged;
         LoadSelectedImage();
+    }
+
+    internal async Task DisposeAsync(CancellationToken ct)
+    {
+        Task disposalTask = BeginDisposal();
+
+        await disposalTask
+            .WaitAsync(ct)
+            .ConfigureAwait(false);
     }
 
     internal async Task<bool> WaitForFullResolutionAsync(CancellationToken ct)
@@ -530,6 +534,75 @@ internal sealed class ImageLoadCoordinator :
     private bool CanApplyLoad(long loadId, CancellationToken ct)
     {
         return !ct.IsCancellationRequested && (loadId == _loadId);
+    }
+
+    private Task BeginDisposal()
+    {
+        lock (_disposalSync)
+        {
+            if (_disposalTask is not null)
+            {
+                return _disposalTask;
+            }
+
+            if (_isStarted)
+            {
+                _session.PropertyChanged -= OnSessionPropertyChanged;
+            }
+
+            Task? activeLoadTask = _activeLoadTask;
+            Task? previewCachePrimingTask = _previewCachePrimingTask;
+            CancelPendingWork();
+            _disposed = true;
+            _disposalTask = CompleteDisposalAsync(
+                activeLoadTask,
+                previewCachePrimingTask);
+
+            return _disposalTask;
+        }
+    }
+
+    private async Task CompleteDisposalAsync(
+        Task? activeLoadTask,
+        Task? previewCachePrimingTask)
+    {
+        List<Task> pendingTasks = [];
+
+        if (activeLoadTask is not null)
+        {
+            pendingTasks.Add(activeLoadTask);
+        }
+
+        if ((previewCachePrimingTask is not null)
+            && !object.ReferenceEquals(
+                previewCachePrimingTask,
+                activeLoadTask))
+        {
+            pendingTasks.Add(previewCachePrimingTask);
+        }
+
+        try
+        {
+            await Task.WhenAll(pendingTasks).ConfigureAwait(false);
+        }
+        finally
+        {
+            _previewPrefetcher.Dispose();
+        }
+    }
+
+    private async Task ObserveDisposalAsync(Task disposalTask)
+    {
+        try
+        {
+            await disposalTask.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to finish disposing Pica image loading services.");
+        }
     }
 
     private void CancelPendingWork()

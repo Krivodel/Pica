@@ -18,6 +18,9 @@ namespace Pica.Viewer.Views;
 
 public sealed partial class ImageViewerWindow : SukiWindow
 {
+    public Task CloseCleanupCompletion =>
+        _closeCleanupCompletionSource.Task;
+
     internal ViewerWindowMode CurrentWindowMode => _windowMode.Mode;
 
     internal event EventHandler? ReadyForLoading;
@@ -68,13 +71,22 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private ViewerKeyboardInputController _keyboardInput =>
         Interaction.KeyboardInput;
 
+    private readonly TaskCompletionSource _closeCleanupCompletionSource =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ImageViewerSessionViewModel? _session;
     private ImageViewerWindowInteractionComposition? _interaction;
     private Bitmap? _logoBitmap;
     private ImageViewerView? _view;
+    private ILogger<ImageViewerWindow>? _logger;
+    private Exception? _closeVisualCleanupException;
 
     private ImageViewerWindow()
     {
+    }
+
+    public void CloseForApplicationExit()
+    {
+        Close();
     }
 
     internal static ImageViewerWindow Create(
@@ -91,6 +103,22 @@ public sealed partial class ImageViewerWindow : SukiWindow
         window.Compose(compositionFactory, logger);
 
         return window;
+    }
+
+    internal void CompleteCloseCleanup()
+    {
+        _closeCleanupCompletionSource.TrySetResult();
+    }
+
+    internal void FailCloseCleanup(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        _closeCleanupCompletionSource.TrySetException(exception);
+    }
+
+    internal Exception? GetCloseVisualCleanupException()
+    {
+        return _closeVisualCleanupException;
     }
 
     protected override void OnOpened(EventArgs e)
@@ -110,12 +138,48 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     protected override void OnClosed(EventArgs e)
     {
-        _viewport.StopScaleAnimation();
-        _viewport.StopPanMotion();
-        Interaction.Dispose();
-        View.Image.Source = null;
-        View.Dispose();
-        LogoBitmap.Dispose();
+        ImageViewerWindowInteractionComposition? interaction = _interaction;
+        ImageViewerView? view = _view;
+        Bitmap? logoBitmap = _logoBitmap;
+        List<Exception> cleanupFailures = [];
+
+        _session = null;
+        _interaction = null;
+        _view = null;
+        _logoBitmap = null;
+
+        ExecuteCloseCleanup(
+            () =>
+            {
+                interaction?.Viewport.StopScaleAnimation();
+                interaction?.Viewport.StopPanMotion();
+            },
+            "stop viewer animations",
+            cleanupFailures);
+        ExecuteCloseCleanup(
+            () => interaction?.Dispose(),
+            "dispose viewer interaction controllers",
+            cleanupFailures);
+        ExecuteCloseCleanup(
+            () => DetachVisualTree(view),
+            "detach the viewer visual tree",
+            cleanupFailures);
+        ExecuteCloseCleanup(
+            () => view?.Dispose(),
+            "dispose the viewer content",
+            cleanupFailures);
+        ExecuteCloseCleanup(
+            () => logoBitmap?.Dispose(),
+            "dispose the viewer logo",
+            cleanupFailures);
+        _closeVisualCleanupException = cleanupFailures.Count switch
+        {
+            0 => null,
+            1 => cleanupFailures[0],
+            _ => new AggregateException(
+                "Pica viewer visual cleanup failed.",
+                cleanupFailures)
+        };
         base.OnClosed(e);
     }
 
@@ -123,9 +187,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == WindowStateProperty)
+        if ((change.Property == WindowStateProperty)
+            && (_interaction is not null))
         {
-            _windowMode.HandleWindowStateChanged();
+            _interaction.WindowMode.HandleWindowStateChanged();
         }
     }
 
@@ -145,6 +210,51 @@ public sealed partial class ImageViewerWindow : SukiWindow
         return new WindowIcon(stream);
     }
 
+    private void DetachVisualTree(ImageViewerView? view)
+    {
+        if (view is not null)
+        {
+            view.Image.Source = null;
+            view.DataContext = null;
+        }
+
+        if (LogoContent is Image logo)
+        {
+            logo.Source = null;
+        }
+
+        Content = null;
+        LogoContent = null;
+        RightWindowTitleBarControls =
+            new Avalonia.Controls.Controls();
+        Hosts.Clear();
+        Icon = null;
+        DataContext = null;
+    }
+
+    private void ExecuteCloseCleanup(
+        Action cleanup,
+        string operationName,
+        ICollection<Exception> failures)
+    {
+        ArgumentNullException.ThrowIfNull(cleanup);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
+        ArgumentNullException.ThrowIfNull(failures);
+
+        try
+        {
+            cleanup();
+        }
+        catch (Exception ex)
+        {
+            failures.Add(ex);
+            _logger?.LogError(
+                ex,
+                "Failed to {CleanupOperation} while closing the Pica viewer.",
+                operationName);
+        }
+    }
+
     private void Compose(
         Func<
             ImageViewerWindow,
@@ -152,6 +262,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
             ImageViewerWindowComposition> compositionFactory,
         ILogger<ImageViewerWindow> logger)
     {
+        _logger = logger;
         AvaloniaUiFrameScheduler frameScheduler = new(this);
         ImageViewerWindowComposition? composition = null;
         Bitmap? logoBitmap = null;

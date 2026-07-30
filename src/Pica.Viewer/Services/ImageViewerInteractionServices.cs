@@ -34,6 +34,7 @@ internal sealed class ImageViewerInteractionServices
         }
 
         Actions.Dispose();
+        OpenWith.Dispose();
         _areViewModelsDetached = true;
     }
 

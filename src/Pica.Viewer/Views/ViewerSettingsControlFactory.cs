@@ -46,6 +46,11 @@ internal static class ViewerSettingsControlFactory
                 "Запоминать положение и размер окна",
                 settings.RememberWindowPlacement,
                 settings.ChangeRememberWindowPlacementCommand),
+            new ViewerChoiceSettingControl<int>(
+                "Оставаться в фоне после закрытия",
+                ViewerSettingChoices.BackgroundIdleTimeoutOptions,
+                settings.BackgroundIdleTimeoutSeconds,
+                settings.ChangeBackgroundIdleTimeoutCommand),
             new ViewerCheckBoxSettingControl(
                 "Быстрая загрузка",
                 settings.IsFastLoadingEnabled,

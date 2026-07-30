@@ -68,19 +68,107 @@ internal sealed class ImageViewerWindowLifetime : IDisposable
         _frameScheduler.Dispose();
     }
 
-    private async Task FlushInteractionAndDisposeAsync()
+    private async Task CompleteCloseCleanupAsync()
     {
+        List<Exception> failures = [];
+        ExecuteCleanup(
+            _interactionServices.DisposeViewModels,
+            "detach viewer view models",
+            failures);
+        ExecuteCleanup(
+            _settingsServices.Dispose,
+            "dispose viewer settings services",
+            failures);
+        await ExecuteCleanupAsync(
+            () => _presentationServices.DisposeAsync(
+                CancellationToken.None),
+            "dispose viewer presentation services",
+            failures).ConfigureAwait(false);
+        ExecuteCleanup(
+            _session.Dispose,
+            "dispose the viewer session",
+            failures);
+        ExecuteCleanup(
+            _frameScheduler.Dispose,
+            "dispose the viewer frame scheduler",
+            failures);
+        await ExecuteCleanupAsync(
+            () => _interactionServices.FlushAndDisposeAsync(
+                CancellationToken.None),
+            "flush and dispose viewer interaction services",
+            failures).ConfigureAwait(false);
+        Exception? visualCleanupException =
+            _window.GetCloseVisualCleanupException();
+
+        if (visualCleanupException is not null)
+        {
+            failures.Add(visualCleanupException);
+            _logger.LogError(
+                visualCleanupException,
+                "Pica viewer visual resources were not fully detached.");
+        }
+
+        if (failures.Count > 0)
+        {
+            Exception cleanupException = failures.Count == 1
+                ? failures[0]
+                : new AggregateException(
+                    "Pica viewer close cleanup failed.",
+                    failures);
+            _logger.LogError(
+                cleanupException,
+                "Pica viewer close cleanup did not complete successfully.");
+            _window.FailCloseCleanup(cleanupException);
+            return;
+        }
+
+        _logger.LogInformation("Pica viewer closed");
+        _window.CompleteCloseCleanup();
+    }
+
+    private void ExecuteCleanup(
+        Action cleanup,
+        string operationName,
+        ICollection<Exception> failures)
+    {
+        ArgumentNullException.ThrowIfNull(cleanup);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
+        ArgumentNullException.ThrowIfNull(failures);
+
         try
         {
-            await _interactionServices
-                .FlushAndDisposeAsync(CancellationToken.None)
-                .ConfigureAwait(false);
+            cleanup();
         }
         catch (Exception ex)
         {
+            failures.Add(ex);
             _logger.LogError(
                 ex,
-                "Failed to flush the Pica clipboard after closing the viewer.");
+                "Failed to {CleanupOperation} while closing the Pica viewer.",
+                operationName);
+        }
+    }
+
+    private async Task ExecuteCleanupAsync(
+        Func<Task> cleanup,
+        string operationName,
+        ICollection<Exception> failures)
+    {
+        ArgumentNullException.ThrowIfNull(cleanup);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
+        ArgumentNullException.ThrowIfNull(failures);
+
+        try
+        {
+            await cleanup().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            failures.Add(ex);
+            _logger.LogError(
+                ex,
+                "Failed to {CleanupOperation} while closing the Pica viewer.",
+                operationName);
         }
     }
 
@@ -114,9 +202,6 @@ internal sealed class ImageViewerWindowLifetime : IDisposable
 
         _isClosed = true;
         DetachWindowEvents();
-        _interactionServices.DisposeViewModels();
-        DisposeSharedServices();
-        _logger.LogInformation("Pica viewer closed");
-        _ = FlushInteractionAndDisposeAsync();
+        _ = CompleteCloseCleanupAsync();
     }
 }

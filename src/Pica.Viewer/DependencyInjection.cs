@@ -24,7 +24,11 @@ public static class DependencyInjection
             IImageFileMetadataProvider,
             ImageFileMetadataProvider>();
         services.AddSingleton<ImagePreviewLoader>();
+        services.AddSingleton<IImagePreviewLoader>(provider =>
+            provider.GetRequiredService<ImagePreviewLoader>());
         services.AddSingleton<FullResolutionImageLoader>();
+        services.AddSingleton<IFullResolutionImageLoader>(provider =>
+            provider.GetRequiredService<FullResolutionImageLoader>());
         services.AddSingleton<IViewerUiDispatcher, AvaloniaViewerUiDispatcher>();
         services.AddSingleton<IImageChannelBitmapLoader, ImageChannelBitmapLoader>();
         services.AddSingleton<PngImageEncoder>();

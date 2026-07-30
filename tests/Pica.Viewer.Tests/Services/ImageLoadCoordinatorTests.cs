@@ -21,6 +21,8 @@ public sealed class ImageLoadCoordinatorTests
         Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SecondItemId =
         Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid ThirdItemId =
+        Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly TimeSpan TestTimeout =
         TimeSpan.FromSeconds(5d);
 
@@ -308,6 +310,138 @@ public sealed class ImageLoadCoordinatorTests
             {
                 coordinator.Dispose();
             }
+        });
+    }
+
+    [Fact]
+    public async Task DisposeAsync_WhenFullResolutionLoadIsBlocked_WaitsForCancellationCleanup()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            PicaImageItem item = new(
+                ItemId,
+                imagePath,
+                "image.png");
+            ImageViewerSession session = CreateSession(item);
+            using RecordingImageLoadPresentationSink presentationSink = new();
+            RecordingViewerRenderFrameAwaiter frameAwaiter = new();
+            ControlledFullResolutionImageLoader fullResolutionLoader = new(
+                new List<string> { imagePath });
+            using ImageLoadCoordinator coordinator = CreateCoordinator(
+                session,
+                presentationSink,
+                frameAwaiter,
+                new ImagePreviewLoader(
+                    new ImageFormatRegistry(),
+                    NullLogger<ImagePreviewLoader>.Instance),
+                fullResolutionLoader,
+                new InlineViewerUiDispatcher(),
+                false);
+            using CancellationTokenSource timeout = new(TestTimeout);
+            coordinator.Start();
+            await fullResolutionLoader.WaitUntilStartedAsync(
+                imagePath,
+                timeout.Token);
+
+            Task disposalTask = coordinator.DisposeAsync(timeout.Token);
+
+            fullResolutionLoader
+                .GetCancellationToken(imagePath)
+                .IsCancellationRequested.Should().BeTrue();
+            disposalTask.IsCompleted.Should().BeFalse();
+            TrackingBitmap bitmap = new(imagePath);
+            fullResolutionLoader.Complete(imagePath, bitmap);
+            await disposalTask;
+
+            bitmap.IsDisposed.Should().BeTrue();
+            presentationSink.FullResolutionCount.Should().Be(0);
+        });
+    }
+
+    [Fact]
+    public async Task DisposeAsync_WhenAdjacentPreloadIsRunning_DisposesCachedPreview()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string selectedPath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath,
+                "selected.png");
+            string nextPath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath,
+                "next.png");
+            string previousPath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath,
+                "previous.png");
+            PicaImageItem selectedItem = new(
+                ItemId,
+                selectedPath,
+                "selected.png");
+            PicaImageItem nextItem = new(
+                SecondItemId,
+                nextPath,
+                "next.png");
+            PicaImageItem previousItem = new(
+                ThirdItemId,
+                previousPath,
+                "previous.png");
+            List<PicaImageItem> items =
+                [selectedItem, nextItem, previousItem];
+            ImageViewerSession session = CreateSession(
+                items,
+                selectedItem.Id);
+            using RecordingImageLoadPresentationSink presentationSink = new();
+            RecordingViewerRenderFrameAwaiter frameAwaiter = new();
+            ControlledImagePreviewLoader previewLoader = new(items);
+            ControlledFullResolutionImageLoader fullResolutionLoader = new(
+                new List<string> { selectedPath });
+            using ImageLoadCoordinator coordinator = CreateCoordinator(
+                session,
+                presentationSink,
+                frameAwaiter,
+                previewLoader,
+                fullResolutionLoader,
+                new InlineViewerUiDispatcher(),
+                true);
+            using CancellationTokenSource timeout = new(TestTimeout);
+            coordinator.Start();
+            await previewLoader.WaitUntilStartedAsync(
+                selectedItem,
+                timeout.Token);
+            TrackingBitmap selectedPreviewBitmap = new(selectedPath);
+            previewLoader.Complete(
+                selectedItem,
+                new DecodedImagePreview(
+                    selectedPreviewBitmap,
+                    selectedPreviewBitmap.PixelSize));
+            await fullResolutionLoader.WaitUntilStartedAsync(
+                selectedPath,
+                timeout.Token);
+            TrackingBitmap fullResolutionBitmap = new(selectedPath);
+            fullResolutionLoader.Complete(
+                selectedPath,
+                fullResolutionBitmap);
+            await previewLoader.WaitUntilStartedAsync(
+                nextItem,
+                timeout.Token);
+            TrackingBitmap cachedPreviewBitmap = new(nextPath);
+            previewLoader.Complete(
+                nextItem,
+                new DecodedImagePreview(
+                    cachedPreviewBitmap,
+                    cachedPreviewBitmap.PixelSize));
+            await previewLoader.WaitUntilStartedAsync(
+                previousItem,
+                timeout.Token);
+
+            await coordinator.DisposeAsync(timeout.Token);
+
+            cachedPreviewBitmap.IsDisposed.Should().BeTrue();
+            presentationSink.FullResolutionBitmap.Should().BeSameAs(
+                fullResolutionBitmap);
         });
     }
 

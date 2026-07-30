@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using FluentAssertions;
 using Xunit;
 
+using Pica.Desktop.Services;
 using Pica.Viewer;
 using Pica.Viewer.Services;
 
@@ -12,6 +13,27 @@ namespace Pica.Desktop.Tests;
 
 public sealed class DependencyInjectionTests
 {
+    [Fact]
+    public void AddPicaDesktop_WhenProviderBuilt_ResolvesApplicationLifecycle()
+    {
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddPicaViewer();
+        services.AddPicaDesktop();
+        ServiceProviderOptions options = new()
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        };
+        using ServiceProvider provider =
+            services.BuildServiceProvider(options);
+
+        PicaApplicationLifecycle lifecycle =
+            provider.GetRequiredService<PicaApplicationLifecycle>();
+
+        lifecycle.Should().NotBeNull();
+    }
+
     [Fact]
     public void AddPicaViewer_WhenProviderBuilt_ResolvesWindowFactory()
     {

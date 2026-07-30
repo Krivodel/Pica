@@ -14,7 +14,9 @@ internal sealed class FullResolutionImageLoader :
         _decoderResolver = decoderResolver ?? throw new ArgumentNullException(nameof(decoderResolver));
     }
 
-    public async Task<Bitmap> LoadAsync(string fullPath, CancellationToken ct)
+    public async Task<Bitmap> LoadAsync(
+        string fullPath,
+        CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
         await DecodeLock.WaitAsync(ct).ConfigureAwait(false);

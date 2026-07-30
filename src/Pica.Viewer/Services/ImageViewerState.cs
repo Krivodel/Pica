@@ -2,6 +2,8 @@ namespace Pica.Viewer.Services;
 
 public sealed class ImageViewerState
 {
+    public int BackgroundIdleTimeoutSeconds { get; set; } =
+        ViewerSettingsDefaults.BackgroundIdleTimeoutSeconds;
     public bool IsCheckerboardBackgroundEnabled { get; set; } =
         ViewerSettingsDefaults.CheckerboardBackgroundEnabled;
     public bool IsFilteringEnabled { get; set; } = ViewerSettingsDefaults.FilteringEnabled;
@@ -32,6 +34,9 @@ public sealed class ImageViewerState
     internal ImageViewerState CreateNormalizedCopy()
     {
         ImageViewerState normalizedState = CreateCopy();
+        normalizedState.BackgroundIdleTimeoutSeconds =
+            ViewerSettingsDefaults.NormalizeBackgroundIdleTimeoutSeconds(
+                BackgroundIdleTimeoutSeconds);
         normalizedState.MovementSpeed = ViewerSettingsDefaults.NormalizeSpeed(
             MovementSpeed,
             ViewerSettingsDefaults.MovementSpeed);

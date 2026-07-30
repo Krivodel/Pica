@@ -28,6 +28,7 @@ internal sealed class ViewerWindowModeController : IDisposable
     private readonly Action _hideSettingsPanelImmediately;
     private readonly DispatcherTimer _layoutTimer;
     private bool _isChangingWindowMode;
+    private bool _isDisposed;
     private bool _isWindowResizeLayoutPending;
     private bool _isWindowModeLayoutSettling;
     private bool _isWindowedMode;
@@ -69,6 +70,12 @@ internal sealed class ViewerWindowModeController : IDisposable
 
     public void Dispose()
     {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
         _layoutTimer.Stop();
         _layoutTimer.Tick -= OnLayoutTimerTick;
     }
@@ -289,7 +296,8 @@ internal sealed class ViewerWindowModeController : IDisposable
 
     private void CompleteLayoutSettlement()
     {
-        if (!_isWindowModeLayoutSettling)
+        if (_isDisposed
+            || !_isWindowModeLayoutSettling)
         {
             return;
         }
@@ -308,7 +316,8 @@ internal sealed class ViewerWindowModeController : IDisposable
 
     private void ScheduleResizeLayout()
     {
-        if (_isWindowResizeLayoutPending)
+        if (_isDisposed
+            || _isWindowResizeLayoutPending)
         {
             return;
         }
@@ -322,6 +331,12 @@ internal sealed class ViewerWindowModeController : IDisposable
         TimeSpan frameTime)
     {
         _ = frameTime;
+
+        if (_isDisposed)
+        {
+            return;
+        }
+
         _isWindowResizeLayoutPending = false;
         _viewport.ResetScaleAndCenter();
     }

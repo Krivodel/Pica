@@ -14,13 +14,14 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
     private readonly IApplicationUpdateService _updateService;
     private readonly ApplicationUpdateToastPresenter _presenter;
     private readonly ILogger<ApplicationUpdateCoordinator> _logger;
-    private readonly CancellationTokenSource _lifetimeCancellationSource = new();
+    private CancellationTokenSource? _monitoringCancellationSource;
     private Func<PicaApplicationUpdate, Task>? _restartApplication;
     private PicaApplicationUpdate? _presentedUpdate;
     private SukiWindow? _owner;
     private string? _dismissedVersion;
     private bool _isDisposed;
     private bool _isMonitoring;
+    private int _monitoringGeneration;
 
     public ApplicationUpdateCoordinator(
         IApplicationUpdateService updateService,
@@ -50,10 +51,14 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
         }
 
         _isMonitoring = true;
+        _monitoringGeneration++;
+        _monitoringCancellationSource = new CancellationTokenSource();
         _owner = owner;
         _restartApplication = restartApplication;
         _presenter.Attach(owner);
-        _ = MonitorAsync(_lifetimeCancellationSource.Token);
+        _ = MonitorAsync(
+            _monitoringGeneration,
+            _monitoringCancellationSource.Token);
     }
 
     public void StopMonitoring()
@@ -63,10 +68,14 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
             return;
         }
 
-        _lifetimeCancellationSource.Cancel();
+        _monitoringCancellationSource?.Cancel();
+        _monitoringCancellationSource?.Dispose();
+        _monitoringCancellationSource = null;
         _owner = null;
         _restartApplication = null;
         _presentedUpdate = null;
+        _dismissedVersion = null;
+        _isMonitoring = false;
         _presenter.Detach();
     }
 
@@ -81,10 +90,11 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
         _presenter.UpdateRequested -= OnUpdateRequested;
         _presenter.LaterRequested -= OnLaterRequested;
         _isDisposed = true;
-        _lifetimeCancellationSource.Dispose();
     }
 
-    private async Task MonitorAsync(CancellationToken ct)
+    private async Task MonitorAsync(
+        int monitoringGeneration,
+        CancellationToken ct)
     {
         try
         {
@@ -103,7 +113,9 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
 
         while (!ct.IsCancellationRequested)
         {
-            await CheckAndPresentUpdateAsync(ct).ConfigureAwait(false);
+            await CheckAndPresentUpdateAsync(
+                monitoringGeneration,
+                ct).ConfigureAwait(false);
 
             try
             {
@@ -116,7 +128,9 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
         }
     }
 
-    private async Task CheckAndPresentUpdateAsync(CancellationToken ct)
+    private async Task CheckAndPresentUpdateAsync(
+        int monitoringGeneration,
+        CancellationToken ct)
     {
         try
         {
@@ -134,7 +148,7 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
             }
 
             await Dispatcher.UIThread.InvokeAsync(
-                () => ShowUpdate(update),
+                () => ShowUpdate(update, monitoringGeneration),
                 DispatcherPriority.Normal,
                 ct);
         }
@@ -147,9 +161,13 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
         }
     }
 
-    private void ShowUpdate(PicaApplicationUpdate update)
+    private void ShowUpdate(
+        PicaApplicationUpdate update,
+        int monitoringGeneration)
     {
-        if ((_owner is null)
+        if ((monitoringGeneration != _monitoringGeneration)
+            || !_isMonitoring
+            || (_owner is null)
             || !_owner.IsVisible
             || (_presentedUpdate is not null))
         {
@@ -162,6 +180,11 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
 
     private async Task InstallUpdateAsync(PicaApplicationUpdate update)
     {
+        CancellationTokenSource monitoringCancellationSource =
+            _monitoringCancellationSource
+            ?? throw new InvalidOperationException(
+                "Pica update monitoring has not been started.");
+
         try
         {
             _presenter.ShowDownloadProgress(0);
@@ -170,7 +193,7 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
                 .DownloadUpdateAsync(
                     update,
                     progress,
-                    _lifetimeCancellationSource.Token);
+                    monitoringCancellationSource.Token);
             _presenter.ShowInstalling();
 
             Func<PicaApplicationUpdate, Task> restartApplication =
@@ -180,7 +203,7 @@ internal sealed class ApplicationUpdateCoordinator : IDisposable
             await restartApplication(update);
         }
         catch (OperationCanceledException)
-            when (_lifetimeCancellationSource.IsCancellationRequested)
+            when (monitoringCancellationSource.IsCancellationRequested)
         {
         }
         catch (Exception ex)

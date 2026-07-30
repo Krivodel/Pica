@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Avalonia;
@@ -382,6 +384,84 @@ public sealed class ImageViewerWindowTests
         });
     }
 
+    [Fact]
+    public async Task OnClosed_WithBlockedImageLoad_CompletesAfterBitmapDisposalAndVisualDetachment()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            PicaImageItem item = new(
+                ItemId,
+                imagePath,
+                "image.png");
+            PicaViewerRequest request = new(
+                new List<PicaImageItem> { item },
+                ItemId);
+            ControlledFullResolutionImageLoader fullResolutionLoader = new(
+                new List<string> { imagePath });
+            ImageViewerWindow window = CreateWindow(
+                request,
+                new ImageViewerState(),
+                new RecordingImageChannelBitmapLoader(),
+                new ImagePreviewLoader(
+                    new ImageFormatRegistry(),
+                    NullLogger<ImagePreviewLoader>.Instance),
+                fullResolutionLoader);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+            TaskCompletionSource closed = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            window.Closed += (_, _) => closed.TrySetResult();
+            using CancellationTokenSource timeout = new(
+                TimeSpan.FromSeconds(TestTimeoutSeconds));
+            window.Show();
+            await fullResolutionLoader.WaitUntilStartedAsync(
+                imagePath,
+                timeout.Token);
+
+            window.Close();
+            await closed.Task.WaitAsync(timeout.Token);
+            Task closeCleanupCompletion =
+                window.CloseCleanupCompletion;
+
+            fullResolutionLoader
+                .GetCancellationToken(imagePath)
+                .IsCancellationRequested.Should().BeTrue();
+            closeCleanupCompletion.IsCompleted.Should().BeFalse();
+            TrackingBitmap bitmap = new(imagePath);
+            fullResolutionLoader.Complete(imagePath, bitmap);
+            await closeCleanupCompletion.WaitAsync(timeout.Token);
+
+            bitmap.IsDisposed.Should().BeTrue();
+            view.Image.Source.Should().BeNull();
+            view.DataContext.Should().BeNull();
+            window.Content.Should().BeNull();
+            window.LogoContent.Should().BeNull();
+            window.RightWindowTitleBarControls.Should().BeEmpty();
+            window.Hosts.Should().BeEmpty();
+            window.Icon.Should().BeNull();
+        });
+    }
+
+    [Fact]
+    public async Task OnClosed_AfterCleanup_ReleasesWindowReference()
+    {
+        WeakReference? windowReference = null;
+        await DispatchAsync(async () =>
+        {
+            windowReference =
+                await CreateClosedWindowWeakReferenceAsync();
+        });
+
+        CollectGarbage();
+
+        windowReference.Should().NotBeNull();
+        windowReference.IsAlive.Should().BeFalse();
+    }
+
     private static PicaViewerRequest CreateEmptyRequest()
     {
         return new PicaViewerRequest(
@@ -404,15 +484,38 @@ public sealed class ImageViewerWindowTests
         ImageViewerState state,
         IImageChannelBitmapLoader channelBitmapLoader)
     {
+        ImageFormatRegistry formatRegistry = new();
+
+        return CreateWindow(
+            request,
+            state,
+            channelBitmapLoader,
+            new ImagePreviewLoader(
+                formatRegistry,
+                NullLogger<ImagePreviewLoader>.Instance),
+            new FullResolutionImageLoader(formatRegistry));
+    }
+
+    private static ImageViewerWindow CreateWindow(
+        PicaViewerRequest request,
+        ImageViewerState state,
+        IImageChannelBitmapLoader channelBitmapLoader,
+        IImagePreviewLoader previewLoader,
+        IFullResolutionImageLoader fullResolutionLoader)
+    {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(channelBitmapLoader);
+        ArgumentNullException.ThrowIfNull(previewLoader);
+        ArgumentNullException.ThrowIfNull(fullResolutionLoader);
         RecordingImageViewerStateService stateService = new(state);
         AvaloniaViewerUiDispatcher uiDispatcher = new();
         ImageViewerWindowComposer composer = CreateWindowComposer(
             stateService,
             uiDispatcher,
-            channelBitmapLoader);
+            channelBitmapLoader,
+            previewLoader,
+            fullResolutionLoader);
 
         return composer.Create(
             request,
@@ -442,19 +545,24 @@ public sealed class ImageViewerWindowTests
     private static ImageViewerWindowComposer CreateWindowComposer(
         IImageViewerStateService stateService,
         IViewerUiDispatcher uiDispatcher,
-        IImageChannelBitmapLoader channelBitmapLoader)
+        IImageChannelBitmapLoader channelBitmapLoader,
+        IImagePreviewLoader? previewLoader = null,
+        IFullResolutionImageLoader? fullResolutionLoader = null)
     {
         ArgumentNullException.ThrowIfNull(stateService);
         ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(channelBitmapLoader);
         ImageFormatRegistry formatRegistry = new();
+        previewLoader ??= new ImagePreviewLoader(
+            formatRegistry,
+            NullLogger<ImagePreviewLoader>.Instance);
+        fullResolutionLoader ??=
+            new FullResolutionImageLoader(formatRegistry);
         ViewModelErrorHandler errorHandler = new(
             NullLogger<ViewModelErrorHandler>.Instance);
         ImageViewerPresentationFactory presentationFactory = new(
-            new ImagePreviewLoader(
-                formatRegistry,
-                NullLogger<ImagePreviewLoader>.Instance),
-            new FullResolutionImageLoader(formatRegistry),
+            previewLoader,
+            fullResolutionLoader,
             channelBitmapLoader,
             uiDispatcher,
             NullLogger<ImagePresentationController>.Instance,
@@ -490,6 +598,40 @@ public sealed class ImageViewerWindowTests
             NullLogger<ImageViewerWindowLifetime>.Instance);
 
         return composer;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task<WeakReference>
+        CreateClosedWindowWeakReferenceAsync()
+    {
+        ImageViewerWindow window = CreateWindow();
+        TaskCompletionSource closed = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += (_, _) => closed.TrySetResult();
+        window.Show();
+
+        window.Close();
+        await closed.Task.WaitAsync(
+            TimeSpan.FromSeconds(TestTimeoutSeconds));
+        await window.CloseCleanupCompletion.WaitAsync(
+            TimeSpan.FromSeconds(TestTimeoutSeconds));
+
+        return new WeakReference(window);
+    }
+
+    private static void CollectGarbage()
+    {
+        GC.Collect(
+            GC.MaxGeneration,
+            GCCollectionMode.Forced,
+            true,
+            true);
+        GC.WaitForPendingFinalizers();
+        GC.Collect(
+            GC.MaxGeneration,
+            GCCollectionMode.Forced,
+            true,
+            true);
     }
 
     private static async Task<string> CreateImageAsync(

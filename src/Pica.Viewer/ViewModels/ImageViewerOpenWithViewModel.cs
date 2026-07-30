@@ -8,7 +8,8 @@ using Pica.Viewer.Services;
 namespace Pica.Viewer.ViewModels;
 
 internal sealed partial class ImageViewerOpenWithViewModel :
-    ObservableObject
+    ObservableObject,
+    IDisposable
 {
     public bool IsSupported => _platformFileActions.SupportsOpenWith;
     public IReadOnlyList<OpenWithApplication> Applications =>
@@ -48,6 +49,15 @@ internal sealed partial class ImageViewerOpenWithViewModel :
         _errorHandler = errorHandler
             ?? throw new ArgumentNullException(nameof(errorHandler));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public void Dispose()
+    {
+        LoadApplicationsCommand.Cancel();
+        PrepareCurrentImageCommand.Cancel();
+        PrepareSelectionCommand.Cancel();
+        OpenWithApplicationCommand.Cancel();
+        ChooseApplicationCommand.Cancel();
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteAction))]

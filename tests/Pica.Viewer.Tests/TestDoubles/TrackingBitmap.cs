@@ -14,6 +14,11 @@ internal sealed class TrackingBitmap : Bitmap
     {
     }
 
+    internal TrackingBitmap(Stream stream)
+        : base(stream ?? throw new ArgumentNullException(nameof(stream)))
+    {
+    }
+
     public override void Dispose()
     {
         if (IsDisposed)

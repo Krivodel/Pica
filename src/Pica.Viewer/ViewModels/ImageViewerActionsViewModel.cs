@@ -60,6 +60,13 @@ internal sealed partial class ImageViewerActionsViewModel :
     public void Dispose()
     {
         _imageCommands.PreparedSelectionSaved -= OnPreparedSelectionSaved;
+        CopyCurrentCommand.Cancel();
+        DispatchCurrentCommand.Cancel();
+        CopySelectionCommand.Cancel();
+        DispatchSelectionCommand.Cancel();
+        SaveCurrentCommand.Cancel();
+        SaveSelectionCommand.Cancel();
+        RevealInFolderCommand.Cancel();
     }
 
     internal async Task<PreparedClipboardImage?> PrepareSelectionImageAsync(
