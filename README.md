@@ -100,7 +100,7 @@ window.Show();
 
 `window.Show()` must be called on the UI thread.
 
-`Pica.Viewer` forwards logs to the logging system already configured by the application and does not modify it.
+Pica forwards logs to the logging system already configured by the application and does not modify it.
 
 ## Multiple images
 
