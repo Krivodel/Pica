@@ -8,17 +8,33 @@ namespace Pica.Desktop.Services;
 public sealed class PicaStartupRequestFactory
 {
     private readonly IImageFormatRegistry _formatRegistry;
+    private readonly IWindowsExplorerItemOrderProvider
+        _explorerItemOrderProvider;
     private readonly ILogger<PicaStartupRequestFactory> _logger;
 
     public PicaStartupRequestFactory(
         IImageFormatRegistry formatRegistry,
+        IWindowsExplorerItemOrderProvider explorerItemOrderProvider,
         ILogger<PicaStartupRequestFactory> logger)
     {
         _formatRegistry = formatRegistry ?? throw new ArgumentNullException(nameof(formatRegistry));
+        _explorerItemOrderProvider = explorerItemOrderProvider
+            ?? throw new ArgumentNullException(
+                nameof(explorerItemOrderProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<PicaStartupRequest> CreateAsync(string[] arguments, CancellationToken ct)
+    public Task<PicaStartupRequest> CreateAsync(
+        string[] arguments,
+        CancellationToken ct)
+    {
+        return CreateAsync(arguments, null, ct);
+    }
+
+    public async Task<PicaStartupRequest> CreateAsync(
+        string[] arguments,
+        long? sourceWindowHandle,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(arguments);
 
@@ -48,7 +64,9 @@ public sealed class PicaStartupRequestFactory
             .ToList();
         string? selectedPath = requestedPaths.FirstOrDefault();
         IReadOnlyList<string> imagePaths = ArePathsFromSameDirectory(requestedPaths)
-            ? GetDirectoryImagePaths(requestedPaths[0])
+            ? GetDirectoryImagePaths(
+                requestedPaths[0],
+                sourceWindowHandle)
             : requestedPaths;
         List<PicaImageItem> items = imagePaths
             .Select(CreateImageItem)
@@ -82,7 +100,9 @@ public sealed class PicaStartupRequestFactory
             StringComparison.OrdinalIgnoreCase));
     }
 
-    private IReadOnlyList<string> GetDirectoryImagePaths(string selectedPath)
+    private IReadOnlyList<string> GetDirectoryImagePaths(
+        string selectedPath,
+        long? sourceWindowHandle)
     {
         string? directoryPath = Path.GetDirectoryName(selectedPath);
 
@@ -93,7 +113,7 @@ public sealed class PicaStartupRequestFactory
 
         try
         {
-            List<string> imagePaths = Directory
+            List<string> fallbackImagePaths = Directory
                 .EnumerateFiles(directoryPath, "*", SearchOption.TopDirectoryOnly)
                 .Where(_formatRegistry.IsSupportedFileName)
                 .Select(Path.GetFullPath)
@@ -101,9 +121,19 @@ public sealed class PicaStartupRequestFactory
                 .ThenBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
-            return imagePaths.Contains(selectedPath, StringComparer.OrdinalIgnoreCase)
-                ? imagePaths
-                : [selectedPath];
+            if (!fallbackImagePaths.Contains(
+                    selectedPath,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                return new List<string> { selectedPath };
+            }
+
+            return GetExplorerOrderedImagePaths(
+                    directoryPath,
+                    selectedPath,
+                    fallbackImagePaths,
+                    sourceWindowHandle)
+                ?? fallbackImagePaths;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -113,6 +143,75 @@ public sealed class PicaStartupRequestFactory
 
             return new List<string> { selectedPath };
         }
+    }
+
+    private IReadOnlyList<string>? GetExplorerOrderedImagePaths(
+        string directoryPath,
+        string selectedPath,
+        IReadOnlyList<string> fallbackImagePaths,
+        long? sourceWindowHandle)
+    {
+        if (!OperatingSystem.IsWindows()
+            || sourceWindowHandle is null)
+        {
+            return null;
+        }
+
+        IReadOnlyList<string>? explorerItemPaths =
+            _explorerItemOrderProvider.GetItemPaths(
+                directoryPath,
+                sourceWindowHandle.Value);
+
+        if (explorerItemPaths is null)
+        {
+            return null;
+        }
+
+        HashSet<string> remainingImagePaths = new(
+            fallbackImagePaths,
+            StringComparer.OrdinalIgnoreCase);
+        List<string> orderedImagePaths = [];
+
+        foreach (string explorerItemPath in explorerItemPaths)
+        {
+            string fullItemPath;
+
+            try
+            {
+                fullItemPath = Path.GetFullPath(explorerItemPath);
+            }
+            catch (Exception ex) when (ex is ArgumentException
+                or NotSupportedException
+                or PathTooLongException)
+            {
+                _logger.LogDebug(
+                    ex,
+                    "File Explorer returned an item without a usable file-system path.");
+                continue;
+            }
+
+            if (remainingImagePaths.Remove(fullItemPath))
+            {
+                orderedImagePaths.Add(fullItemPath);
+            }
+        }
+
+        if (!orderedImagePaths.Contains(
+                selectedPath,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        foreach (string fallbackImagePath in fallbackImagePaths)
+        {
+            if (remainingImagePaths.Remove(fallbackImagePath))
+            {
+                orderedImagePaths.Add(fallbackImagePath);
+            }
+        }
+
+        return orderedImagePaths;
     }
 
     private static PicaImageItem CreateImageItem(string path)

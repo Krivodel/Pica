@@ -7,4 +7,8 @@ internal interface IWindowsExplorerWindowLocator
     IWindowsExplorerWindow? Find(
         string directoryPath,
         IReadOnlySet<long>? excludedWindowHandles = null);
+
+    IWindowsExplorerWindow? FindByHandle(
+        string directoryPath,
+        long windowHandle);
 }

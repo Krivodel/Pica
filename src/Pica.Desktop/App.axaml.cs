@@ -15,8 +15,20 @@ namespace Pica.Desktop;
 
 public sealed partial class App : Application
 {
+    private readonly PicaLaunchContext _launchContext;
     private ServiceProvider? _serviceProvider;
     private ILogger<App>? _logger;
+
+    public App()
+        : this(PicaLaunchContext.Empty)
+    {
+    }
+
+    internal App(PicaLaunchContext launchContext)
+    {
+        _launchContext = launchContext
+            ?? throw new ArgumentNullException(nameof(launchContext));
+    }
 
     public override void Initialize()
     {
@@ -80,7 +92,8 @@ public sealed partial class App : Application
                 {
                     _ = ForwardBackgroundActivationAsync(
                         desktopLifetime,
-                        activationClient);
+                        activationClient,
+                        _launchContext.SourceWindowHandle);
                     return;
                 }
             }
@@ -107,17 +120,20 @@ public sealed partial class App : Application
             GetRequiredService<PicaApplicationLifecycle>();
         _ = lifecycle.StartAsync(
             desktopLifetime,
+            _launchContext.SourceWindowHandle,
             CancellationToken.None);
     }
 
     private async Task ForwardBackgroundActivationAsync(
         IClassicDesktopStyleApplicationLifetime desktopLifetime,
-        PicaBackgroundActivationClient activationClient)
+        PicaBackgroundActivationClient activationClient,
+        long? sourceWindowHandle)
     {
         try
         {
             await activationClient.ForwardAsync(
                 desktopLifetime.Args ?? Array.Empty<string>(),
+                sourceWindowHandle,
                 CancellationToken.None);
             desktopLifetime.Shutdown();
         }

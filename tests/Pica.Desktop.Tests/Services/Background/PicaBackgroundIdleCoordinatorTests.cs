@@ -17,11 +17,13 @@ public sealed class PicaBackgroundIdleCoordinatorTests
         using PicaBackgroundIdleCoordinator coordinator = new(endpoint);
         PicaBackgroundActivationClient client = new(endpoint);
         string[] arguments = [@"C:\Images\sample.png"];
+        long sourceWindowHandle = 42L;
         coordinator.Start(TestTimeout, CancellationToken.None);
 
         client.CanForward(arguments).Should().BeTrue();
         Task forwardingTask = client.ForwardAsync(
             arguments,
+            sourceWindowHandle,
             CancellationToken.None);
         IPicaBackgroundActivation? activation = await coordinator
             .Completion
@@ -34,10 +36,32 @@ public sealed class PicaBackgroundIdleCoordinatorTests
         await using (activation)
         {
             activation.Arguments.Should().Equal(arguments);
+            activation.SourceWindowHandle.Should().Be(sourceWindowHandle);
             await activation.AcknowledgeAsync(CancellationToken.None);
         }
 
         await forwardingTask.WaitAsync(TestTimeout);
+    }
+
+    [Fact]
+    public async Task ReadAsync_WithLegacyActivationMessage_UsesNullSourceWindowHandle()
+    {
+        string[] arguments = [@"C:\Images\sample.png"];
+        using MemoryStream stream = new();
+        await PicaProtocolStream.WriteAsync(
+            stream,
+            new { arguments },
+            CancellationToken.None);
+        stream.Position = 0L;
+
+        PicaBackgroundActivationRequest request =
+            await PicaProtocolStream
+                .ReadAsync<PicaBackgroundActivationRequest>(
+                    stream,
+                    CancellationToken.None);
+
+        request.Arguments.Should().Equal(arguments);
+        request.SourceWindowHandle.Should().BeNull();
     }
 
     [Fact]

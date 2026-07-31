@@ -7,16 +7,19 @@ namespace Pica.Desktop.Services.Background;
 internal sealed class PicaBackgroundActivation : IPicaBackgroundActivation
 {
     public IReadOnlyList<string> Arguments { get; }
+    public long? SourceWindowHandle { get; }
 
     private readonly NamedPipeServerStream _pipe;
     private bool _isAcknowledged;
 
     internal PicaBackgroundActivation(
         IReadOnlyList<string> arguments,
+        long? sourceWindowHandle,
         NamedPipeServerStream pipe)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         Arguments = arguments.ToArray();
+        SourceWindowHandle = sourceWindowHandle;
         _pipe = pipe ?? throw new ArgumentNullException(nameof(pipe));
     }
 

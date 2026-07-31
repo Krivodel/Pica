@@ -65,6 +65,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
 
     public async Task StartAsync(
         IClassicDesktopStyleApplicationLifetime desktopLifetime,
+        long? sourceWindowHandle,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(desktopLifetime);
@@ -83,6 +84,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
             PicaStartupRequest startupRequest = await _startupRequestFactory
                 .CreateAsync(
                     arguments,
+                    sourceWindowHandle,
                     startupCancellationSource.Token);
             await OpenViewerWindowAsync(
                 desktopLifetime,
@@ -303,6 +305,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
             PicaStartupRequest startupRequest = await _startupRequestFactory
                 .CreateAsync(
                     activation.Arguments.ToArray(),
+                    activation.SourceWindowHandle,
                     _applicationCancellationSource.Token);
 
             if (startupRequest.HostConnection is not null)

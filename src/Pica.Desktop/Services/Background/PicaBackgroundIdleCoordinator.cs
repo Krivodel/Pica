@@ -168,6 +168,7 @@ internal sealed class PicaBackgroundIdleCoordinator :
                     .ConfigureAwait(false);
             PicaBackgroundActivation activation = new(
                 request.Arguments,
+                request.SourceWindowHandle,
                 pipe);
             isPipeOwnershipTransferred = true;
 

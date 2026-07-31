@@ -4,6 +4,7 @@ using FluentAssertions;
 using Xunit;
 
 using Pica.Desktop.Services;
+using Pica.Desktop.Tests.TestDoubles;
 using Pica.Tests.Common;
 using Pica.Viewer.Services;
 
@@ -107,6 +108,184 @@ public sealed class PicaStartupRequestFactoryTests
     }
 
     [Fact]
+    public async Task CreateAsync_WithExplorerOrder_UsesViewOrder()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using PicaTemporaryDirectory temporaryDirectory = new();
+        string firstImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "01.jpg");
+        string selectedImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "02.png");
+        string thirdImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "03.ico");
+        string unsupportedFilePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "notes.txt");
+        await CreateImageAsync(firstImagePath, [1]);
+        await CreateImageAsync(selectedImagePath, [2]);
+        await CreateImageAsync(thirdImagePath, [3]);
+        await File.WriteAllTextAsync(unsupportedFilePath, "text");
+        SetLastWriteTimesNewestFirst(
+            selectedImagePath,
+            thirdImagePath,
+            firstImagePath);
+        long sourceWindowHandle = 42L;
+        RecordingWindowsExplorerItemOrderProvider orderProvider = new(
+            [
+                thirdImagePath,
+                unsupportedFilePath,
+                firstImagePath,
+                selectedImagePath
+            ]);
+        PicaStartupRequestFactory factory = CreateFactory(orderProvider);
+
+        PicaStartupRequest request = await factory.CreateAsync(
+            [selectedImagePath],
+            sourceWindowHandle,
+            CancellationToken.None);
+
+        request.ViewerRequest.Items.Select(item => item.FileName)
+            .Should()
+            .Equal("03.ico", "01.jpg", "02.png");
+        orderProvider.DirectoryPath.Should().Be(
+            temporaryDirectory.DirectoryPath);
+        orderProvider.SourceWindowHandle.Should().Be(sourceWindowHandle);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithImageMissingFromExplorerView_AppendsUsingFallbackOrder()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using PicaTemporaryDirectory temporaryDirectory = new();
+        string selectedImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "01.png");
+        string orderedImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "02.jpg");
+        string missingImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "03.ico");
+        await CreateImageAsync(selectedImagePath, [1]);
+        await CreateImageAsync(orderedImagePath, [2]);
+        await CreateImageAsync(missingImagePath, [3]);
+        SetLastWriteTimesNewestFirst(
+            missingImagePath,
+            selectedImagePath,
+            orderedImagePath);
+        RecordingWindowsExplorerItemOrderProvider orderProvider = new(
+            [orderedImagePath, selectedImagePath]);
+        PicaStartupRequestFactory factory = CreateFactory(orderProvider);
+
+        PicaStartupRequest request = await factory.CreateAsync(
+            [selectedImagePath],
+            42L,
+            CancellationToken.None);
+
+        request.ViewerRequest.Items.Select(item => item.FileName)
+            .Should()
+            .Equal("02.jpg", "01.png", "03.ico");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithSelectedImageMissingFromExplorerView_UsesFallbackOrder()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using PicaTemporaryDirectory temporaryDirectory = new();
+        string selectedImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "01.png");
+        string adjacentImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "02.jpg");
+        await CreateImageAsync(selectedImagePath, [1]);
+        await CreateImageAsync(adjacentImagePath, [2]);
+        SetLastWriteTimesNewestFirst(
+            selectedImagePath,
+            adjacentImagePath);
+        RecordingWindowsExplorerItemOrderProvider orderProvider = new(
+            [adjacentImagePath]);
+        PicaStartupRequestFactory factory = CreateFactory(orderProvider);
+
+        PicaStartupRequest request = await factory.CreateAsync(
+            [selectedImagePath],
+            42L,
+            CancellationToken.None);
+
+        request.ViewerRequest.Items.Select(item => item.FileName)
+            .Should()
+            .Equal("01.png", "02.jpg");
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithUnavailableExplorerOrder_UsesFallbackOrder()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using PicaTemporaryDirectory temporaryDirectory = new();
+        string selectedImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "01.png");
+        string adjacentImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "02.jpg");
+        await CreateImageAsync(selectedImagePath, [1]);
+        await CreateImageAsync(adjacentImagePath, [2]);
+        SetLastWriteTimesNewestFirst(
+            adjacentImagePath,
+            selectedImagePath);
+        RecordingWindowsExplorerItemOrderProvider orderProvider = new(null);
+        PicaStartupRequestFactory factory = CreateFactory(orderProvider);
+
+        PicaStartupRequest request = await factory.CreateAsync(
+            [selectedImagePath],
+            42L,
+            CancellationToken.None);
+
+        request.ViewerRequest.Items.Select(item => item.FileName)
+            .Should()
+            .Equal("02.jpg", "01.png");
+        orderProvider.CallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithoutSourceWindowHandle_DoesNotReadExplorerOrder()
+    {
+        using PicaTemporaryDirectory temporaryDirectory = new();
+        string selectedImagePath = Path.Combine(
+            temporaryDirectory.DirectoryPath,
+            "01.png");
+        await CreateImageAsync(selectedImagePath, [1]);
+        RecordingWindowsExplorerItemOrderProvider orderProvider = new(
+            [selectedImagePath]);
+        PicaStartupRequestFactory factory = CreateFactory(orderProvider);
+
+        await factory.CreateAsync(
+            [selectedImagePath],
+            CancellationToken.None);
+
+        orderProvider.CallCount.Should().Be(0);
+    }
+
+    [Fact]
     public async Task CreateAsync_WithMultipleImageArguments_DoesNotExpandDirectories()
     {
         using PicaTemporaryDirectory firstTemporaryDirectory = new();
@@ -123,15 +302,19 @@ public sealed class PicaStartupRequestFactoryTests
         await CreateImageAsync(selectedImagePath, [1]);
         await CreateImageAsync(unrequestedImagePath, [2]);
         await CreateImageAsync(requestedImagePath, [3]);
-        PicaStartupRequestFactory factory = CreateFactory();
+        RecordingWindowsExplorerItemOrderProvider orderProvider = new(
+            [unrequestedImagePath]);
+        PicaStartupRequestFactory factory = CreateFactory(orderProvider);
 
         PicaStartupRequest request = await factory.CreateAsync(
             [selectedImagePath, requestedImagePath],
+            42L,
             CancellationToken.None);
 
         request.ViewerRequest.Items.Select(item => item.FilePath)
             .Should()
             .Equal(Path.GetFullPath(selectedImagePath), Path.GetFullPath(requestedImagePath));
+        orderProvider.CallCount.Should().Be(0);
     }
 
     private static void SetLastWriteTimesNewestFirst(params string[] paths)
@@ -176,10 +359,13 @@ public sealed class PicaStartupRequestFactoryTests
         await File.WriteAllBytesAsync(path, content);
     }
 
-    private static PicaStartupRequestFactory CreateFactory()
+    private static PicaStartupRequestFactory CreateFactory(
+        IWindowsExplorerItemOrderProvider? explorerItemOrderProvider = null)
     {
         return new PicaStartupRequestFactory(
             new ImageFormatRegistry(),
+            explorerItemOrderProvider
+                ?? new RecordingWindowsExplorerItemOrderProvider(null),
             NullLogger<PicaStartupRequestFactory>.Instance);
     }
 }

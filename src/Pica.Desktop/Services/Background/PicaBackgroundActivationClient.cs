@@ -54,6 +54,18 @@ internal sealed class PicaBackgroundActivationClient
         IReadOnlyList<string> arguments,
         CancellationToken ct)
     {
+        await ForwardAsync(
+                arguments,
+                null,
+                ct)
+            .ConfigureAwait(false);
+    }
+
+    public async Task ForwardAsync(
+        IReadOnlyList<string> arguments,
+        long? sourceWindowHandle,
+        CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(arguments);
         using NamedPipeClientStream pipe = new(
             ".",
@@ -78,7 +90,9 @@ internal sealed class PicaBackgroundActivationClient
                 ex);
         }
 
-        PicaBackgroundActivationRequest request = new(arguments.ToArray());
+        PicaBackgroundActivationRequest request = new(
+            arguments.ToArray(),
+            sourceWindowHandle);
         await PicaProtocolStream
             .WriteAsync(pipe, request, ct)
             .ConfigureAwait(false);

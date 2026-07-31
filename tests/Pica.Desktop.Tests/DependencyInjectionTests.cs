@@ -50,8 +50,12 @@ public sealed class DependencyInjectionTests
 
         IImageViewerWindowFactory factory =
             provider.GetRequiredService<IImageViewerWindowFactory>();
+        IWindowsExplorerItemOrderProvider explorerItemOrderProvider =
+            provider.GetRequiredService<
+                IWindowsExplorerItemOrderProvider>();
 
         factory.Should().NotBeNull();
+        explorerItemOrderProvider.Should().NotBeNull();
         provider.GetServices<IViewerSettingContributionProvider>()
             .Should()
             .BeEmpty();

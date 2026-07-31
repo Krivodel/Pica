@@ -73,6 +73,29 @@ internal sealed class WindowsExplorerWindowLocator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
 
+        return Find(
+            directoryPath,
+            windowHandle =>
+                excludedWindowHandles?.Contains(windowHandle) != true);
+    }
+
+    public IWindowsExplorerWindow? FindByHandle(
+        string directoryPath,
+        long windowHandle)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
+        ArgumentOutOfRangeException.ThrowIfZero(windowHandle);
+
+        return Find(
+            directoryPath,
+            candidateWindowHandle =>
+                candidateWindowHandle == windowHandle);
+    }
+
+    private IWindowsExplorerWindow? Find(
+        string directoryPath,
+        Func<long, bool> isMatchingWindowHandle)
+    {
         if (!OperatingSystem.IsWindows())
         {
             return null;
@@ -101,7 +124,7 @@ internal sealed class WindowsExplorerWindowLocator
                     activeShellWindows,
                     index,
                     directoryPath,
-                    excludedWindowHandles);
+                    isMatchingWindowHandle);
 
                 if (window is not null)
                 {
@@ -128,7 +151,7 @@ internal sealed class WindowsExplorerWindowLocator
         object shellWindows,
         int index,
         string directoryPath,
-        IReadOnlySet<long>? excludedWindowHandles)
+        Func<long, bool> isMatchingWindowHandle)
     {
         object? window = null;
         object? document = null;
@@ -149,7 +172,7 @@ internal sealed class WindowsExplorerWindowLocator
 
             long windowHandle = WindowsShellAutomation.GetWindowHandle(window);
 
-            if (excludedWindowHandles?.Contains(windowHandle) == true)
+            if (!isMatchingWindowHandle(windowHandle))
             {
                 return null;
             }

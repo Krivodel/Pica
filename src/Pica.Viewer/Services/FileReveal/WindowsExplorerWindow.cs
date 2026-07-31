@@ -28,6 +28,20 @@ internal sealed class WindowsExplorerWindow : IWindowsExplorerWindow
         _folder = folder ?? throw new ArgumentNullException(nameof(folder));
     }
 
+    public IReadOnlyList<string> GetItemPathsInViewOrder()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException(
+                "File Explorer automation is available only on Windows.");
+        }
+
+        object window = _window
+            ?? throw new ObjectDisposedException(nameof(WindowsExplorerWindow));
+
+        return WindowsExplorerViewItemReader.GetItemPaths(window);
+    }
+
     public void SelectFile(string fileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);

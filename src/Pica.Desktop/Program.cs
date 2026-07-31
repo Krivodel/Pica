@@ -17,6 +17,8 @@ internal static class Program
     [STAThread]
     public static async Task Main(string[] args)
     {
+        PicaLaunchContext launchContext = new(
+            WindowsForegroundWindowCapture.Capture());
         VelopackApp.Build().Run();
         PicaBackgroundActivationClient activationClient = new();
 
@@ -27,7 +29,10 @@ internal static class Program
                 && activationClient.CanForward(args))
             {
                 await activationClient
-                    .ForwardAsync(args, CancellationToken.None)
+                    .ForwardAsync(
+                        args,
+                        launchContext.SourceWindowHandle,
+                        CancellationToken.None)
                     .ConfigureAwait(false);
 
                 return;
@@ -38,12 +43,20 @@ internal static class Program
             BackgroundActivationForwardingException = ex;
         }
 
-        PicaDesktopApplicationRunner.Run(args);
+        PicaDesktopApplicationRunner.Run(args, launchContext);
     }
 
     public static AppBuilder BuildAvaloniaApp()
     {
-        return AppBuilder.Configure<App>()
+        return BuildAvaloniaApp(PicaLaunchContext.Empty);
+    }
+
+    internal static AppBuilder BuildAvaloniaApp(
+        PicaLaunchContext launchContext)
+    {
+        ArgumentNullException.ThrowIfNull(launchContext);
+
+        return AppBuilder.Configure(() => new App(launchContext))
             .UsePlatformDetect()
             .With(new SkiaOptions
             {

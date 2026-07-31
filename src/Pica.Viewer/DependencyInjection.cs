@@ -38,6 +38,9 @@ public static class DependencyInjection
         services.AddSingleton<
             IWindowsExplorerWindowLocator,
             WindowsExplorerWindowLocator>();
+        services.AddSingleton<
+            IWindowsExplorerItemOrderProvider,
+            WindowsExplorerItemOrderProvider>();
         services.AddSingleton<WindowsFileRevealHandler>();
         services.AddSingleton<MacOsFileRevealHandler>();
         services.AddSingleton<LinuxFileRevealHandler>();

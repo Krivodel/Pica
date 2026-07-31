@@ -129,12 +129,28 @@ public sealed class WindowsFileRevealHandlerTests
                 ? _reusableWindow
                 : _newWindow;
         }
+
+        public IWindowsExplorerWindow? FindByHandle(
+            string directoryPath,
+            long windowHandle)
+        {
+            _ = windowHandle;
+            CallCount++;
+            DirectoryPath = directoryPath;
+
+            return _reusableWindow;
+        }
     }
 
     private sealed class RecordingWindowsExplorerWindow
         : IWindowsExplorerWindow
     {
         public string? SelectedFileName { get; private set; }
+
+        public IReadOnlyList<string> GetItemPathsInViewOrder()
+        {
+            return new List<string>();
+        }
 
         public void SelectFile(string fileName)
         {

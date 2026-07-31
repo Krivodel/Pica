@@ -13,4 +13,22 @@ internal interface IWindowsShellItem
         ref Guid handlerId,
         ref Guid interfaceId,
         out nint result);
+
+    [PreserveSig]
+    int GetParent(
+        [MarshalAs(UnmanagedType.Interface)] out IWindowsShellItem? parent);
+
+    [PreserveSig]
+    int GetDisplayName(
+        WindowsShellItemDisplayName displayName,
+        out nint name);
+
+    [PreserveSig]
+    int GetAttributes(uint attributeMask, out uint attributes);
+
+    [PreserveSig]
+    int Compare(
+        IWindowsShellItem shellItem,
+        uint hint,
+        out int order);
 }
