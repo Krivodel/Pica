@@ -46,7 +46,7 @@
                 </Button>
 
                 <Button x:Name="ModeSubmenuButton"
-                        Classes="viewer-menu-button">
+                        Classes="viewer-menu-button viewer-submenu-button">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Classes="viewer-menu-content">
                             <Grid Classes="viewer-menu-icon-host" />
@@ -57,7 +57,7 @@
                                   Grid.Column="1"
                                   Width="14"
                                   Height="14"
-                                  Classes="viewer-menu-icon" />
+                                  Classes="viewer-menu-icon viewer-submenu-indicator" />
                     </Grid>
                 </Button>
             </StackPanel>

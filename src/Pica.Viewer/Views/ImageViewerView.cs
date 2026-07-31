@@ -630,11 +630,15 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             14d,
             0d);
         indicator.Classes.Add("viewer-menu-icon");
+        indicator.Classes.Add("viewer-submenu-indicator");
 
         Grid.SetColumn(indicator, 1);
         content.Children.Add(indicator);
 
-        return CreateMenuButton(content, clickHandler);
+        Button button = CreateMenuButton(content, clickHandler);
+        button.Classes.Add("viewer-submenu-button");
+
+        return button;
     }
 
     private static Button CreateTextMenuButton(

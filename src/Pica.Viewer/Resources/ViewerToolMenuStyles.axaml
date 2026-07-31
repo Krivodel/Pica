@@ -59,6 +59,11 @@
                 Value="Left" />
     </Style>
 
+    <Style Selector="Button.viewer-submenu-button">
+        <Setter Property="HorizontalContentAlignment"
+                Value="Stretch" />
+    </Style>
+
     <Style Selector="TextBlock.viewer-menu-text">
         <Setter Property="Foreground"
                 Value="{StaticResource ViewerMenuForegroundBrush}" />
@@ -73,6 +78,13 @@
                 Value="{StaticResource ViewerMenuIconSize}" />
         <Setter Property="Foreground"
                 Value="{StaticResource ViewerMenuForegroundBrush}" />
+    </Style>
+
+    <Style Selector="PathIcon.viewer-submenu-indicator">
+        <Setter Property="Margin"
+                Value="10,0,2,0" />
+        <Setter Property="VerticalAlignment"
+                Value="Center" />
     </Style>
 
     <Style Selector="Image.viewer-menu-application-icon">

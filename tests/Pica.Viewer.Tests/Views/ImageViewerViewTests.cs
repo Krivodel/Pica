@@ -439,6 +439,59 @@ public sealed class ImageViewerViewTests
     }
 
     [Fact]
+    public async Task Layout_WhenSubmenuButtonsAreHosted_AlignsIndicatorsAtRight()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Window window = new()
+            {
+                Content = view
+            };
+
+            try
+            {
+                view.ViewerContextMenu.IsVisible = true;
+                view.ToolMenu.IsVisible = true;
+                window.Show();
+                PathIcon contextMenuIndicator = GetSubmenuIndicator(
+                    view.ContextOpenWithButton);
+                PathIcon toolMenuIndicator = GetSubmenuIndicator(
+                    view.ModeMenuButton);
+                Thickness expectedMargin = new(10d, 0d, 2d, 0d);
+
+                view.ContextOpenWithButton.HorizontalContentAlignment
+                    .Should()
+                    .Be(HorizontalAlignment.Stretch);
+                view.ModeMenuButton.HorizontalContentAlignment
+                    .Should()
+                    .Be(HorizontalAlignment.Stretch);
+                contextMenuIndicator.Margin.Should().Be(expectedMargin);
+                toolMenuIndicator.Margin.Should().Be(expectedMargin);
+                contextMenuIndicator.VerticalAlignment
+                    .Should()
+                    .Be(VerticalAlignment.Center);
+                toolMenuIndicator.VerticalAlignment
+                    .Should()
+                    .Be(VerticalAlignment.Center);
+            }
+            finally
+            {
+                window.Close();
+                view.Dispose();
+            }
+        });
+    }
+
+    [Fact]
     public async Task Layout_WhenSelectionToolbarIsHosted_PreservesExistingButtonAppearance()
     {
         await DispatchAsync(() =>
@@ -766,6 +819,19 @@ public sealed class ImageViewerViewTests
                 .OfType<PathIcon>()
                 .Single())
             .ToList();
+    }
+
+    private static PathIcon GetSubmenuIndicator(Button button)
+    {
+        Grid content = button
+            .Content
+            .Should()
+            .BeOfType<Grid>()
+            .Subject;
+
+        return content.Children
+            .OfType<PathIcon>()
+            .Single();
     }
 
     private static List<Button> GetMenuButtons(Border menu)
