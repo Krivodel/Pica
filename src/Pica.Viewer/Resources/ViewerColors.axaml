@@ -6,6 +6,7 @@
     <Color x:Key="ViewerDestructiveIconColor">#FFB3261E</Color>
     <Color x:Key="ViewerFloatingMenuColor">#E8181818</Color>
     <Color x:Key="ViewerInformationPanelColor">#C0181818</Color>
+    <Color x:Key="ViewerAnimationTimelineTrackColor">#CC646464</Color>
     <Color x:Key="ViewerMenuForegroundColor">#FFFFFFFF</Color>
     <Color x:Key="ViewerToolButtonColor">#96101010</Color>
     <Color x:Key="ViewerTransparentColor">#00FFFFFF</Color>

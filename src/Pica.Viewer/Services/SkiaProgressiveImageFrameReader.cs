@@ -9,6 +9,8 @@ internal sealed class SkiaProgressiveImageFrameReader :
     IProgressiveImageFrameReader
 {
     public int FrameCount => _frameInformation.Length;
+    public IReadOnlyList<TimeSpan> FrameDurations =>
+        _frameDurations;
     public uint AnimationIterations
     {
         get
@@ -26,6 +28,7 @@ internal sealed class SkiaProgressiveImageFrameReader :
     private readonly SKManagedStream _managedStream;
     private readonly SKCodec _codec;
     private readonly SKCodecFrameInfo[] _frameInformation;
+    private readonly IReadOnlyList<TimeSpan> _frameDurations;
     private readonly SKImageInfo _decodeInformation;
     private readonly int[] _lastRequiredFrameUses;
     private readonly Dictionary<int, byte[]> _cachedFramePixels = [];
@@ -57,6 +60,13 @@ internal sealed class SkiaProgressiveImageFrameReader :
                 _lastRequiredFrameUses =
                     GetLastRequiredFrameUses(
                         _frameInformation);
+                _frameDurations = Array.AsReadOnly(
+                    _frameInformation
+                        .Select(frame =>
+                            ImageAnimationTiming
+                                .NormalizeFrameDuration(
+                                    frame.Duration))
+                        .ToArray());
                 _codec = codec;
             }
             catch
@@ -122,13 +132,9 @@ internal sealed class SkiaProgressiveImageFrameReader :
             pixels,
             AlphaFormat.Premul,
             ct);
-        TimeSpan duration =
-            ImageAnimationTiming.NormalizeFrameDuration(
-                _frameInformation[frameIndex].Duration);
-
         return new DecodedImageFrame(
             bitmap,
-            duration);
+            _frameDurations[frameIndex]);
     }
 
     public void Dispose()

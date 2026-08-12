@@ -19,6 +19,7 @@ internal sealed class DecodedImage : IDisposable
     }
     internal int PreferredInitialFrameIndex { get; }
     internal int PlaybackStartFrameCount { get; }
+    internal ImageAnimationTimeline AnimationTimeline { get; }
     internal int MaximumResidentFrameCount =>
         RetainsCompleteAnimation
             ? FrameCount
@@ -169,6 +170,11 @@ internal sealed class DecodedImage : IDisposable
             : ImageFramePresentationModes.None;
         FrameNumbering = frameNumbering;
         AnimationIterations = animationIterations;
+        AnimationTimeline = new ImageAnimationTimeline(
+            frames
+                .Select(frame => frame.Duration)
+                .ToList()
+                .AsReadOnly());
     }
 
     private DecodedImage(
@@ -176,7 +182,8 @@ internal sealed class DecodedImage : IDisposable
         ImageFramePresentationModes framePresentationMode,
         uint animationIterations,
         int playbackStartFrameCount,
-        ImageAnimationFrameCachePolicy frameCachePolicy)
+        ImageAnimationFrameCachePolicy frameCachePolicy,
+        IReadOnlyList<TimeSpan> frameDurations)
     {
         if (frameCount <= 1)
         {
@@ -198,12 +205,23 @@ internal sealed class DecodedImage : IDisposable
         _frameCachePolicy = frameCachePolicy
             ?? throw new ArgumentNullException(
                 nameof(frameCachePolicy));
+        ArgumentNullException.ThrowIfNull(frameDurations);
+
+        if (frameDurations.Count != frameCount)
+        {
+            throw new ArgumentException(
+                $"The animation timeline must contain {frameCount} frame durations.",
+                nameof(frameDurations));
+        }
+
         _frames = new DecodedImageFrame?[frameCount];
         PreferredInitialFrameIndex = 0;
         PlaybackStartFrameCount = playbackStartFrameCount;
         FramePresentationMode = framePresentationMode;
         FrameNumbering = ImageFrameNumbering.Forward;
         AnimationIterations = animationIterations;
+        AnimationTimeline = new ImageAnimationTimeline(
+            frameDurations);
     }
 
     public void Dispose()
@@ -244,15 +262,24 @@ internal sealed class DecodedImage : IDisposable
         ImageFramePresentationModes framePresentationMode,
         uint animationIterations,
         int playbackStartFrameCount,
-        ImageAnimationFrameCachePolicy? frameCachePolicy = null)
+        ImageAnimationFrameCachePolicy? frameCachePolicy = null,
+        IReadOnlyList<TimeSpan>? frameDurations = null)
     {
+        IReadOnlyList<TimeSpan> effectiveFrameDurations =
+            frameDurations
+            ?? Enumerable
+                .Repeat(TimeSpan.Zero, frameCount)
+                .ToList()
+                .AsReadOnly();
+
         return new DecodedImage(
             frameCount,
             framePresentationMode,
             animationIterations,
             playbackStartFrameCount,
             frameCachePolicy
-                ?? ImageAnimationFrameCachePolicy.Default);
+                ?? ImageAnimationFrameCachePolicy.Default,
+            effectiveFrameDurations);
     }
 
     internal static DecodedImage CreateSingle(Bitmap bitmap)

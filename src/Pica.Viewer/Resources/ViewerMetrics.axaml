@@ -4,6 +4,7 @@
     <system:TimeSpan x:Key="ViewerControlsFadeDuration">0:0:0.16</system:TimeSpan>
     <x:Double x:Key="ViewerHiddenControlsOpacity">0</x:Double>
     <x:Double x:Key="ViewerContentNavigationFontSize">17.333333333333332</x:Double>
+    <x:Double x:Key="ViewerAnimationTimelineWidth">252</x:Double>
     <Thickness x:Key="ViewerContentNavigationPanelMargin">0,0,0,78</Thickness>
     <Thickness x:Key="ViewerInformationPanelMargin">16</Thickness>
     <x:Double x:Key="ViewerMenuIconSize">18</x:Double>

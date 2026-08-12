@@ -28,11 +28,13 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         session.SetFramePresentation(
             2,
             ImageFramePresentationModes.AutomaticPlayback,
-            0);
+            0,
+            animationTimeline: CreateAnimationTimeline(2));
         using CancellationTokenSource timeout = new(TestTimeout);
 
         frameSource.SetFrames(
@@ -48,6 +50,89 @@ public sealed class ImageAnimationPlaybackControllerTests
     }
 
     [Fact]
+    public async Task TimelineProgress_WhileFrameIsDisplayed_AdvancesFromFrameStartToFrameEnd()
+    {
+        ImageViewerSession session = CreateSession();
+        StubImageFrameSource frameSource = new();
+        ControlledImageAnimationDelayScheduler delayScheduler = new();
+        ControlledUiFrameScheduler frameScheduler = new();
+        using ImageAnimationPlaybackController controller = new(
+            session,
+            frameSource,
+            delayScheduler,
+            new InlineViewerUiDispatcher(),
+            frameScheduler,
+            NullLogger<ImageAnimationPlaybackController>.Instance);
+        SetAnimationContent(session, 2);
+        session.SetFramePresentation(
+            2,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0,
+            animationTimeline: CreateAnimationTimeline(2));
+        using CancellationTokenSource timeout = new(TestTimeout);
+        frameSource.SetFrames(
+            2,
+            FrameDuration,
+            ImageFramePresentationModes.AutomaticPlayback);
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+        TimeSpan firstFrameTime = TimeSpan.FromSeconds(10d);
+        TimeSpan halfFrameDuration = TimeSpan.FromTicks(
+            FrameDuration.Ticks / 2L);
+
+        frameScheduler.RunNext(firstFrameTime);
+        frameScheduler.RunNext(
+            firstFrameTime + halfFrameDuration);
+
+        session.AnimationPosition.Should().Be(
+            halfFrameDuration);
+        frameScheduler.PendingFrameCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ToggleAnimationPlayback_AfterPartialFrame_ResumesRemainingDuration()
+    {
+        ImageViewerSession session = CreateSession();
+        StubImageFrameSource frameSource = new();
+        ControlledImageAnimationDelayScheduler delayScheduler = new();
+        ControlledUiFrameScheduler frameScheduler = new();
+        using ImageAnimationPlaybackController controller = new(
+            session,
+            frameSource,
+            delayScheduler,
+            new InlineViewerUiDispatcher(),
+            frameScheduler,
+            NullLogger<ImageAnimationPlaybackController>.Instance);
+        SetAnimationContent(session, 2);
+        session.SetFramePresentation(
+            2,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0,
+            animationTimeline: CreateAnimationTimeline(2));
+        using CancellationTokenSource timeout = new(TestTimeout);
+        frameSource.SetFrames(
+            2,
+            FrameDuration,
+            ImageFramePresentationModes.AutomaticPlayback);
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+        TimeSpan firstFrameTime = TimeSpan.FromSeconds(10d);
+        TimeSpan halfFrameDuration = TimeSpan.FromTicks(
+            FrameDuration.Ticks / 2L);
+        frameScheduler.RunNext(firstFrameTime);
+        frameScheduler.RunNext(
+            firstFrameTime + halfFrameDuration);
+
+        session.ToggleAnimationPlayback();
+        session.ToggleAnimationPlayback();
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+
+        delayScheduler.RequestedDurations.Should().Equal(
+            FrameDuration,
+            FrameDuration - halfFrameDuration);
+        session.AnimationPosition.Should().Be(
+            halfFrameDuration);
+    }
+
+    [Fact]
     public async Task NavigateFrame_WithAvailableAnimationFrame_RestartsFullFrameDelay()
     {
         ImageViewerSession session = CreateSession();
@@ -58,6 +143,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         SetAnimationContent(session, 3);
         session.SetFramePresentation(
@@ -93,6 +179,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         SetAnimationContent(session, 4);
         session.SetFramePresentation(
@@ -129,6 +216,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         SetAnimationContent(session, 4);
         session.SetFramePresentation(
@@ -167,6 +255,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         SetAnimationContent(session, 2);
         session.SetFramePresentation(
@@ -202,6 +291,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             uiDispatcher,
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         SetAnimationContent(session, 2);
         session.SetFramePresentation(
@@ -238,6 +328,208 @@ public sealed class ImageAnimationPlaybackControllerTests
     }
 
     [Fact]
+    public async Task ToggleAnimationPlayback_WhilePlaying_PausesAndResumesWithFullDelay()
+    {
+        ImageViewerSession session = CreateSession();
+        StubImageFrameSource frameSource = new();
+        ControlledImageAnimationDelayScheduler delayScheduler = new();
+        using ImageAnimationPlaybackController controller = new(
+            session,
+            frameSource,
+            delayScheduler,
+            new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
+            NullLogger<ImageAnimationPlaybackController>.Instance);
+        SetAnimationContent(session, 3);
+        session.SetFramePresentation(
+            3,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+        using CancellationTokenSource timeout = new(TestTimeout);
+        frameSource.SetFrames(
+            3,
+            FrameDuration,
+            ImageFramePresentationModes.AutomaticPlayback);
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+
+        session.ToggleAnimationPlayback();
+        session.ToggleAnimationPlayback();
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+
+        controller.State.Should().Be(
+            ImageAnimationPlaybackState.Playing);
+        session.SelectedFrameIndex.Should().Be(0);
+        session.IsAnimationPlaybackActive.Should().BeTrue();
+        delayScheduler.RequestedDurations.Should().Equal(
+            FrameDuration,
+            FrameDuration);
+    }
+
+    [Fact]
+    public async Task SeekAnimationFrame_WhilePaused_ChangesFrameWithoutResuming()
+    {
+        ImageViewerSession session = CreateSession();
+        StubImageFrameSource frameSource = new();
+        ControlledImageAnimationDelayScheduler delayScheduler = new();
+        using ImageAnimationPlaybackController controller = new(
+            session,
+            frameSource,
+            delayScheduler,
+            new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
+            NullLogger<ImageAnimationPlaybackController>.Instance);
+        SetAnimationContent(session, 4);
+        session.SetFramePresentation(
+            4,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+        using CancellationTokenSource timeout = new(TestTimeout);
+        frameSource.SetFrames(
+            4,
+            FrameDuration,
+            ImageFramePresentationModes.AutomaticPlayback);
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+        session.ToggleAnimationPlayback();
+
+        session.SeekAnimationFrame(3);
+        await Task.Yield();
+
+        controller.State.Should().Be(
+            ImageAnimationPlaybackState.Paused);
+        session.SelectedFrameIndex.Should().Be(3);
+        session.IsAnimationPlaybackActive.Should().BeFalse();
+        delayScheduler.RequestedDurations.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task SeekAnimationFrame_WhilePlaying_RestartsFullFrameDelay()
+    {
+        ImageViewerSession session = CreateSession();
+        StubImageFrameSource frameSource = new();
+        ControlledImageAnimationDelayScheduler delayScheduler = new();
+        using ImageAnimationPlaybackController controller = new(
+            session,
+            frameSource,
+            delayScheduler,
+            new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
+            NullLogger<ImageAnimationPlaybackController>.Instance);
+        SetAnimationContent(session, 4);
+        session.SetFramePresentation(
+            4,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+        using CancellationTokenSource timeout = new(TestTimeout);
+        frameSource.SetFrames(
+            4,
+            FrameDuration,
+            ImageFramePresentationModes.AutomaticPlayback);
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+
+        session.SeekAnimationFrame(3);
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+
+        controller.State.Should().Be(
+            ImageAnimationPlaybackState.Playing);
+        session.SelectedFrameIndex.Should().Be(3);
+        session.IsAnimationPlaybackActive.Should().BeTrue();
+        delayScheduler.RequestedDurations.Should().Equal(
+            FrameDuration,
+            FrameDuration);
+    }
+
+    [Fact]
+    public async Task SeekAnimationFrame_ToUnavailableFrameWhilePaused_WaitsWithoutResuming()
+    {
+        ImageViewerSession session = CreateSession();
+        StubImageFrameSource frameSource = new();
+        ControlledImageAnimationDelayScheduler delayScheduler = new();
+        using ControlledViewerUiDispatcher uiDispatcher = new();
+        using ImageAnimationPlaybackController controller = new(
+            session,
+            frameSource,
+            delayScheduler,
+            uiDispatcher,
+            new ControlledUiFrameScheduler(),
+            NullLogger<ImageAnimationPlaybackController>.Instance);
+        SetAnimationContent(session, 4);
+        session.SetFramePresentation(
+            4,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+        using CancellationTokenSource timeout = new(TestTimeout);
+        frameSource.SetProgressiveFrames(
+            4,
+            2,
+            2,
+            FrameDuration,
+            ImageFramePresentationModes.AutomaticPlayback);
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+        session.ToggleAnimationPlayback();
+
+        session.SeekAnimationFrame(3);
+
+        controller.State.Should().Be(
+            ImageAnimationPlaybackState.Seeking);
+        session.IsAnimationPlaybackActive.Should().BeFalse();
+        session.IsAnimationBuffering.Should().BeTrue();
+
+        frameSource.SetFrameAvailability(3, true);
+        await uiDispatcher.WaitForPendingAsync(timeout.Token);
+        uiDispatcher.RunNext();
+
+        controller.State.Should().Be(
+            ImageAnimationPlaybackState.Paused);
+        session.SelectedFrameIndex.Should().Be(3);
+        session.IsAnimationBuffering.Should().BeFalse();
+        delayScheduler.RequestedDurations.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ToggleAnimationPlayback_AfterCompletedPlayback_RestartsFromFirstFrame()
+    {
+        ImageViewerSession session = CreateSession();
+        StubImageFrameSource frameSource = new();
+        ControlledImageAnimationDelayScheduler delayScheduler = new();
+        using ControlledViewerUiDispatcher uiDispatcher = new();
+        using ImageAnimationPlaybackController controller = new(
+            session,
+            frameSource,
+            delayScheduler,
+            uiDispatcher,
+            new ControlledUiFrameScheduler(),
+            NullLogger<ImageAnimationPlaybackController>.Instance);
+        SetAnimationContent(session, 2);
+        session.SetFramePresentation(
+            2,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+        using CancellationTokenSource timeout = new(TestTimeout);
+        frameSource.SetFrames(
+            2,
+            FrameDuration,
+            ImageFramePresentationModes.AutomaticPlayback,
+            animationIterations: 1);
+        await CompleteScheduledAdvanceAsync(
+            delayScheduler,
+            uiDispatcher,
+            timeout.Token);
+        await CompleteScheduledAdvanceAsync(
+            delayScheduler,
+            uiDispatcher,
+            timeout.Token);
+
+        session.ToggleAnimationPlayback();
+        await delayScheduler.WaitForRequestAsync(timeout.Token);
+
+        controller.State.Should().Be(
+            ImageAnimationPlaybackState.Playing);
+        session.SelectedFrameIndex.Should().Be(0);
+        session.IsAnimationPlaybackActive.Should().BeTrue();
+        delayScheduler.RequestedDurations.Should().HaveCount(3);
+    }
+
+    [Fact]
     public async Task FramesChanged_WithoutAutomaticPlayback_DoesNotScheduleDelay()
     {
         ImageViewerSession session = CreateSession();
@@ -248,6 +540,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         session.SetFramePresentation(
             2,
@@ -276,11 +569,13 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             uiDispatcher,
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         session.SetFramePresentation(
             2,
             ImageFramePresentationModes.AutomaticPlayback,
-            0);
+            0,
+            animationTimeline: CreateAnimationTimeline(2));
         using CancellationTokenSource timeout = new(TestTimeout);
         frameSource.SetFrames(
             2,
@@ -298,6 +593,8 @@ public sealed class ImageAnimationPlaybackControllerTests
         uiDispatcher.RunNext();
 
         session.SelectedFrameIndex.Should().Be(1);
+        session.AnimationPosition.Should().Be(
+            FrameDuration * 2d);
         delayScheduler.RequestedDurations.Should().HaveCount(2);
     }
 
@@ -313,6 +610,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             uiDispatcher,
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         session.SetFramePresentation(
             10,
@@ -354,6 +652,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             new InlineViewerUiDispatcher(),
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         session.SetFramePresentation(
             10,
@@ -400,6 +699,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             uiDispatcher,
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         session.SetFramePresentation(
             8,
@@ -462,6 +762,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             uiDispatcher,
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         session.SetFramePresentation(
             10,
@@ -501,6 +802,7 @@ public sealed class ImageAnimationPlaybackControllerTests
             frameSource,
             delayScheduler,
             uiDispatcher,
+            new ControlledUiFrameScheduler(),
             NullLogger<ImageAnimationPlaybackController>.Instance);
         session.SetFramePresentation(
             10,
@@ -551,6 +853,16 @@ public sealed class ImageAnimationPlaybackControllerTests
             }.AsReadOnly();
 
         session.SetContentGroups(groups, 0);
+    }
+
+    private static ImageAnimationTimeline CreateAnimationTimeline(
+        int frameCount)
+    {
+        return new ImageAnimationTimeline(
+            Enumerable
+                .Repeat(FrameDuration, frameCount)
+                .ToList()
+                .AsReadOnly());
     }
 
     private static async Task CompleteScheduledAdvanceAsync(

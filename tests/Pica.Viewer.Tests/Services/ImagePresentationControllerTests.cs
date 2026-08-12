@@ -401,6 +401,64 @@ public sealed class ImagePresentationControllerTests
     }
 
     [Fact]
+    public async Task NavigateFrame_WithDisplayedBitmapLease_DoesNotDisposeRenderedFrameBeforeLeaseRelease()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(
+            typeof(ImagePresentationControllerTests),
+            SessionLock,
+            () =>
+            {
+                ImageViewerSession session = CreateSession();
+                using ImageViewerSessionViewModel viewModel = new(session);
+                using ImagePresentationController controller = new(
+                    session,
+                    new RecordingImageChannelBitmapLoader(),
+                    new AvaloniaViewerUiDispatcher(),
+                    NullLogger<ImagePresentationController>.Instance);
+                ImageAnimationFrameCachePolicy frameCachePolicy =
+                    new(32L);
+                DecodedImage image =
+                    DecodedImage.CreateProgressive(
+                        5,
+                        ImageFramePresentationModes.AutomaticPlayback,
+                        0,
+                        2,
+                        frameCachePolicy);
+                Bitmap firstBitmap =
+                    BgraBitmapTestData.CreateBitmap();
+                Bitmap secondBitmap =
+                    BgraBitmapTestData.CreateBitmap();
+                image.AddFrame(
+                    0,
+                    new DecodedImageFrame(
+                        firstBitmap,
+                        TimeSpan.FromMilliseconds(100d)));
+                image.AddFrame(
+                    1,
+                    new DecodedImageFrame(
+                        secondBitmap,
+                        TimeSpan.FromMilliseconds(100d)));
+                PicaImageItem item = session.SelectedItem
+                    ?? throw new InvalidOperationException(
+                        "The test session must contain a selected image.");
+                controller.ReplaceFullResolutionImage(item, image);
+                using ImagePresentationBitmapLease displayedBitmapLease =
+                    controller.AcquireDisplayedBitmap(null)
+                    ?? throw new InvalidOperationException(
+                        "The displayed animation frame lease is unavailable.");
+
+                viewModel.NavigateFrameCommand.Execute(1);
+                viewModel.NavigateFrameCommand.Execute(1);
+                viewModel.NavigateFrameCommand.Execute(1);
+
+                firstBitmap.PixelSize.Should().Be(
+                    BgraBitmapTestData.PixelSize);
+
+                return Task.CompletedTask;
+            });
+    }
+
+    [Fact]
     public async Task NavigateContent_WithMixedContent_CyclesImagesAndAnimations()
     {
         await HeadlessTestSessionDispatcher.DispatchAsync(

@@ -11,9 +11,12 @@ internal sealed class ApngProgressiveImageFrameReader :
         _animation.Frames.Count;
     public uint AnimationIterations =>
         _animation.AnimationIterations;
+    public IReadOnlyList<TimeSpan> FrameDurations =>
+        _frameDurations;
 
     private readonly ApngAnimationData _animation;
     private readonly ApngFrameCompositor _compositor;
+    private readonly IReadOnlyList<TimeSpan> _frameDurations;
     private int _nextFrameIndex;
     private bool _disposed;
 
@@ -26,6 +29,10 @@ internal sealed class ApngProgressiveImageFrameReader :
         _compositor = new ApngFrameCompositor(
             animation.CanvasWidth,
             animation.CanvasHeight);
+        _frameDurations = Array.AsReadOnly(
+            animation.Frames
+                .Select(frame => frame.Duration)
+                .ToArray());
     }
 
     public DecodedImageFrame ReadFrame(

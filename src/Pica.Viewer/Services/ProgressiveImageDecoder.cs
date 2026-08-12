@@ -28,7 +28,8 @@ internal static class ProgressiveImageDecoder
             framePresentationMode,
             frameReader.AnimationIterations,
             bufferingPolicy.GetRequiredFrameCount(frameCount),
-            frameCachePolicy);
+            frameCachePolicy,
+            frameReader.FrameDurations);
         int initialFrameCount =
             bufferingPolicy.GetInitialSynchronousFrameCount(
                 frameCount);

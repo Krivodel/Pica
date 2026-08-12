@@ -11,7 +11,7 @@ internal sealed class ViewerChromeVisibilityController
         _isControlModifierActive;
 
     private const double EdgeRevealRatio = 0.04d;
-    private const double BottomRevealSize = 128d;
+    private const double BottomRevealPadding = 12d;
 
     private readonly ImageViewerView _view;
     private readonly ImageViewportController _viewport;
@@ -34,6 +34,15 @@ internal sealed class ViewerChromeVisibilityController
             ?? throw new ArgumentNullException(nameof(floatingMenus));
     }
 
+    internal static double CalculateBottomRevealTop(
+        double contentNavigationPanelTop)
+    {
+        return Math.Max(
+            0d,
+            contentNavigationPanelTop
+                - BottomRevealPadding);
+    }
+
     internal void SetControlModifierActive(bool isActive)
     {
         _isControlModifierActive = isActive;
@@ -44,6 +53,13 @@ internal sealed class ViewerChromeVisibilityController
         Size viewport = _viewport.GetViewportSize();
         Rect viewportRect = new(viewport);
         UpdateImageInformationPanelWidthLimit(viewport);
+
+        if (_view.ContentNavigationPanel
+            .IsTimelineInteractionActive)
+        {
+            ShowBottomControls();
+            return;
+        }
 
         if (!viewportRect.Contains(pointerPosition)
             || _isControlModifierActive)
@@ -71,8 +87,10 @@ internal sealed class ViewerChromeVisibilityController
         SetControlVisibility(
             _view.RightNavigationArea,
             pointerPosition.X >= viewport.Width - edgeWidth);
-        bool areBottomControlsVisible = pointerPosition.Y
-            >= viewport.Height - BottomRevealSize;
+        double bottomRevealTop = CalculateBottomRevealTop(
+            _view.ContentNavigationPanel.Bounds.Top);
+        bool areBottomControlsVisible =
+            pointerPosition.Y >= bottomRevealTop;
         SetControlVisibility(
             _view.BottomControls,
             areBottomControlsVisible);
@@ -85,6 +103,13 @@ internal sealed class ViewerChromeVisibilityController
 
     internal void HideControls()
     {
+        if (_view.ContentNavigationPanel
+            .IsTimelineInteractionActive)
+        {
+            ShowBottomControls();
+            return;
+        }
+
         HideChrome();
         _floatingMenus.HideAll();
     }
@@ -101,6 +126,14 @@ internal sealed class ViewerChromeVisibilityController
             false);
         SetControlVisibility(_view.WindowModeButton, false);
         SetControlVisibility(_view.CloseButton, false);
+    }
+
+    private void ShowBottomControls()
+    {
+        SetControlVisibility(_view.BottomControls, true);
+        SetControlVisibility(
+            _view.ContentNavigationPanel,
+            true);
     }
 
     private void UpdateInformationVisibility(

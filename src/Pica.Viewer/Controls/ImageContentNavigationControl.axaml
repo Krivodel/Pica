@@ -31,22 +31,34 @@
                 </Grid>
 
                 <Border Classes="viewer-content-navigation-information-separator"
-                        IsVisible="{Binding IsFrameSelectionSeparatorVisible}" />
+                        IsVisible="{Binding IsAnimationTimeSeparatorVisible}" />
 
-                <Grid IsVisible="{Binding IsFrameSelectionVisible}">
+                <Grid IsVisible="{Binding IsAnimationTimeVisible}">
                     <TextBlock HorizontalAlignment="Center"
                                VerticalAlignment="Center"
-                               Classes="viewer-frame-navigation-label"
+                               Classes="viewer-animation-time-label"
                                IsHitTestVisible="False"
                                Opacity="0"
-                               Text="{Binding FrameWidthReferenceText}" />
-                    <TextBlock x:Name="SelectedFrameText"
+                               Text="{Binding AnimationTimeWidthReferenceText}" />
+                    <TextBlock x:Name="AnimationTimeText"
                                HorizontalAlignment="Stretch"
                                VerticalAlignment="Center"
-                               Classes="viewer-frame-navigation-label"
-                               Text="{Binding SelectedFrameText}" />
+                               Classes="viewer-animation-time-label"
+                               Text="{Binding AnimationTimeText}" />
                 </Grid>
             </StackPanel>
+        </Border>
+
+        <Border x:Name="AnimationTimeline"
+                Classes="viewer-animation-timeline"
+                IsEnabled="{Binding IsAnimationTimelineEnabled}"
+                IsVisible="{Binding IsAnimationNavigationVisible}">
+            <ProgressBar x:Name="AnimationTimelineProgress"
+                         Classes="viewer-animation-timeline-progress"
+                         IsHitTestVisible="False"
+                         Maximum="{Binding AnimationTimelineMaximum}"
+                         Minimum="0"
+                         Value="{Binding AnimationTimelineValue}" />
         </Border>
 
         <Grid x:Name="NavigationControlsPanel"
@@ -105,9 +117,19 @@
                 </Button>
 
                 <Button x:Name="PlayAnimationButton"
-                        Classes="viewer-tool-button">
-                    <PathIcon Classes="viewer-tool-icon"
-                              Data="{StaticResource ViewerPlayIconGeometry}" />
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding CanControlAnimationPlayback}"
+                        Command="{Binding ToggleAnimationPlaybackCommand}">
+                    <Grid>
+                        <PathIcon x:Name="PlayAnimationIcon"
+                                  Classes="viewer-tool-icon"
+                                  Data="{StaticResource ViewerPlayIconGeometry}"
+                                  IsVisible="{Binding IsPlayAnimationIconVisible}" />
+                        <PathIcon x:Name="PauseAnimationIcon"
+                                  Classes="viewer-tool-icon"
+                                  Data="{StaticResource ViewerPauseIconGeometry}"
+                                  IsVisible="{Binding IsPauseAnimationIconVisible}" />
+                    </Grid>
                 </Button>
 
                 <Button x:Name="PreviousContentButton"

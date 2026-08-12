@@ -17,6 +17,9 @@ internal sealed partial class ImageViewerSession : ObservableObject
     internal bool IsChannelAvailabilityKnown { get; private set; }
     internal int FrameCount => _frameCount;
     internal int SelectedFrameIndex => _selectedFrameIndex;
+    internal TimeSpan AnimationPosition => _animationPosition;
+    internal TimeSpan AnimationDuration =>
+        _animationTimeline.Duration;
     internal ImageFramePresentationModes FramePresentationMode =>
         _framePresentationMode;
     internal ImageFrameNumbering FrameNumbering =>
@@ -31,6 +34,11 @@ internal sealed partial class ImageViewerSession : ObservableObject
                 & ImageFramePresentationModes.AutomaticPlayback)
             != ImageFramePresentationModes.None)
         && (_frameCount > 1);
+    internal bool CanControlAnimationPlayback =>
+        (SelectedContentGroupKind
+            == ImageContentGroupKind.Animation)
+        && !IsContentGroupLoading
+        && IsAnimationPlaybackEnabled;
     internal IReadOnlyList<ImageContentGroupDefinition> ContentGroups =>
         _contentGroups;
     internal int SelectedContentGroupIndex =>
@@ -58,8 +66,11 @@ internal sealed partial class ImageViewerSession : ObservableObject
     private int _selectedChannelIndex;
     private int _frameCount;
     private int _selectedFrameIndex;
+    private TimeSpan _animationPosition;
     private ImageFramePresentationModes _framePresentationMode;
     private ImageFrameNumbering _frameNumbering;
+    private ImageAnimationTimeline _animationTimeline =
+        ImageAnimationTimeline.Empty;
     private IReadOnlyList<ImageContentGroupDefinition> _contentGroups = [];
     private readonly Dictionary<int, int> _contentGroupItemIndices = [];
     private ImageContentNavigationState _contentNavigationState =
@@ -81,7 +92,10 @@ internal sealed partial class ImageViewerSession : ObservableObject
     [ObservableProperty]
     private bool _isAnimationBuffering;
     [ObservableProperty]
+    private bool _isAnimationPlaybackActive;
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanNavigateFrames))]
+    [NotifyPropertyChangedFor(nameof(CanControlAnimationPlayback))]
     private bool _isContentGroupLoading;
 
     internal ImageViewerSession(
@@ -160,6 +174,70 @@ internal sealed partial class ImageViewerSession : ObservableObject
 
         int frameIndex = GetAdjacentFrameIndex(frameDirection);
         SetSelectedFrameIndex(frameIndex);
+    }
+
+    internal void SeekAnimationFrame(int frameIndex)
+    {
+        if (!CanNavigateFrames)
+        {
+            return;
+        }
+
+        if ((frameIndex < 0) || (frameIndex >= _frameCount))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(frameIndex),
+                frameIndex,
+                $"The animation frame index must be between 0 and {_frameCount - 1}.");
+        }
+
+        SetSelectedFrameIndex(frameIndex);
+    }
+
+    internal void CompleteAnimationTimeline()
+    {
+        SetAnimationPosition(_animationTimeline.Duration);
+    }
+
+    internal TimeSpan GetSelectedAnimationFrameStartPosition()
+    {
+        if (_animationTimeline.FrameDurations.Count == 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        return _animationTimeline.GetFrameStartPosition(
+            Math.Clamp(
+                _selectedFrameIndex,
+                0,
+                _animationTimeline.FrameDurations.Count - 1));
+    }
+
+    internal void SetAnimationPlaybackPosition(
+        TimeSpan animationPosition)
+    {
+        long clampedPositionTicks = Math.Clamp(
+            animationPosition.Ticks,
+            0L,
+            _animationTimeline.Duration.Ticks);
+        SetAnimationPosition(
+            TimeSpan.FromTicks(clampedPositionTicks));
+    }
+
+    internal void ToggleAnimationPlayback()
+    {
+        if (!CanControlAnimationPlayback)
+        {
+            return;
+        }
+
+        IsAnimationPlaybackActive =
+            !IsAnimationPlaybackActive;
+    }
+
+    internal void StopAnimationPlayback()
+    {
+        IsAnimationPlaybackActive = false;
     }
 
     internal void NavigateContent(int direction)
@@ -296,7 +374,8 @@ internal sealed partial class ImageViewerSession : ObservableObject
         ImageFramePresentationModes framePresentationMode,
         int preferredInitialFrameIndex,
         ImageFrameNumbering frameNumbering =
-            ImageFrameNumbering.Forward)
+            ImageFrameNumbering.Forward,
+        ImageAnimationTimeline? animationTimeline = null)
     {
         if (frameCount <= 0)
         {
@@ -315,11 +394,28 @@ internal sealed partial class ImageViewerSession : ObservableObject
                 $"The preferred frame index must be between 0 and {frameCount - 1}.");
         }
 
+        ImageAnimationTimeline effectiveTimeline =
+            animationTimeline
+            ?? new ImageAnimationTimeline(
+                Enumerable
+                    .Repeat(TimeSpan.Zero, frameCount)
+                    .ToList()
+                    .AsReadOnly());
+
+        if (effectiveTimeline.FrameDurations.Count != frameCount)
+        {
+            throw new ArgumentException(
+                $"The animation timeline must contain {frameCount} frame durations.",
+                nameof(animationTimeline));
+        }
+
+        _animationTimeline = effectiveTimeline;
         ApplyFramePresentation(
             frameCount,
             framePresentationMode,
             preferredInitialFrameIndex,
             frameNumbering);
+        OnPropertyChanged(nameof(AnimationDuration));
         StoreSelectedContentGroupItemIndex(
             preferredInitialFrameIndex);
         UpdateContentNavigationState();
@@ -328,11 +424,13 @@ internal sealed partial class ImageViewerSession : ObservableObject
     internal void ClearFramePresentation()
     {
         IsAnimationBuffering = false;
+        _animationTimeline = ImageAnimationTimeline.Empty;
         ApplyFramePresentation(
             0,
             ImageFramePresentationModes.None,
             0,
             ImageFrameNumbering.Forward);
+        OnPropertyChanged(nameof(AnimationDuration));
     }
 
     internal void ToggleFiltering()
@@ -516,6 +614,11 @@ internal sealed partial class ImageViewerSession : ObservableObject
 
     private void SetSelectedContentGroupIndex(int groupIndex)
     {
+        if (groupIndex != _selectedContentGroupIndex)
+        {
+            StopAnimationPlayback();
+        }
+
         if (SetProperty(
             ref _selectedContentGroupIndex,
             groupIndex,
@@ -523,6 +626,8 @@ internal sealed partial class ImageViewerSession : ObservableObject
         {
             OnPropertyChanged(nameof(SelectedContentGroupKind));
             OnPropertyChanged(nameof(CanNavigateFrames));
+            OnPropertyChanged(
+                nameof(CanControlAnimationPlayback));
         }
 
         UpdateContentNavigationState();
@@ -536,6 +641,7 @@ internal sealed partial class ImageViewerSession : ObservableObject
         OnPropertyChanged(nameof(HasAnimationContent));
         OnPropertyChanged(nameof(SelectedContentGroupKind));
         OnPropertyChanged(nameof(CanNavigateFrames));
+        OnPropertyChanged(nameof(CanControlAnimationPlayback));
         UpdateContentNavigationState();
     }
 
@@ -568,6 +674,9 @@ internal sealed partial class ImageViewerSession : ObservableObject
             frameNumbering,
             nameof(FrameNumbering));
         SetSelectedFrameIndex(preferredInitialFrameIndex);
+        IsAnimationPlaybackActive =
+            effectiveMode.HasFlag(
+                ImageFramePresentationModes.AutomaticPlayback);
 
         if (frameCountChanged)
         {
@@ -577,6 +686,8 @@ internal sealed partial class ImageViewerSession : ObservableObject
         if (modeChanged || frameCountChanged)
         {
             OnPropertyChanged(nameof(IsAnimationPlaybackEnabled));
+            OnPropertyChanged(
+                nameof(CanControlAnimationPlayback));
         }
     }
 
@@ -597,7 +708,25 @@ internal sealed partial class ImageViewerSession : ObservableObject
             ref _selectedFrameIndex,
             frameIndex,
             nameof(SelectedFrameIndex));
+        TimeSpan animationPosition =
+            _animationTimeline.FrameDurations.Count > 0
+                ? _animationTimeline.GetFrameStartPosition(
+                    Math.Clamp(
+                        frameIndex,
+                        0,
+                        _animationTimeline.FrameDurations.Count - 1))
+                : TimeSpan.Zero;
+        SetAnimationPosition(animationPosition);
+
         UpdateContentNavigationState();
+    }
+
+    private void SetAnimationPosition(TimeSpan animationPosition)
+    {
+        SetProperty(
+            ref _animationPosition,
+            animationPosition,
+            nameof(AnimationPosition));
     }
 
     private void UpdateContentNavigationState()
@@ -616,18 +745,12 @@ internal sealed partial class ImageViewerSession : ObservableObject
         int selectedContentNumber = selectedKind is null
             ? 0
             : GetSelectedContentNumber(selectedKind.Value);
-        int selectedFrameNumber =
-            selectedKind == ImageContentGroupKind.Animation
-            && (_frameCount > 0)
-                ? GetDisplayedFrameNumber()
-                : 0;
         ImageContentNavigationState state = new(
             imageCount,
             animationCount,
             selectedKind,
             selectedContentNumber,
             selectedContentCount,
-            selectedFrameNumber,
             _frameCount,
             IsContentGroupIndexValid(_selectedContentGroupIndex)
                 && (GetContentUnitCount() > 1),
@@ -673,13 +796,6 @@ internal sealed partial class ImageViewerSession : ObservableObject
         }
 
         return 0;
-    }
-
-    private int GetDisplayedFrameNumber()
-    {
-        return _frameNumbering == ImageFrameNumbering.Reverse
-            ? _frameCount - _selectedFrameIndex
-            : _selectedFrameIndex + 1;
     }
 
     private void NavigateChannel(int direction)

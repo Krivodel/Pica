@@ -8,6 +8,8 @@ internal sealed class MagickProgressiveImageFrameReader :
 {
     public int FrameCount => _frameDurations.Count;
     public uint AnimationIterations { get; }
+    public IReadOnlyList<TimeSpan> FrameDurations =>
+        _frameDurations;
 
     private readonly MemoryStream _bufferedStream;
     private readonly IReadOnlyList<TimeSpan> _frameDurations;

@@ -17,6 +17,7 @@ internal sealed class ImageAnimationPlaybackController :
     private readonly IImageFrameSource _frameSource;
     private readonly IImageAnimationDelayScheduler _delayScheduler;
     private readonly IViewerUiDispatcher _uiDispatcher;
+    private readonly IUiFrameScheduler _animationFrameScheduler;
     private readonly ILogger<ImageAnimationPlaybackController> _logger;
     private readonly object _disposalSync = new();
     private OperationCancellation? _playbackCancellation;
@@ -24,8 +25,14 @@ internal sealed class ImageAnimationPlaybackController :
     private Task? _playbackTask;
     private Task? _bufferingIndicatorTask;
     private Task? _disposalTask;
+    private TimeSpan _timelineProgressStartPosition;
+    private TimeSpan _timelineProgressDuration;
+    private TimeSpan? _timelineProgressStartFrameTime;
+    private int _timelineProgressFrameIndex;
     private uint _completedIterations;
     private int _stateValue;
+    private bool _isTimelineProgressActive;
+    private bool _isTimelineProgressFramePending;
     private bool _disposed;
 
     internal ImageAnimationPlaybackController(
@@ -33,6 +40,7 @@ internal sealed class ImageAnimationPlaybackController :
         IImageFrameSource frameSource,
         IImageAnimationDelayScheduler delayScheduler,
         IViewerUiDispatcher uiDispatcher,
+        IUiFrameScheduler animationFrameScheduler,
         ILogger<ImageAnimationPlaybackController> logger)
     {
         _session = session
@@ -43,6 +51,9 @@ internal sealed class ImageAnimationPlaybackController :
             ?? throw new ArgumentNullException(nameof(delayScheduler));
         _uiDispatcher = uiDispatcher
             ?? throw new ArgumentNullException(nameof(uiDispatcher));
+        _animationFrameScheduler = animationFrameScheduler
+            ?? throw new ArgumentNullException(
+                nameof(animationFrameScheduler));
         _logger = logger
             ?? throw new ArgumentNullException(nameof(logger));
         _session.PropertyChanged += OnSessionPropertyChanged;
@@ -98,6 +109,7 @@ internal sealed class ImageAnimationPlaybackController :
 
             CancelScheduledAdvance();
             CancelBufferingIndicatorDelay();
+            StopTimelineProgress();
             _session.SetAnimationBuffering(false);
             SetState(ImageAnimationPlaybackState.Idle);
             _disposalTask = pendingTasks.Count == 0
@@ -128,7 +140,7 @@ internal sealed class ImageAnimationPlaybackController :
 
         if (_frameSource.IsDecodingComplete)
         {
-            SetState(ImageAnimationPlaybackState.Failed);
+            StopAfterDecodingFailure();
             return;
         }
 
@@ -139,6 +151,7 @@ internal sealed class ImageAnimationPlaybackController :
     {
         return !_disposed
             && _session.IsAnimationPlaybackEnabled
+            && _session.IsAnimationPlaybackActive
             && (_frameSource.FrameCount > 1)
             && !HasCompletedPlayback();
     }
@@ -161,8 +174,18 @@ internal sealed class ImageAnimationPlaybackController :
         HandleFrameAvailabilityChanged();
     }
 
+    private void EnterSeeking()
+    {
+        CancelScheduledAdvance();
+        CancelBufferingIndicatorDelay();
+        SetState(ImageAnimationPlaybackState.Seeking);
+        _session.SetAnimationBuffering(true);
+        HandleFrameAvailabilityChanged();
+    }
+
     private void StartPlaying()
     {
+        ImageAnimationPlaybackState previousState = State;
         CancelBufferingIndicatorDelay();
         _session.SetAnimationBuffering(false);
 
@@ -173,6 +196,13 @@ internal sealed class ImageAnimationPlaybackController :
         }
 
         SetState(ImageAnimationPlaybackState.Playing);
+
+        if (previousState == ImageAnimationPlaybackState.Paused)
+        {
+            SchedulePlaybackFromCurrentPosition();
+            return;
+        }
+
         SchedulePlayback();
     }
 
@@ -181,10 +211,32 @@ internal sealed class ImageAnimationPlaybackController :
         CancelScheduledAdvance();
         CancelBufferingIndicatorDelay();
         _session.SetAnimationBuffering(false);
+        _session.StopAnimationPlayback();
         SetState(ImageAnimationPlaybackState.Failed);
     }
 
     private void SchedulePlayback()
+    {
+        TimeSpan frameStartPosition =
+            _session.GetSelectedAnimationFrameStartPosition();
+        SchedulePlayback(frameStartPosition);
+    }
+
+    private void SchedulePlaybackFromCurrentPosition()
+    {
+        TimeSpan frameStartPosition =
+            _session.GetSelectedAnimationFrameStartPosition();
+        TimeSpan frameEndPosition = frameStartPosition
+            + _frameSource.CurrentFrameDuration;
+        TimeSpan currentPosition = TimeSpan.FromTicks(
+            Math.Clamp(
+                _session.AnimationPosition.Ticks,
+                frameStartPosition.Ticks,
+                frameEndPosition.Ticks));
+        SchedulePlayback(currentPosition);
+    }
+
+    private void SchedulePlayback(TimeSpan startPosition)
     {
         CancelScheduledAdvance();
 
@@ -197,8 +249,23 @@ internal sealed class ImageAnimationPlaybackController :
         OperationCancellation cancellation = new();
         int expectedFrameIndex =
             _session.SelectedFrameIndex;
-        TimeSpan duration =
-            _frameSource.CurrentFrameDuration;
+        TimeSpan frameStartPosition =
+            _session.GetSelectedAnimationFrameStartPosition();
+        TimeSpan frameEndPosition = frameStartPosition
+            + _frameSource.CurrentFrameDuration;
+        TimeSpan clampedStartPosition = TimeSpan.FromTicks(
+            Math.Clamp(
+                startPosition.Ticks,
+                frameStartPosition.Ticks,
+                frameEndPosition.Ticks));
+        TimeSpan duration = frameEndPosition
+            - clampedStartPosition;
+        _session.SetAnimationPlaybackPosition(
+            clampedStartPosition);
+        StartTimelineProgress(
+            expectedFrameIndex,
+            clampedStartPosition,
+            duration);
         _playbackCancellation = cancellation;
         _playbackTask = AdvanceAfterDelayAsync(
             expectedFrameIndex,
@@ -266,6 +333,7 @@ internal sealed class ImageAnimationPlaybackController :
             && (State
                 == ImageAnimationPlaybackState.Playing)
             && _session.IsAnimationPlaybackEnabled
+            && _session.IsAnimationPlaybackActive
             && (_session.SelectedFrameIndex
                 == expectedFrameIndex)
             && (_session.FrameCount
@@ -286,8 +354,11 @@ internal sealed class ImageAnimationPlaybackController :
                 >= animationIterations))
         {
             _completedIterations++;
+            StopTimelineProgress();
+            _session.CompleteAnimationTimeline();
             SetState(
                 ImageAnimationPlaybackState.Completed);
+            _session.StopAnimationPlayback();
             return;
         }
 
@@ -392,6 +463,78 @@ internal sealed class ImageAnimationPlaybackController :
         _playbackCancellation = null;
         _playbackTask = null;
         cancellation?.Cancel();
+        StopTimelineProgress();
+    }
+
+    private void StartTimelineProgress(
+        int frameIndex,
+        TimeSpan startPosition,
+        TimeSpan duration)
+    {
+        _timelineProgressFrameIndex = frameIndex;
+        _timelineProgressStartPosition = startPosition;
+        _timelineProgressDuration = duration;
+        _timelineProgressStartFrameTime = null;
+        _isTimelineProgressActive = duration > TimeSpan.Zero;
+
+        if (_isTimelineProgressActive)
+        {
+            RequestTimelineProgressFrame();
+        }
+    }
+
+    private void StopTimelineProgress()
+    {
+        _isTimelineProgressActive = false;
+        _timelineProgressStartFrameTime = null;
+    }
+
+    private void RequestTimelineProgressFrame()
+    {
+        if (!_isTimelineProgressActive
+            || _isTimelineProgressFramePending)
+        {
+            return;
+        }
+
+        _isTimelineProgressFramePending = true;
+        _animationFrameScheduler.RequestAnimationFrame(
+            OnTimelineProgressFrame);
+    }
+
+    private void OnTimelineProgressFrame(TimeSpan frameTime)
+    {
+        _isTimelineProgressFramePending = false;
+
+        if (!_isTimelineProgressActive
+            || _disposed
+            || (State != ImageAnimationPlaybackState.Playing)
+            || (_session.SelectedFrameIndex
+                != _timelineProgressFrameIndex))
+        {
+            return;
+        }
+
+        _timelineProgressStartFrameTime ??= frameTime;
+        TimeSpan elapsed = frameTime
+            - _timelineProgressStartFrameTime.Value;
+
+        if (elapsed < TimeSpan.Zero)
+        {
+            elapsed = TimeSpan.Zero;
+        }
+
+        TimeSpan clampedElapsed = elapsed < _timelineProgressDuration
+            ? elapsed
+            : _timelineProgressDuration;
+        _session.SetAnimationPlaybackPosition(
+            _timelineProgressStartPosition
+            + clampedElapsed);
+
+        if (clampedElapsed < _timelineProgressDuration)
+        {
+            RequestTimelineProgressFrame();
+        }
     }
 
     private void CancelBufferingIndicatorDelay()
@@ -429,6 +572,11 @@ internal sealed class ImageAnimationPlaybackController :
         if (state
             != ImageAnimationPlaybackState.RemainingBuffering)
         {
+            if (state == ImageAnimationPlaybackState.Seeking)
+            {
+                CompleteSeekingWhenFrameIsReady();
+            }
+
             return;
         }
 
@@ -443,6 +591,23 @@ internal sealed class ImageAnimationPlaybackController :
             StartPlaying();
             return;
         }
+    }
+
+    private void CompleteSeekingWhenFrameIsReady()
+    {
+        if (HasDecodingFailed())
+        {
+            StopAfterDecodingFailure();
+            return;
+        }
+
+        if (!IsSelectedFrameAvailable())
+        {
+            return;
+        }
+
+        _session.SetAnimationBuffering(false);
+        SetState(ImageAnimationPlaybackState.Paused);
     }
 
     private bool HasDecodingFailed()
@@ -514,6 +679,15 @@ internal sealed class ImageAnimationPlaybackController :
     {
         _ = sender;
 
+        if (string.Equals(
+            e.PropertyName,
+            nameof(ImageViewerSession.IsAnimationPlaybackActive),
+            StringComparison.Ordinal))
+        {
+            HandlePlaybackActivityChanged();
+            return;
+        }
+
         if (!string.Equals(
             e.PropertyName,
             nameof(ImageViewerSession.SelectedFrameIndex),
@@ -534,12 +708,71 @@ internal sealed class ImageAnimationPlaybackController :
             return;
         }
 
+        if ((State == ImageAnimationPlaybackState.Paused)
+            || (State == ImageAnimationPlaybackState.Seeking))
+        {
+            if (!IsSelectedFrameAvailable())
+            {
+                EnterSeeking();
+                return;
+            }
+
+            if (State == ImageAnimationPlaybackState.Seeking)
+            {
+                CompleteSeekingWhenFrameIsReady();
+            }
+
+            return;
+        }
+
         if ((State
                 == ImageAnimationPlaybackState.InitialBuffering)
             && !IsSelectedFrameAvailable())
         {
             EnterRemainingBuffering();
         }
+    }
+
+    private void HandlePlaybackActivityChanged()
+    {
+        if (!_session.IsAnimationPlaybackActive)
+        {
+            CancelScheduledAdvance();
+            CancelBufferingIndicatorDelay();
+
+            if (State
+                == ImageAnimationPlaybackState.Completed)
+            {
+                StopTimelineProgress();
+                _session.SetAnimationBuffering(false);
+                return;
+            }
+
+            if (!IsSelectedFrameAvailable())
+            {
+                EnterSeeking();
+                return;
+            }
+
+            _session.SetAnimationBuffering(false);
+
+            if (_session.IsAnimationPlaybackEnabled)
+            {
+                SetState(ImageAnimationPlaybackState.Paused);
+                return;
+            }
+
+            SetState(ImageAnimationPlaybackState.Idle);
+            return;
+        }
+
+        if (State == ImageAnimationPlaybackState.Completed)
+        {
+            _completedIterations = 0;
+            _session.SeekAnimationFrame(0);
+        }
+
+        ConfigurePlayback();
     }
 
     private void OnFramesChanged(
@@ -563,7 +796,9 @@ internal sealed class ImageAnimationPlaybackController :
         if ((state
                 == ImageAnimationPlaybackState.InitialBuffering)
             || (state
-                == ImageAnimationPlaybackState.RemainingBuffering))
+                == ImageAnimationPlaybackState.RemainingBuffering)
+            || (state
+                == ImageAnimationPlaybackState.Seeking))
         {
             _ = ApplyFrameAvailabilityChangedAsync();
         }

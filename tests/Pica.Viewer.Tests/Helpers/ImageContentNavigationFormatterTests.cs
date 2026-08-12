@@ -48,13 +48,25 @@ public sealed class ImageContentNavigationFormatterTests
     }
 
     [Fact]
-    public void FormatFrame_WithSelectedFrame_ReturnsFrameNumber()
+    public void FormatAnimationTime_WithSubMinuteDuration_ReturnsTenthsOfSecond()
     {
-        string result = ImageContentNavigationFormatter.FormatFrame(
-            4,
-            12);
+        string result =
+            ImageContentNavigationFormatter.FormatAnimationTime(
+                TimeSpan.FromMilliseconds(3400d),
+                TimeSpan.FromMilliseconds(8100d));
 
-        result.Should().Be("Кадр 4/12");
+        result.Should().Be("0:03.4 / 0:08.1");
+    }
+
+    [Fact]
+    public void FormatAnimationTime_WithSubSecondDuration_ReturnsHundredthsOfSecond()
+    {
+        string result =
+            ImageContentNavigationFormatter.FormatAnimationTime(
+                TimeSpan.FromMilliseconds(100d),
+                TimeSpan.FromMilliseconds(150d));
+
+        result.Should().Be("0:00.10 / 0:00.15");
     }
 
     [Fact]
@@ -71,11 +83,13 @@ public sealed class ImageContentNavigationFormatterTests
     }
 
     [Fact]
-    public void FormatFrameWidthReference_WithThreeDigitCount_UsesWidestDigitPlaceholders()
+    public void FormatAnimationTimeWidthReference_WithDuration_UsesDurationForBothParts()
     {
         string result = ImageContentNavigationFormatter
-            .FormatFrameWidthReference(120);
+            .FormatAnimationTimeWidthReference(
+                TimeSpan.FromMinutes(12d)
+                    + TimeSpan.FromSeconds(3d));
 
-        result.Should().Be("Кадр 888/888");
+        result.Should().Be("12:03 / 12:03");
     }
 }

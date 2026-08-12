@@ -46,13 +46,25 @@ internal static class ImageContentNavigationFormatter
         };
     }
 
-    internal static string FormatFrame(
-        int frameNumber,
-        int frameCount)
+    internal static string FormatAnimationTime(
+        TimeSpan position,
+        TimeSpan duration)
     {
-        ValidateNumber(frameNumber, frameCount);
+        if (duration < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(duration),
+                duration,
+                "The animation duration must not be negative.");
+        }
 
-        return $"{ViewerUiStrings.Frame} {frameNumber}/{frameCount}";
+        TimeSpan clampedPosition = TimeSpan.FromTicks(
+            Math.Clamp(
+                position.Ticks,
+                0L,
+                duration.Ticks));
+
+        return $"{FormatTime(clampedPosition, duration)} / {FormatTime(duration, duration)}";
     }
 
     internal static string FormatContentWidthReference(
@@ -96,12 +108,14 @@ internal static class ImageContentNavigationFormatter
         };
     }
 
-    internal static string FormatFrameWidthReference(int frameCount)
+    internal static string FormatAnimationTimeWidthReference(
+        TimeSpan duration)
     {
-        ValidatePositiveCount(frameCount, nameof(frameCount));
-        string frameDigits = CreateWidthReferenceDigits(frameCount);
+        string formattedDuration = FormatTime(
+            duration,
+            duration);
 
-        return $"{ViewerUiStrings.Frame} {frameDigits}/{frameDigits}";
+        return $"{formattedDuration} / {formattedDuration}";
     }
 
     private static void ValidatePositiveCount(
@@ -166,6 +180,42 @@ internal static class ImageContentNavigationFormatter
             .Length;
 
         return new string(WidestDigit, digitCount);
+    }
+
+    private static string FormatTime(
+        TimeSpan time,
+        TimeSpan totalDuration)
+    {
+        if (totalDuration.TotalSeconds < 1d)
+        {
+            return string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"0:{time.Seconds:00}.{time.Milliseconds / 10:00}");
+        }
+
+        if (totalDuration.TotalHours >= 1d)
+        {
+            int totalHours = checked((int)Math.Floor(
+                time.TotalHours));
+
+            return string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{totalHours}:{time.Minutes:00}:{time.Seconds:00}");
+        }
+
+        if (totalDuration.TotalMinutes >= 1d)
+        {
+            int totalMinutes = checked((int)Math.Floor(
+                time.TotalMinutes));
+
+            return string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{totalMinutes}:{time.Seconds:00}");
+        }
+
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"0:{time.Seconds:00}.{time.Milliseconds / 100}");
     }
 
     private static void ValidateNonNegativeCount(

@@ -6,7 +6,6 @@ internal sealed record ImageContentNavigationState(
     ImageContentGroupKind? SelectedKind,
     int SelectedContentNumber,
     int SelectedContentCount,
-    int SelectedFrameNumber,
     int FrameCount,
     bool CanNavigateContent,
     bool CanNavigateFrames)
@@ -15,7 +14,6 @@ internal sealed record ImageContentNavigationState(
         0,
         0,
         null,
-        0,
         0,
         0,
         0,

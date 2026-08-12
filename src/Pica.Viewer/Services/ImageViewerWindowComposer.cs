@@ -78,6 +78,7 @@ internal sealed class ImageViewerWindowComposer
             presentationServices = _presentationFactory.Create(
                 sessionState,
                 frameScheduler,
+                frameScheduler,
                 state.IsFastLoadingEnabled);
             ViewerWindowPlacement initialPlacement = new(
                 state.IsWindowed == true,

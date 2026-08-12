@@ -96,7 +96,7 @@
                 Value="Center" />
     </Style>
 
-    <Style Selector="TextBlock.viewer-frame-navigation-label">
+    <Style Selector="TextBlock.viewer-animation-time-label">
         <Setter Property="FontSize"
                 Value="{StaticResource ViewerContentNavigationFontSize}" />
         <Setter Property="Foreground"
@@ -116,6 +116,37 @@
                 Value="{StaticResource ViewerMenuForegroundBrush}" />
         <Setter Property="Opacity"
                 Value="0.28" />
+    </Style>
+
+    <Style Selector="Border.viewer-animation-timeline">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerAnimationTimelineWidth}" />
+        <Setter Property="Height"
+                Value="18" />
+        <Setter Property="Background"
+                Value="{StaticResource ViewerTransparentBrush}" />
+        <Setter Property="Cursor"
+                Value="Hand" />
+    </Style>
+
+    <Style Selector="Border.viewer-animation-timeline:disabled">
+        <Setter Property="Opacity"
+                Value="0.38" />
+    </Style>
+
+    <Style Selector="ProgressBar.viewer-animation-timeline-progress">
+        <Setter Property="Height"
+                Value="6" />
+        <Setter Property="VerticalAlignment"
+                Value="Center" />
+        <Setter Property="Background"
+                Value="{StaticResource ViewerAnimationTimelineTrackBrush}" />
+    </Style>
+
+    <Style Selector="ProgressBar.viewer-animation-timeline-progress /template/ Border#PART_Indicator">
+        <Setter Property="Transitions">
+            <Transitions />
+        </Setter>
     </Style>
 
     <Style Selector="Button.viewer-window-button">

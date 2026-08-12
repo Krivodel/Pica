@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.VisualTree;
 using FluentAssertions;
 using SkiaSharp;
 using Xunit;
@@ -265,6 +266,13 @@ public sealed class ImageViewerViewTests
             Button playAnimation = GetRequiredControl<Button>(
                 view.ContentNavigationPanel,
                 "PlayAnimationButton");
+            Border animationTimeline = GetRequiredControl<Border>(
+                view.ContentNavigationPanel,
+                "AnimationTimeline");
+            ProgressBar animationTimelineProgress =
+                GetRequiredControl<ProgressBar>(
+                    view.ContentNavigationPanel,
+                    "AnimationTimelineProgress");
 
             if (nextContent.Command is null)
             {
@@ -294,8 +302,13 @@ public sealed class ImageViewerViewTests
             ToolTip.GetTip(nextContent).Should().BeNull();
             playAnimation.Width.Should().Be(44d);
             playAnimation.Height.Should().Be(44d);
-            playAnimation.Command.Should().BeNull();
+            playAnimation.Command.Should().NotBeNull();
+            playAnimation.IsEnabled.Should().BeFalse();
             ToolTip.GetTip(playAnimation).Should().BeNull();
+            animationTimeline.IsVisible.Should().BeTrue();
+            animationTimeline.IsEnabled.Should().BeFalse();
+            ToolTip.GetTip(animationTimeline).Should().BeNull();
+            ToolTip.GetTip(animationTimelineProgress).Should().BeNull();
             animationNavigation.Children
                 .OfType<Border>()
                 .Should()
@@ -326,7 +339,8 @@ public sealed class ImageViewerViewTests
             sessionState.SetFramePresentation(
                 4,
                 ImageFramePresentationModes.AutomaticPlayback,
-                0);
+                0,
+                animationTimeline: CreateAnimationTimeline(4));
             using ImageViewerView view = new(
                 session,
                 CreateToolMenu(session, false),
@@ -339,9 +353,9 @@ public sealed class ImageViewerViewTests
             StackPanel animationNavigation = GetRequiredControl<StackPanel>(
                 view.ContentNavigationPanel,
                 "AnimationNavigationPanel");
-            TextBlock selectedFrame = GetRequiredControl<TextBlock>(
+            TextBlock animationTime = GetRequiredControl<TextBlock>(
                 view.ContentNavigationPanel,
-                "SelectedFrameText");
+                "AnimationTimeText");
             Button previousFrame = GetRequiredControl<Button>(
                 view.ContentNavigationPanel,
                 "PreviousFrameButton");
@@ -351,6 +365,19 @@ public sealed class ImageViewerViewTests
             Button playAnimation = GetRequiredControl<Button>(
                 view.ContentNavigationPanel,
                 "PlayAnimationButton");
+            Border animationTimeline = GetRequiredControl<Border>(
+                view.ContentNavigationPanel,
+                "AnimationTimeline");
+            ProgressBar animationTimelineProgress =
+                GetRequiredControl<ProgressBar>(
+                    view.ContentNavigationPanel,
+                    "AnimationTimelineProgress");
+            PathIcon playAnimationIcon = GetRequiredControl<PathIcon>(
+                view.ContentNavigationPanel,
+                "PlayAnimationIcon");
+            PathIcon pauseAnimationIcon = GetRequiredControl<PathIcon>(
+                view.ContentNavigationPanel,
+                "PauseAnimationIcon");
             Button previousContent = GetRequiredControl<Button>(
                 view.ContentNavigationPanel,
                 "PreviousContentButton");
@@ -373,13 +400,13 @@ public sealed class ImageViewerViewTests
             nextFrame.IsEnabled.Should().BeTrue();
             previousContent.IsEnabled.Should().BeFalse();
             nextContent.IsEnabled.Should().BeFalse();
-            selectedFrame.Text.Should().Be("Кадр 2/4");
-            selectedFrame.FontSize.Should().BeApproximately(
+            animationTime.Text.Should().Be("0:00.10 / 0:00.40");
+            animationTime.FontSize.Should().BeApproximately(
                 ExpectedContentNavigationFontSize,
                 0.000000000000001d);
-            selectedFrame.TextAlignment.Should().Be(
+            animationTime.TextAlignment.Should().Be(
                 TextAlignment.Center);
-            selectedFrame.Parent.Should().NotBeSameAs(nextFrame.Parent);
+            animationTime.Parent.Should().NotBeSameAs(nextFrame.Parent);
             previousFrame.Width.Should().Be(44d);
             previousFrame.Height.Should().Be(44d);
             nextFrame.Width.Should().Be(44d);
@@ -388,9 +415,148 @@ public sealed class ImageViewerViewTests
             ToolTip.GetTip(nextFrame).Should().BeNull();
             playAnimation.Width.Should().Be(44d);
             playAnimation.Height.Should().Be(44d);
-            playAnimation.Command.Should().BeNull();
+            playAnimation.Command.Should().NotBeNull();
+            playAnimation.IsEnabled.Should().BeTrue();
             ToolTip.GetTip(playAnimation).Should().BeNull();
+            animationTimeline.IsVisible.Should().BeTrue();
+            animationTimeline.IsEnabled.Should().BeTrue();
+            animationTimelineProgress.Maximum.Should().Be(3d);
+            animationTimelineProgress.Value.Should().Be(1d);
+            animationTimelineProgress.Background
+                .Should()
+                .BeOfType<SolidColorBrush>()
+                .Which.Color.Should().Be(
+                    Color.Parse("#CC646464"));
+            view.ContentNavigationPanel
+                .FindControl<Slider>("AnimationTimeline")
+                .Should()
+                .BeNull();
+            ToolTip.GetTip(animationTimeline).Should().BeNull();
+            ToolTip.GetTip(animationTimelineProgress).Should().BeNull();
+            playAnimationIcon.IsVisible.Should().BeFalse();
+            pauseAnimationIcon.IsVisible.Should().BeTrue();
             sessionState.SelectedFrameIndex.Should().Be(1);
+
+            playAnimation.Command.Execute(null);
+
+            sessionState.IsAnimationPlaybackActive.Should().BeFalse();
+            playAnimationIcon.IsVisible.Should().BeTrue();
+            pauseAnimationIcon.IsVisible.Should().BeFalse();
+        });
+    }
+
+    [Fact]
+    public async Task ContentNavigationPanel_TimelineClickAndDrag_SeeksAnimationFrames()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSession sessionState = CreateSessionState(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerSessionViewModel session = new(sessionState);
+            sessionState.SetContentGroups(
+                new List<ImageContentGroupDefinition>
+                {
+                    new(
+                        ImageContentGroupKind.Animation,
+                        5)
+                }.AsReadOnly(),
+                0);
+            sessionState.SetFramePresentation(
+                5,
+                ImageFramePresentationModes.AutomaticPlayback,
+                0,
+                animationTimeline: CreateAnimationTimeline(5));
+            ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Window window = new()
+            {
+                Width = 640d,
+                Height = 480d,
+                Content = view
+            };
+
+            try
+            {
+                window.Show();
+                Border animationTimeline = GetRequiredControl<Border>(
+                    view.ContentNavigationPanel,
+                    "AnimationTimeline");
+                ProgressBar animationTimelineProgress =
+                    GetRequiredControl<ProgressBar>(
+                        view.ContentNavigationPanel,
+                        "AnimationTimelineProgress");
+                Border animationTimelineIndicator =
+                    animationTimelineProgress
+                        .GetVisualDescendants()
+                        .OfType<Border>()
+                        .Single(control =>
+                            string.Equals(
+                                control.Name,
+                                "PART_Indicator",
+                                StringComparison.Ordinal));
+                Point? timelineOrigin = animationTimeline.TranslatePoint(
+                    new Point(),
+                    window);
+                Point origin = timelineOrigin
+                    ?? throw new InvalidOperationException(
+                        "The animation timeline is not attached to the test window.");
+                Point clickPoint = new(
+                    origin.X
+                        + (animationTimeline.Bounds.Width * 0.5d),
+                    origin.Y
+                        + (animationTimeline.Bounds.Height * 0.5d));
+                Point dragPoint = new(
+                    origin.X
+                        + animationTimeline.Bounds.Width,
+                    clickPoint.Y);
+
+                window.MouseDown(
+                    clickPoint,
+                    MouseButton.Left,
+                    RawInputModifiers.None);
+
+                sessionState.SelectedFrameIndex.Should().Be(2);
+                animationTimelineProgress.Value.Should().Be(2d);
+                animationTimelineIndicator.Transitions
+                    .Should()
+                    .BeEmpty();
+                view.ContentNavigationPanel
+                    .IsTimelineInteractionActive
+                    .Should()
+                    .BeTrue();
+                view.ContentNavigationPanel.Opacity = 0d;
+                view.ContentNavigationPanel.IsHitTestVisible = false;
+
+                window.MouseMove(
+                    dragPoint,
+                    RawInputModifiers.LeftMouseButton);
+
+                view.ContentNavigationPanel
+                    .IsTimelineInteractionActive
+                    .Should()
+                    .BeTrue();
+                window.MouseUp(
+                    dragPoint,
+                    MouseButton.Left,
+                    RawInputModifiers.None);
+
+                sessionState.SelectedFrameIndex.Should().Be(4);
+                animationTimelineProgress.Value.Should().Be(4d);
+                view.ContentNavigationPanel
+                    .IsTimelineInteractionActive
+                    .Should()
+                    .BeFalse();
+            }
+            finally
+            {
+                window.Close();
+                view.Dispose();
+            }
         });
     }
 
@@ -535,7 +701,9 @@ public sealed class ImageViewerViewTests
             sessionState.SetFramePresentation(
                 FrameCount,
                 ImageFramePresentationModes.AutomaticPlayback,
-                0);
+                0,
+                animationTimeline:
+                    CreateAnimationTimeline(FrameCount));
             using ImageViewerView view = new(
                 session,
                 CreateToolMenu(session, false),
@@ -554,13 +722,17 @@ public sealed class ImageViewerViewTests
             sessionState.SetFramePresentation(
                 FrameCount,
                 ImageFramePresentationModes.AutomaticPlayback,
-                57);
+                57,
+                animationTimeline:
+                    CreateAnimationTimeline(FrameCount));
             information.Measure(availableSize);
             double middleFrameWidth = information.DesiredSize.Width;
             sessionState.SetFramePresentation(
                 FrameCount,
                 ImageFramePresentationModes.AutomaticPlayback,
-                FrameCount - 1);
+                FrameCount - 1,
+                animationTimeline:
+                    CreateAnimationTimeline(FrameCount));
             information.Measure(availableSize);
 
             middleFrameWidth.Should().Be(firstFrameWidth);
@@ -1277,6 +1449,18 @@ public sealed class ImageViewerViewTests
         }
 
         return content.Children.OfType<TextBlock>().SingleOrDefault()?.Text;
+    }
+
+    private static ImageAnimationTimeline CreateAnimationTimeline(
+        int frameCount)
+    {
+        return new ImageAnimationTimeline(
+            Enumerable
+                .Repeat(
+                    TimeSpan.FromMilliseconds(100d),
+                    frameCount)
+                .ToList()
+                .AsReadOnly());
     }
 
     private static List<PathIcon> GetMenuCheckIcons(Border menu)

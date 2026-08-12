@@ -32,6 +32,10 @@ internal sealed partial class ImageViewerSessionViewModel :
         _session.SelectedContentGroupKind;
     internal bool IsAnimationPlaybackEnabled =>
         _session.IsAnimationPlaybackEnabled;
+    internal bool CanControlAnimationPlayback =>
+        _session.CanControlAnimationPlayback;
+    internal bool IsAnimationPlaybackActive =>
+        _session.IsAnimationPlaybackActive;
     internal bool IsAnimationBuffering =>
         _session.IsAnimationBuffering;
     internal bool IsContentGroupLoading =>
@@ -41,7 +45,7 @@ internal sealed partial class ImageViewerSessionViewModel :
     internal bool IsContentNavigationPanelVisible =>
         IsImagesOnlyNavigationVisible || IsAnimationNavigationVisible;
     internal bool IsNavigationInformationVisible =>
-        IsContentSelectionVisible || IsFrameSelectionVisible;
+        IsContentSelectionVisible || IsAnimationTimeVisible;
     internal bool IsImagesOnlyNavigationVisible =>
         (ContentNavigationState.AnimationCount == 0)
         && ContentNavigationState.CanNavigateContent;
@@ -53,8 +57,27 @@ internal sealed partial class ImageViewerSessionViewModel :
         ContentNavigationState.CanNavigateContent;
     internal bool IsFrameSelectionVisible =>
         ContentNavigationState.CanNavigateFrames;
-    internal bool IsFrameSelectionSeparatorVisible =>
-        IsContentSelectionVisible && IsFrameSelectionVisible;
+    internal bool IsAnimationTimeVisible =>
+        IsFrameSelectionVisible;
+    internal bool IsAnimationTimelineEnabled =>
+        ContentNavigationState.CanNavigateFrames;
+    internal bool IsPlayAnimationIconVisible =>
+        !IsPauseAnimationIconVisible;
+    internal bool IsPauseAnimationIconVisible =>
+        CanControlAnimationPlayback
+        && IsAnimationPlaybackActive;
+    internal double AnimationTimelineMaximum =>
+        IsAnimationTimelineEnabled
+            ? Math.Max(
+                1d,
+                FrameCount - 1d)
+            : 1d;
+    internal double AnimationTimelineValue =>
+        IsAnimationTimelineEnabled
+            ? SelectedFrameIndex
+            : 0d;
+    internal bool IsAnimationTimeSeparatorVisible =>
+        IsContentSelectionVisible && IsAnimationTimeVisible;
     internal string SelectedContentText =>
         IsContentSelectionVisible
         && ContentNavigationState.SelectedKind is { } selectedKind
@@ -65,11 +88,11 @@ internal sealed partial class ImageViewerSessionViewModel :
                 ContentNavigationState.ImageCount,
                 ContentNavigationState.AnimationCount)
             : string.Empty;
-    internal string SelectedFrameText =>
-        IsFrameSelectionVisible
-            ? ImageContentNavigationFormatter.FormatFrame(
-                ContentNavigationState.SelectedFrameNumber,
-                ContentNavigationState.FrameCount)
+    internal string AnimationTimeText =>
+        IsAnimationTimeVisible
+            ? ImageContentNavigationFormatter.FormatAnimationTime(
+                _session.AnimationPosition,
+                _session.AnimationDuration)
             : string.Empty;
     internal string ImageContentWidthReferenceText =>
         IsContentSelectionVisible
@@ -91,11 +114,11 @@ internal sealed partial class ImageViewerSessionViewModel :
                     ContentNavigationState.ImageCount,
                     ContentNavigationState.AnimationCount)
             : string.Empty;
-    internal string FrameWidthReferenceText =>
-        IsFrameSelectionVisible
+    internal string AnimationTimeWidthReferenceText =>
+        IsAnimationTimeVisible
             ? ImageContentNavigationFormatter
-                .FormatFrameWidthReference(
-                    ContentNavigationState.FrameCount)
+                .FormatAnimationTimeWidthReference(
+                    _session.AnimationDuration)
             : string.Empty;
 
     private ImageContentNavigationState ContentNavigationState =>
@@ -150,6 +173,41 @@ internal sealed partial class ImageViewerSessionViewModel :
         _session.NavigateContent(direction);
     }
 
+    [RelayCommand(CanExecute = nameof(CanToggleAnimationPlayback))]
+    private void ToggleAnimationPlayback()
+    {
+        _session.ToggleAnimationPlayback();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSeekAnimation))]
+    private void SeekAnimation(double framePosition)
+    {
+        double clampedFramePosition = Math.Clamp(
+            framePosition,
+            0d,
+            FrameCount - 1d);
+        int frameIndex = (int)Math.Round(
+            clampedFramePosition,
+            MidpointRounding.AwayFromZero);
+
+        if (frameIndex == SelectedFrameIndex)
+        {
+            return;
+        }
+
+        _session.SeekAnimationFrame(frameIndex);
+    }
+
+    private bool CanToggleAnimationPlayback()
+    {
+        return CanControlAnimationPlayback;
+    }
+
+    private bool CanSeekAnimation()
+    {
+        return IsAnimationTimelineEnabled;
+    }
+
     private void OnSessionPropertyChanged(
         object? sender,
         PropertyChangedEventArgs e)
@@ -179,6 +237,56 @@ internal sealed partial class ImageViewerSessionViewModel :
             {
                 OnContentNavigationStateChanged();
             }
+
+            if (string.Equals(
+                propertyName,
+                nameof(ImageViewerSession.CanControlAnimationPlayback),
+                StringComparison.Ordinal))
+            {
+                ToggleAnimationPlaybackCommand
+                    .NotifyCanExecuteChanged();
+                OnAnimationPlaybackStateChanged();
+            }
+
+            if (string.Equals(
+                propertyName,
+                nameof(ImageViewerSession.IsAnimationPlaybackActive),
+                StringComparison.Ordinal))
+            {
+                OnAnimationPlaybackStateChanged();
+            }
+
+            if (string.Equals(
+                propertyName,
+                nameof(ImageViewerSession.AnimationPosition),
+                StringComparison.Ordinal))
+            {
+                OnAnimationPositionChanged();
+            }
+
+            if (string.Equals(
+                propertyName,
+                nameof(ImageViewerSession.SelectedFrameIndex),
+                StringComparison.Ordinal))
+            {
+                OnSelectedFrameIndexChanged();
+            }
+
+            if (string.Equals(
+                propertyName,
+                nameof(ImageViewerSession.FrameCount),
+                StringComparison.Ordinal))
+            {
+                OnPropertyChanged(nameof(AnimationTimelineMaximum));
+            }
+
+            if (string.Equals(
+                propertyName,
+                nameof(ImageViewerSession.AnimationDuration),
+                StringComparison.Ordinal))
+            {
+                OnAnimationDurationChanged();
+            }
         }
     }
 
@@ -191,11 +299,41 @@ internal sealed partial class ImageViewerSessionViewModel :
         OnPropertyChanged(nameof(IsContentSelectionVisible));
         OnPropertyChanged(nameof(IsContentNavigationEnabled));
         OnPropertyChanged(nameof(IsFrameSelectionVisible));
-        OnPropertyChanged(nameof(IsFrameSelectionSeparatorVisible));
+        OnPropertyChanged(nameof(IsAnimationTimeVisible));
+        OnPropertyChanged(nameof(IsAnimationTimelineEnabled));
+        OnPropertyChanged(nameof(AnimationTimelineMaximum));
+        OnPropertyChanged(nameof(AnimationTimelineValue));
+        OnPropertyChanged(nameof(IsAnimationTimeSeparatorVisible));
         OnPropertyChanged(nameof(SelectedContentText));
-        OnPropertyChanged(nameof(SelectedFrameText));
+        OnPropertyChanged(nameof(AnimationTimeText));
         OnPropertyChanged(nameof(ImageContentWidthReferenceText));
         OnPropertyChanged(nameof(AnimationContentWidthReferenceText));
-        OnPropertyChanged(nameof(FrameWidthReferenceText));
+        OnPropertyChanged(nameof(AnimationTimeWidthReferenceText));
+        SeekAnimationCommand.NotifyCanExecuteChanged();
+        OnAnimationPlaybackStateChanged();
+    }
+
+    private void OnAnimationPlaybackStateChanged()
+    {
+        OnPropertyChanged(nameof(CanControlAnimationPlayback));
+        OnPropertyChanged(nameof(IsAnimationPlaybackActive));
+        OnPropertyChanged(nameof(IsPlayAnimationIconVisible));
+        OnPropertyChanged(nameof(IsPauseAnimationIconVisible));
+    }
+
+    private void OnAnimationPositionChanged()
+    {
+        OnPropertyChanged(nameof(AnimationTimeText));
+    }
+
+    private void OnSelectedFrameIndexChanged()
+    {
+        OnPropertyChanged(nameof(AnimationTimelineValue));
+    }
+
+    private void OnAnimationDurationChanged()
+    {
+        OnPropertyChanged(nameof(AnimationTimeText));
+        OnPropertyChanged(nameof(AnimationTimeWidthReferenceText));
     }
 }

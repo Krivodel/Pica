@@ -8,6 +8,8 @@
                      Color="{StaticResource ViewerFloatingMenuColor}" />
     <SolidColorBrush x:Key="ViewerInformationPanelBrush"
                      Color="{StaticResource ViewerInformationPanelColor}" />
+    <SolidColorBrush x:Key="ViewerAnimationTimelineTrackBrush"
+                     Color="{StaticResource ViewerAnimationTimelineTrackColor}" />
     <SolidColorBrush x:Key="ViewerMenuForegroundBrush"
                      Color="{StaticResource ViewerMenuForegroundColor}" />
     <SolidColorBrush x:Key="ViewerToolButtonBrush"

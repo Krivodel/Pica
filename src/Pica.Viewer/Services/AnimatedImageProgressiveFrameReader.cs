@@ -13,9 +13,12 @@ internal sealed class AnimatedImageProgressiveFrameReader :
         _renderer.RepeatCount <= 0
             ? 0
             : checked((uint)_renderer.RepeatCount);
+    public IReadOnlyList<TimeSpan> FrameDurations =>
+        _frameDurations;
 
     private readonly MemoryStream _bufferedStream;
     private readonly FrameRenderer _renderer;
+    private readonly IReadOnlyList<TimeSpan> _frameDurations;
     private bool _disposed;
 
     internal AnimatedImageProgressiveFrameReader(
@@ -29,6 +32,11 @@ internal sealed class AnimatedImageProgressiveFrameReader :
             _renderer = FrameRenderer.Create(
                 bufferedStream,
                 new AnimatedImageBitmapFaceFactory());
+            _frameDurations = Array.AsReadOnly(
+                Enumerable
+                    .Range(0, _renderer.FrameCount)
+                    .Select(GetFrameDuration)
+                    .ToArray());
         }
         catch
         {
@@ -48,13 +56,6 @@ internal sealed class AnimatedImageProgressiveFrameReader :
             _renderer.Current as AnimatedImageBitmapFace
             ?? throw new InvalidDataException(
                 "The animated image decoder returned an unexpected pixel surface.");
-        FrameRenderFrame frameInformation =
-            _renderer[frameIndex];
-        TimeSpan duration =
-            ImageAnimationTiming.NormalizeFrameDuration(
-                (frameInformation.End
-                    - frameInformation.Begin)
-                .TotalMilliseconds);
         Bitmap bitmap = BgraBitmapFactory.Create(
             new PixelSize(face.Width, face.Height),
             face.CopyPixels(),
@@ -63,7 +64,7 @@ internal sealed class AnimatedImageProgressiveFrameReader :
 
         return new DecodedImageFrame(
             bitmap,
-            duration);
+            _frameDurations[frameIndex]);
     }
 
     public void Dispose()
@@ -76,5 +77,16 @@ internal sealed class AnimatedImageProgressiveFrameReader :
         _disposed = true;
         ((IDisposable)_renderer).Dispose();
         _bufferedStream.Dispose();
+    }
+
+    private TimeSpan GetFrameDuration(int frameIndex)
+    {
+        FrameRenderFrame frameInformation =
+            _renderer[frameIndex];
+
+        return ImageAnimationTiming.NormalizeFrameDuration(
+            (frameInformation.End
+                - frameInformation.Begin)
+            .TotalMilliseconds);
     }
 }

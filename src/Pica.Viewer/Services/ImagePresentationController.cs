@@ -323,7 +323,8 @@ internal sealed class ImagePresentationController :
             image.FrameCount,
             image.FramePresentationMode,
             image.PreferredInitialFrameIndex,
-            image.FrameNumbering);
+            image.FrameNumbering,
+            image.AnimationTimeline);
         _ = ObserveDecodedImageCompletionAsync(image);
         OnFramesChanged();
         OnDisplayedBitmapChanged();
@@ -337,22 +338,22 @@ internal sealed class ImagePresentationController :
 
         lock (_bitmapOwnershipSync)
         {
-            Bitmap? bitmap = DisplayedBitmap;
-
-            if (!IsDisplayedBitmapReadyCore(expectedChannel)
-                || (bitmap is null))
+            if (!IsDisplayedBitmapReadyCore(expectedChannel))
             {
                 return null;
             }
 
-            _bitmapUseCounts.TryGetValue(
-                bitmap,
-                out int useCount);
-            _bitmapUseCounts[bitmap] = useCount + 1;
+            return AcquireDisplayedBitmapCore();
+        }
+    }
 
-            return new ImagePresentationBitmapLease(
-                bitmap,
-                ReleaseBitmap);
+    internal ImagePresentationBitmapLease? AcquireDisplayedBitmapForRendering()
+    {
+        ThrowIfDisposed();
+
+        lock (_bitmapOwnershipSync)
+        {
+            return AcquireDisplayedBitmapCore();
         }
     }
 
@@ -1062,7 +1063,8 @@ internal sealed class ImagePresentationController :
             image.FrameCount,
             image.FramePresentationMode,
             frameIndex,
-            image.FrameNumbering);
+            image.FrameNumbering,
+            image.AnimationTimeline);
         _ = ObserveDecodedImageCompletionAsync(image);
         OnFramesChanged();
         OnDisplayedBitmapChanged();
@@ -1339,6 +1341,25 @@ internal sealed class ImagePresentationController :
         }
 
         bitmap.Dispose();
+    }
+
+    private ImagePresentationBitmapLease? AcquireDisplayedBitmapCore()
+    {
+        Bitmap? bitmap = DisplayedBitmap;
+
+        if (bitmap is null)
+        {
+            return null;
+        }
+
+        _bitmapUseCounts.TryGetValue(
+            bitmap,
+            out int useCount);
+        _bitmapUseCounts[bitmap] = useCount + 1;
+
+        return new ImagePresentationBitmapLease(
+            bitmap,
+            ReleaseBitmap);
     }
 
     private void ReleaseBitmap(Bitmap bitmap)

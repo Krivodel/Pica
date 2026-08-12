@@ -12,6 +12,8 @@ internal sealed class ControlledProgressiveImageFrameReader :
 {
     public int FrameCount { get; }
     public uint AnimationIterations => 0;
+    public IReadOnlyList<TimeSpan> FrameDurations =>
+        _frameDurations;
 
     internal Task RemainingFrameRequested =>
         _remainingFrameRequested.Task;
@@ -26,11 +28,18 @@ internal sealed class ControlledProgressiveImageFrameReader :
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly ConcurrentQueue<int> _readFrameIndices =
         new ConcurrentQueue<int>();
+    private readonly IReadOnlyList<TimeSpan> _frameDurations;
     private int _readFrameCount;
 
     internal ControlledProgressiveImageFrameReader(int frameCount)
     {
         FrameCount = frameCount;
+        _frameDurations = Array.AsReadOnly(
+            Enumerable
+                .Repeat(
+                    TimeSpan.FromMilliseconds(50d),
+                    frameCount)
+                .ToArray());
     }
 
     public DecodedImageFrame ReadFrame(

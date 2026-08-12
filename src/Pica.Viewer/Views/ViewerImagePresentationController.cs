@@ -3,6 +3,8 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
+using Avalonia.Rendering.Composition;
+using Avalonia.Rendering.Composition.Transport;
 
 using Pica.Viewer.Services;
 using Pica.Viewer.ViewModels;
@@ -23,6 +25,11 @@ internal sealed class ViewerImagePresentationController :
     private readonly ViewerSelectionInteractionController
         _selectionInteraction;
     private readonly ViewerWindowModeController _windowMode;
+    private readonly HashSet<ImagePresentationBitmapLease>
+        _retiredBitmapLeases = [];
+    private readonly CancellationTokenSource
+        _bitmapLeaseReleaseCancellation = new();
+    private ImagePresentationBitmapLease? _displayedBitmapLease;
     private Guid? _displayedItemId;
     private int _displayedFrameIndex = -1;
 
@@ -71,6 +78,19 @@ internal sealed class ViewerImagePresentationController :
         _imagePresentation.LoadTransitioned -=
             OnImageLoadTransitioned;
         _information.PropertyChanged -= OnImageInformationChanged;
+        _view.Image.Source = null;
+        _displayedBitmapLease?.Dispose();
+        _displayedBitmapLease = null;
+        _bitmapLeaseReleaseCancellation.Cancel();
+
+        foreach (ImagePresentationBitmapLease bitmapLease
+                 in _retiredBitmapLeases)
+        {
+            bitmapLease.Dispose();
+        }
+
+        _retiredBitmapLeases.Clear();
+        _bitmapLeaseReleaseCancellation.Dispose();
     }
 
     internal void ApplyInformation()
@@ -239,11 +259,33 @@ internal sealed class ViewerImagePresentationController :
 
         Bitmap? previousBitmap =
             _view.Image.Source as Bitmap;
-        Bitmap? displayedBitmap =
-            _imagePresentation.DisplayedBitmap;
+        ImagePresentationBitmapLease? acquiredBitmapLease =
+            _imagePresentation
+                .AcquireDisplayedBitmapForRendering();
+        Bitmap? displayedBitmap = acquiredBitmapLease?.Bitmap;
+        ImagePresentationBitmapLease? nextBitmapLease =
+            acquiredBitmapLease;
+
+        if (object.ReferenceEquals(
+                previousBitmap,
+                displayedBitmap)
+            && (_displayedBitmapLease is not null))
+        {
+            acquiredBitmapLease?.Dispose();
+            nextBitmapLease = null;
+        }
+
         bool isStillImageSwitch =
             IsStillImageSwitch();
         _view.Image.Source = displayedBitmap;
+
+        if (!object.ReferenceEquals(
+                previousBitmap,
+                displayedBitmap)
+            || (_displayedBitmapLease is null))
+        {
+            ReplaceDisplayedBitmapLease(nextBitmapLease);
+        }
 
         if (!object.ReferenceEquals(
             previousBitmap,
@@ -266,6 +308,66 @@ internal sealed class ViewerImagePresentationController :
         {
             _displayedItemId = null;
             _displayedFrameIndex = -1;
+        }
+    }
+
+    private void ReplaceDisplayedBitmapLease(
+        ImagePresentationBitmapLease? nextBitmapLease)
+    {
+        ImagePresentationBitmapLease? previousBitmapLease =
+            _displayedBitmapLease;
+        _displayedBitmapLease = nextBitmapLease;
+
+        if (previousBitmapLease is null)
+        {
+            return;
+        }
+
+        CompositionVisual? compositionVisual =
+            ElementComposition.GetElementVisual(
+                _view.Image);
+
+        if (compositionVisual is null)
+        {
+            previousBitmapLease.Dispose();
+            return;
+        }
+
+        _retiredBitmapLeases.Add(previousBitmapLease);
+        CompositionBatch compositionBatch =
+            compositionVisual.Compositor
+                .RequestCompositionBatchCommitAsync();
+        _ = ReleaseRetiredBitmapLeaseAsync(
+            previousBitmapLease,
+            compositionBatch,
+            _bitmapLeaseReleaseCancellation.Token);
+    }
+
+    private async Task ReleaseRetiredBitmapLeaseAsync(
+        ImagePresentationBitmapLease bitmapLease,
+        CompositionBatch compositionBatch,
+        CancellationToken ct)
+    {
+        try
+        {
+            await compositionBatch.Rendered
+                .WaitAsync(ct)
+                .ConfigureAwait(false);
+            _view.Dispatcher.Post(
+                () => ReleaseRetiredBitmapLease(bitmapLease));
+        }
+        catch (OperationCanceledException)
+            when (ct.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void ReleaseRetiredBitmapLease(
+        ImagePresentationBitmapLease bitmapLease)
+    {
+        if (_retiredBitmapLeases.Remove(bitmapLease))
+        {
+            bitmapLease.Dispose();
         }
     }
 
