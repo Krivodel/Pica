@@ -8,13 +8,15 @@ A convenient image viewer. It can run as a standalone application or be used by 
 
 ## Main features
 
+- Viewing images, animations, and multi-page formats.
+- Animation mini-player with seeking support.
 - Viewing individual channels with the same functionality as regular images.
 - Area selection (pixels are taken directly from the image without any modifications).
 - Automatic fitting of the window size to the image.
 - Pinning the window on top of other windows.
 - Customizable display of information, such as the name, format, resolution, or modification date.
 - Useful context menu items, including a proper "Open with" menu.
-- Supported formats: `.png`, `.jpeg`, `.webp`, `.bmp`, `.gif`, `.ico`, `.avif`, `.heic`, `.heif`, `.tif`.
+- Full support for formats: `.png`, `.jpeg`, `.webp`, `.bmp`, `.gif`, `.ico`, `.cur`, `.avif`, `.heic`, `.heif`, `.tif`.
 
 ## Controls
 
@@ -22,6 +24,10 @@ A convenient image viewer. It can run as a standalone application or be used by 
 |----------------------------------------------------------|------------------------------------------------------|
 | Previous image or channel                                | `A` or `←`                                           |
 | Next image or channel                                    | `D` or `→`                                           |
+| Previous image or animation within the current file      | `Shift`, `Ctrl`, or `Alt` + `A` or `←`               |
+| Next image or animation within the current file          | `Shift`, `Ctrl`, or `Alt` + `D` or `→`               |
+| Previous animation frame                                 | `,`                                                  |
+| Next animation frame                                     | `.`                                                  |
 | Zoom                                                     | Mouse wheel                                          |
 | Slow zoom                                                | Hold `Shift`, `Ctrl`, or `Alt` while zooming         |
 | Pan                                                      | Drag with `LMB` or `MMB`                             |
