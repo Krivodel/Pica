@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 
 using Pica.Protocol;
@@ -8,8 +10,7 @@ namespace Pica.Desktop.Services;
 public sealed class PicaStartupRequestFactory
 {
     private readonly IImageFormatRegistry _formatRegistry;
-    private readonly IWindowsExplorerItemOrderProvider
-        _explorerItemOrderProvider;
+    private readonly IWindowsExplorerItemOrderProvider _explorerItemOrderProvider;
     private readonly ILogger<PicaStartupRequestFactory> _logger;
 
     public PicaStartupRequestFactory(
@@ -118,7 +119,7 @@ public sealed class PicaStartupRequestFactory
                 .Where(_formatRegistry.IsSupportedFileName)
                 .Select(Path.GetFullPath)
                 .OrderByDescending(File.GetLastWriteTimeUtc)
-                .ThenBy(path => Path.GetFileName(path), StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(Path.GetFileName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
             if (!fallbackImagePaths.Contains(
@@ -221,8 +222,7 @@ public sealed class PicaStartupRequestFactory
 
     private static Guid CreateStableItemId(string path)
     {
-        byte[] hash = System.Security.Cryptography.MD5.HashData(
-            System.Text.Encoding.UTF8.GetBytes(path.ToUpperInvariant()));
+        byte[] hash = MD5.HashData(Encoding.UTF8.GetBytes(path.ToUpperInvariant()));
 
         return new Guid(hash);
     }

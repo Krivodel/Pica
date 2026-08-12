@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
@@ -6,6 +8,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using FluentAssertions;
 using SkiaSharp;
 using Xunit;
@@ -14,6 +18,7 @@ using Pica.Protocol;
 using Pica.Tests.Common;
 using Pica.Viewer.Controls;
 using Pica.Viewer.Services;
+using Pica.Viewer.Tests;
 using Pica.Viewer.Tests.TestDoubles;
 using Pica.Viewer.ViewModels;
 using Pica.Viewer.Views;
@@ -25,12 +30,14 @@ namespace Pica.Viewer.Tests.Views;
 [Collection(AvaloniaHeadlessCollection.Name)]
 public sealed class ImageViewerViewTests
 {
+    private const double ExpectedContentNavigationFontSize = 52d / 3d;
+
     private static readonly SemaphoreSlim SessionLock = new(1, 1);
 
     public static AppBuilder BuildAvaloniaApp()
     {
         return AppBuilder
-            .Configure<Application>()
+            .Configure<ViewerTestApplication>()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions());
     }
 
@@ -49,11 +56,11 @@ public sealed class ImageViewerViewTests
                 ViewerWindowMode.FullScreen,
                 CreateEvents());
 
-            VisualBrush checkerboardBrush = view
+            ImageBrush checkerboardBrush = view
                 .CheckerboardPattern
                 .Background
                 .Should()
-                .BeOfType<VisualBrush>()
+                .BeOfType<ImageBrush>()
                 .Subject;
             RelativeRect expectedDestinationRect = new(
                 0d,
@@ -61,22 +68,11 @@ public sealed class ImageViewerViewTests
                 10d,
                 10d,
                 RelativeUnit.Absolute);
-            Grid checkerboardTile = checkerboardBrush
-                .Visual
+            WriteableBitmap checkerboardBitmap =
+                checkerboardBrush.Source
                 .Should()
-                .BeOfType<Grid>()
+                .BeOfType<WriteableBitmap>()
                 .Subject;
-            SolidColorBrush lightBrush = checkerboardTile
-                .Background
-                .Should()
-                .BeOfType<SolidColorBrush>()
-                .Subject;
-            List<SolidColorBrush> darkBrushes = checkerboardTile
-                .Children
-                .OfType<Border>()
-                .Select(border => border.Background)
-                .OfType<SolidColorBrush>()
-                .ToList();
             TranslateTransform checkerboardTransform =
                 view.CheckerboardPattern
                     .RenderTransform
@@ -104,14 +100,471 @@ public sealed class ImageViewerViewTests
             checkerboardBrush.DestinationRect.Should().Be(
                 expectedDestinationRect);
             checkerboardBrush.TileMode.Should().Be(TileMode.Tile);
-            lightBrush.Color.Should().Be(Color.Parse("#FFD5D9DE"));
-            darkBrushes.Should().HaveCount(2);
-            darkBrushes.Should().OnlyContain(
-                brush => brush.Color == Color.Parse("#FFB4BAC2"));
+            checkerboardBitmap.PixelSize.Should().Be(
+                new PixelSize(
+                    ViewerCheckerboardFactory.TileSize,
+                    ViewerCheckerboardFactory.TileSize));
+            using ILockedFramebuffer framebuffer =
+                checkerboardBitmap.Lock();
+            int darkPixelOffset =
+                ViewerCheckerboardFactory.TileSize
+                / 2
+                * 4;
+            byte[] lightPixel = new byte[4];
+            byte[] darkPixel = new byte[4];
+            Marshal.Copy(
+                framebuffer.Address,
+                lightPixel,
+                0,
+                lightPixel.Length);
+            Marshal.Copy(
+                IntPtr.Add(
+                    framebuffer.Address,
+                    darkPixelOffset),
+                darkPixel,
+                0,
+                darkPixel.Length);
+            lightPixel.Should().Equal(
+                0xDE,
+                0xD9,
+                0xD5,
+                0xFF);
+            darkPixel.Should().Equal(
+                0xC2,
+                0xBA,
+                0xB4,
+                0xFF);
             view.CheckerboardPattern.RenderTransformOrigin.Should().Be(
                 RelativePoint.TopLeft);
             checkerboardTransform.X.Should().Be(expectedPatternOffsetX);
             checkerboardTransform.Y.Should().Be(patternOffsetY);
+        });
+    }
+
+    [Fact]
+    public async Task AnimationLoadingIndicator_WhenBufferingChanges_ShowsCenteredWithoutInputHandling()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSession sessionState =
+                CreateSessionState(
+                    false,
+                    new List<PicaActionDefinition>());
+            using ImageViewerSessionViewModel session =
+                new(sessionState);
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            view.AnimationLoadingIndicator.IsVisible
+                .Should()
+                .BeFalse();
+
+            sessionState.SetAnimationBuffering(true);
+
+            view.AnimationLoadingIndicator.IsVisible
+                .Should()
+                .BeTrue();
+            view.AnimationLoadingIndicator
+                .IsHitTestVisible
+                .Should()
+                .BeFalse();
+            view.AnimationLoadingIndicator
+                .HorizontalAlignment
+                .Should()
+                .Be(HorizontalAlignment.Center);
+            view.AnimationLoadingIndicator
+                .VerticalAlignment
+                .Should()
+                .Be(VerticalAlignment.Center);
+        });
+    }
+
+    [Fact]
+    public async Task Constructor_DoesNotCreateContentGroupSelector()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            Control? selector = view.FindControl<Control>(
+                "ContentGroupSelectorControl");
+
+            selector.Should().BeNull();
+        });
+    }
+
+    [Fact]
+    public async Task ContentNavigationPanel_WithMixedContent_ShowsCountsAndNavigatesImages()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSession sessionState = CreateSessionState(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerSessionViewModel session = new(sessionState);
+            sessionState.SetContentGroups(
+                new List<ImageContentGroupDefinition>
+                {
+                    new(
+                        ImageContentGroupKind.StillImages,
+                        2),
+                    new(
+                        ImageContentGroupKind.Animation,
+                        4)
+                }.AsReadOnly(),
+                0);
+            sessionState.SetFramePresentation(
+                2,
+                ImageFramePresentationModes.ManualNavigation,
+                0);
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            StackPanel imagesOnlyNavigation = GetRequiredControl<StackPanel>(
+                view.ContentNavigationPanel,
+                "ImagesOnlyNavigationPanel");
+            StackPanel animationNavigation = GetRequiredControl<StackPanel>(
+                view.ContentNavigationPanel,
+                "AnimationNavigationPanel");
+            TextBlock selectedContent = GetRequiredControl<TextBlock>(
+                view.ContentNavigationPanel,
+                "SelectedContentText");
+            Border information = GetRequiredControl<Border>(
+                view.ContentNavigationPanel,
+                "ContentNavigationInformation");
+            Grid controls = GetRequiredControl<Grid>(
+                view.ContentNavigationPanel,
+                "NavigationControlsPanel");
+            Button previousFrame = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "PreviousFrameButton");
+            Button nextFrame = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "NextFrameButton");
+            Button previousContent = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "PreviousContentButton");
+            Button nextContent = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "NextContentButton");
+            Button playAnimation = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "PlayAnimationButton");
+
+            if (nextContent.Command is null)
+            {
+                throw new InvalidOperationException(
+                    "The next content button does not have a command.");
+            }
+
+            nextContent.Command.Execute(nextContent.CommandParameter);
+
+            view.ContentNavigationPanel.IsVisible.Should().BeTrue();
+            imagesOnlyNavigation.IsVisible.Should().BeFalse();
+            animationNavigation.IsVisible.Should().BeTrue();
+            selectedContent.Text.Should().Be(
+                "Изображение 2/2 · Анимаций: 1");
+            selectedContent.FontSize.Should().BeApproximately(
+                ExpectedContentNavigationFontSize,
+                0.000000000000001d);
+            selectedContent.TextAlignment.Should().Be(
+                TextAlignment.Center);
+            information.Parent.Should().BeSameAs(controls.Parent);
+            selectedContent.Parent.Should().NotBeSameAs(nextContent.Parent);
+            previousContent.Width.Should().Be(44d);
+            previousContent.Height.Should().Be(44d);
+            nextContent.Width.Should().Be(44d);
+            nextContent.Height.Should().Be(44d);
+            ToolTip.GetTip(previousContent).Should().BeNull();
+            ToolTip.GetTip(nextContent).Should().BeNull();
+            playAnimation.Width.Should().Be(44d);
+            playAnimation.Height.Should().Be(44d);
+            playAnimation.Command.Should().BeNull();
+            ToolTip.GetTip(playAnimation).Should().BeNull();
+            animationNavigation.Children
+                .OfType<Border>()
+                .Should()
+                .BeEmpty();
+            previousFrame.IsEnabled.Should().BeFalse();
+            nextFrame.IsEnabled.Should().BeFalse();
+            sessionState.SelectedFrameIndex.Should().Be(1);
+        });
+    }
+
+    [Fact]
+    public async Task ContentNavigationPanel_WithSingleAnimation_ShowsAndNavigatesFrames()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSession sessionState = CreateSessionState(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerSessionViewModel session = new(sessionState);
+            sessionState.SetContentGroups(
+                new List<ImageContentGroupDefinition>
+                {
+                    new(
+                        ImageContentGroupKind.Animation,
+                        4)
+                }.AsReadOnly(),
+                0);
+            sessionState.SetFramePresentation(
+                4,
+                ImageFramePresentationModes.AutomaticPlayback,
+                0);
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            StackPanel imagesOnlyNavigation = GetRequiredControl<StackPanel>(
+                view.ContentNavigationPanel,
+                "ImagesOnlyNavigationPanel");
+            StackPanel animationNavigation = GetRequiredControl<StackPanel>(
+                view.ContentNavigationPanel,
+                "AnimationNavigationPanel");
+            TextBlock selectedFrame = GetRequiredControl<TextBlock>(
+                view.ContentNavigationPanel,
+                "SelectedFrameText");
+            Button previousFrame = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "PreviousFrameButton");
+            Button nextFrame = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "NextFrameButton");
+            Button playAnimation = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "PlayAnimationButton");
+            Button previousContent = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "PreviousContentButton");
+            Button nextContent = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "NextContentButton");
+
+            if (nextFrame.Command is null)
+            {
+                throw new InvalidOperationException(
+                    "The next frame button does not have a command.");
+            }
+
+            nextFrame.Command.Execute(nextFrame.CommandParameter);
+
+            view.ContentNavigationPanel.IsVisible.Should().BeTrue();
+            imagesOnlyNavigation.IsVisible.Should().BeFalse();
+            animationNavigation.IsVisible.Should().BeTrue();
+            previousFrame.IsEnabled.Should().BeTrue();
+            nextFrame.IsEnabled.Should().BeTrue();
+            previousContent.IsEnabled.Should().BeFalse();
+            nextContent.IsEnabled.Should().BeFalse();
+            selectedFrame.Text.Should().Be("Кадр 2/4");
+            selectedFrame.FontSize.Should().BeApproximately(
+                ExpectedContentNavigationFontSize,
+                0.000000000000001d);
+            selectedFrame.TextAlignment.Should().Be(
+                TextAlignment.Center);
+            selectedFrame.Parent.Should().NotBeSameAs(nextFrame.Parent);
+            previousFrame.Width.Should().Be(44d);
+            previousFrame.Height.Should().Be(44d);
+            nextFrame.Width.Should().Be(44d);
+            nextFrame.Height.Should().Be(44d);
+            ToolTip.GetTip(previousFrame).Should().BeNull();
+            ToolTip.GetTip(nextFrame).Should().BeNull();
+            playAnimation.Width.Should().Be(44d);
+            playAnimation.Height.Should().Be(44d);
+            playAnimation.Command.Should().BeNull();
+            ToolTip.GetTip(playAnimation).Should().BeNull();
+            sessionState.SelectedFrameIndex.Should().Be(1);
+        });
+    }
+
+    [Fact]
+    public async Task ContentNavigationPanel_WithMultipleStillImages_ShowsOnlyContentButtons()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSession sessionState = CreateSessionState(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerSessionViewModel session = new(sessionState);
+            sessionState.SetContentGroups(
+                new List<ImageContentGroupDefinition>
+                {
+                    new(
+                        ImageContentGroupKind.StillImages,
+                        3)
+                }.AsReadOnly(),
+                0);
+            sessionState.SetFramePresentation(
+                3,
+                ImageFramePresentationModes.ManualNavigation,
+                0);
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            StackPanel imagesOnlyNavigation = GetRequiredControl<StackPanel>(
+                view.ContentNavigationPanel,
+                "ImagesOnlyNavigationPanel");
+            StackPanel animationNavigation = GetRequiredControl<StackPanel>(
+                view.ContentNavigationPanel,
+                "AnimationNavigationPanel");
+            Button previousContent = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "ImagesOnlyPreviousContentButton");
+            Button nextContent = GetRequiredControl<Button>(
+                view.ContentNavigationPanel,
+                "ImagesOnlyNextContentButton");
+
+            if (nextContent.Command is null)
+            {
+                throw new InvalidOperationException(
+                    "The next content button does not have a command.");
+            }
+
+            nextContent.Command.Execute(nextContent.CommandParameter);
+
+            view.ContentNavigationPanel.IsVisible.Should().BeTrue();
+            imagesOnlyNavigation.IsVisible.Should().BeTrue();
+            animationNavigation.IsVisible.Should().BeFalse();
+            previousContent.Width.Should().Be(44d);
+            previousContent.Height.Should().Be(44d);
+            nextContent.Width.Should().Be(44d);
+            nextContent.Height.Should().Be(44d);
+            ToolTip.GetTip(previousContent).Should().BeNull();
+            ToolTip.GetTip(nextContent).Should().BeNull();
+            sessionState.SelectedFrameIndex.Should().Be(1);
+        });
+    }
+
+    [Fact]
+    public async Task ContentNavigationPanel_WhenSelectedTypeChanges_KeepsControlRowWidth()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSession sessionState = CreateSessionState(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerSessionViewModel session = new(sessionState);
+            sessionState.SetContentGroups(
+                new List<ImageContentGroupDefinition>
+                {
+                    new(
+                        ImageContentGroupKind.StillImages,
+                        2),
+                    new(
+                        ImageContentGroupKind.Animation,
+                        4)
+                }.AsReadOnly(),
+                0);
+            sessionState.SetFramePresentation(
+                2,
+                ImageFramePresentationModes.ManualNavigation,
+                0);
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Grid controls = GetRequiredControl<Grid>(
+                view.ContentNavigationPanel,
+                "NavigationControlsPanel");
+            Size availableSize = new(
+                double.PositiveInfinity,
+                double.PositiveInfinity);
+            controls.Measure(availableSize);
+            double stillImageControlWidth = controls.DesiredSize.Width;
+
+            sessionState.SelectContentGroup(1);
+            sessionState.SetFramePresentation(
+                4,
+                ImageFramePresentationModes.AutomaticPlayback,
+                0);
+            controls.Measure(availableSize);
+
+            controls.DesiredSize.Width.Should().Be(stillImageControlWidth);
+        });
+    }
+
+    [Fact]
+    public async Task ContentNavigationPanel_WhenAnimationFrameNumberChanges_KeepsInformationWidth()
+    {
+        await DispatchAsync(() =>
+        {
+            const int FrameCount = 120;
+            ImageViewerSession sessionState = CreateSessionState(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerSessionViewModel session = new(sessionState);
+            sessionState.SetContentGroups(
+                new List<ImageContentGroupDefinition>
+                {
+                    new(
+                        ImageContentGroupKind.StillImages,
+                        2),
+                    new(
+                        ImageContentGroupKind.Animation,
+                        FrameCount),
+                    new(
+                        ImageContentGroupKind.Animation,
+                        FrameCount),
+                    new(
+                        ImageContentGroupKind.Animation,
+                        FrameCount)
+                }.AsReadOnly(),
+                1);
+            sessionState.SetFramePresentation(
+                FrameCount,
+                ImageFramePresentationModes.AutomaticPlayback,
+                0);
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Border information = GetRequiredControl<Border>(
+                view.ContentNavigationPanel,
+                "ContentNavigationInformation");
+            Size availableSize = new(
+                double.PositiveInfinity,
+                double.PositiveInfinity);
+            information.Measure(availableSize);
+            double firstFrameWidth = information.DesiredSize.Width;
+
+            sessionState.SetFramePresentation(
+                FrameCount,
+                ImageFramePresentationModes.AutomaticPlayback,
+                57);
+            information.Measure(availableSize);
+            double middleFrameWidth = information.DesiredSize.Width;
+            sessionState.SetFramePresentation(
+                FrameCount,
+                ImageFramePresentationModes.AutomaticPlayback,
+                FrameCount - 1);
+            information.Measure(availableSize);
+
+            middleFrameWidth.Should().Be(firstFrameWidth);
+            information.DesiredSize.Width.Should().Be(firstFrameWidth);
         });
     }
 
@@ -296,6 +749,16 @@ public sealed class ImageViewerViewTests
             navigationIcon.Width.Should().Be(44d);
             navigationIcon.Height.Should().Be(44d);
             view.BottomControls.Height.Should().Be(44d);
+            view.ContentNavigationPanel.Margin.Should().Be(
+                new Thickness(0d, 0d, 0d, 78d));
+            view.ContentNavigationPanel.HorizontalAlignment
+                .Should()
+                .Be(HorizontalAlignment.Center);
+            view.ContentNavigationPanel.VerticalAlignment
+                .Should()
+                .Be(VerticalAlignment.Bottom);
+            view.ContentNavigationPanel.Opacity.Should().Be(0d);
+            view.ContentNavigationPanel.IsHitTestVisible.Should().BeFalse();
             view.ToolMenuButton.Width.Should().Be(44d);
             view.ToolMenuButton.Height.Should().Be(44d);
             view.ImageInformationPanel.Margin.Should().Be(new Thickness(16d));
@@ -306,10 +769,11 @@ public sealed class ImageViewerViewTests
             viewerChrome.Children.IndexOf(view.LeftNavigationArea).Should().Be(0);
             viewerChrome.Children.IndexOf(view.RightNavigationArea).Should().Be(1);
             viewerChrome.Children.IndexOf(view.BottomControls).Should().Be(2);
-            viewerChrome.Children.IndexOf(view.ImageInformationPanel).Should().Be(3);
-            viewerChrome.Children.IndexOf(view.FullscreenSettingsButton).Should().Be(4);
-            viewerChrome.Children.IndexOf(view.WindowModeButton).Should().Be(5);
-            viewerChrome.Children.IndexOf(view.CloseButton).Should().Be(6);
+            viewerChrome.Children.IndexOf(view.ContentNavigationPanel).Should().Be(3);
+            viewerChrome.Children.IndexOf(view.ImageInformationPanel).Should().Be(4);
+            viewerChrome.Children.IndexOf(view.FullscreenSettingsButton).Should().Be(5);
+            viewerChrome.Children.IndexOf(view.WindowModeButton).Should().Be(6);
+            viewerChrome.Children.IndexOf(view.CloseButton).Should().Be(7);
         });
     }
 
@@ -746,6 +1210,16 @@ public sealed class ImageViewerViewTests
         bool isFilteringEnabled,
         IReadOnlyList<PicaActionDefinition> actions)
     {
+        return new ImageViewerSessionViewModel(
+            CreateSessionState(
+                isFilteringEnabled,
+                actions));
+    }
+
+    private static ImageViewerSession CreateSessionState(
+        bool isFilteringEnabled,
+        IReadOnlyList<PicaActionDefinition> actions)
+    {
         Guid itemId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         PicaImageItem item = new(
             itemId,
@@ -756,11 +1230,9 @@ public sealed class ImageViewerViewTests
             itemId,
             actions);
 
-        ImageViewerSession session = new(
+        return new ImageViewerSession(
             request,
             isFilteringEnabled);
-
-        return new ImageViewerSessionViewModel(session);
     }
 
     private static ImageViewerToolMenuViewModel CreateToolMenu(
@@ -845,6 +1317,16 @@ public sealed class ImageViewerViewTests
         return items.Children
             .OfType<Button>()
             .ToList();
+    }
+
+    private static TControl GetRequiredControl<TControl>(
+        Control parent,
+        string name)
+        where TControl : Control
+    {
+        return parent.FindControl<TControl>(name)
+            ?? throw new InvalidOperationException(
+                $"The control '{name}' is unavailable.");
     }
 
     private static async Task DispatchAsync(Action action)

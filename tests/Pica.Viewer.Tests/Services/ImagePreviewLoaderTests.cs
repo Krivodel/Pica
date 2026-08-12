@@ -9,6 +9,7 @@ using Xunit;
 using Pica.Tests.Common;
 using Pica.Protocol;
 using Pica.Viewer.Services;
+using Pica.Viewer.Tests.TestDoubles;
 
 namespace Pica.Viewer.Tests.Services;
 
@@ -122,13 +123,18 @@ public sealed class ImagePreviewLoaderTests
                 temporaryDirectory.DirectoryPath,
                 Path.ChangeExtension(SourceFileName, extension));
             CreateHeifFamilyImage(imagePath, extension);
-            FullResolutionImageLoader loader = new(new ImageFormatRegistry());
+            FullResolutionImageLoader loader = new(
+                new ImageFormatRegistry(),
+                MultiFrameImageDecoderTestFactory.Create());
 
-            using Bitmap bitmap = await loader.LoadAsync(
+            using DecodedImageContent content = await loader.LoadAsync(
                 imagePath,
                 CancellationToken.None);
+            DecodedImage image = content.Groups[
+                content.InitialGroupIndex].GetRequiredImage();
 
-            bitmap.PixelSize.Should().Be(
+            image.Frames.Should().ContainSingle();
+            image.Frames[0].Bitmap.PixelSize.Should().Be(
                 new PixelSize(expectedWidth, expectedHeight));
         });
     }
@@ -151,7 +157,33 @@ public sealed class ImagePreviewLoaderTests
     }
 
     [Fact]
-    public async Task FullResolutionLoadAsync_WithMultiPageTiffSource_DecodesFirstPage()
+    public async Task LoadAsync_WithMultiImageIcon_UsesLargestImageDimensions()
+    {
+        await DispatchAsync(async () =>
+        {
+            string imagePath = Path.Combine(
+                AppContext.BaseDirectory,
+                "AppIcon.ico");
+            PicaImageItem item = new(
+                ItemId,
+                imagePath,
+                Path.GetFileName(imagePath));
+            ImagePreviewLoader loader = new(
+                new ImageFormatRegistry(),
+                NullLogger<ImagePreviewLoader>.Instance);
+
+            DecodedImagePreview preview = await loader.LoadAsync(
+                item,
+                CancellationToken.None);
+
+            preview.SourcePixelSize.Should().Be(
+                new PixelSize(256, 256));
+            preview.Bitmap.Dispose();
+        });
+    }
+
+    [Fact]
+    public async Task FullResolutionLoadAsync_WithMultiPageTiffSource_DecodesAllPages()
     {
         await DispatchAsync(async () =>
         {
@@ -160,14 +192,67 @@ public sealed class ImagePreviewLoaderTests
                 temporaryDirectory.DirectoryPath,
                 "source.tiff");
             TiffImageTestData.Create(imagePath);
-            FullResolutionImageLoader loader = new(new ImageFormatRegistry());
+            FullResolutionImageLoader loader = new(
+                new ImageFormatRegistry(),
+                MultiFrameImageDecoderTestFactory.Create());
 
-            using Bitmap bitmap = await loader.LoadAsync(
+            using DecodedImageContent content = await loader.LoadAsync(
                 imagePath,
                 CancellationToken.None);
+            DecodedImage image = content.Groups[
+                content.InitialGroupIndex].GetRequiredImage();
 
-            bitmap.PixelSize.Should().Be(
+            image.Frames.Should().HaveCount(2);
+            image.Frames[0].Bitmap.PixelSize.Should().Be(
                 new PixelSize(TiffImageTestData.Width, TiffImageTestData.Height));
+            image.FramePresentationMode.Should().Be(
+                ImageFramePresentationModes.ManualNavigation);
+        });
+    }
+
+    [Fact]
+    public async Task LoadAsync_WhileDecoderIsRunning_ReleasesSourceFile()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string sourcePath = Path.Combine(
+                temporaryDirectory.DirectoryPath,
+                SourceFileName);
+            await File.WriteAllBytesAsync(
+                sourcePath,
+                new byte[] { 1, 2, 3, 4 });
+            Bitmap bitmap = BgraBitmapTestData.CreateBitmap();
+            using BlockingImageDecoder decoder = new(bitmap);
+            ImagePreviewLoader loader = new(
+                new FixedImageDecoderResolver(decoder),
+                NullLogger<ImagePreviewLoader>.Instance);
+            PicaImageItem item = new(
+                ItemId,
+                sourcePath,
+                SourceFileName);
+            Task<DecodedImagePreview> loadingTask = loader.LoadAsync(
+                item,
+                CancellationToken.None);
+            await decoder.OperationStarted;
+
+            try
+            {
+                using FileStream exclusiveStream = new(
+                    sourcePath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.None);
+
+                exclusiveStream.CanRead.Should().BeTrue();
+            }
+            finally
+            {
+                decoder.Release();
+            }
+
+            DecodedImagePreview preview = await loadingTask;
+            preview.Bitmap.Dispose();
         });
     }
 

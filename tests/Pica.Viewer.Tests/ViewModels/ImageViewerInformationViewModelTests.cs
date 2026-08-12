@@ -104,6 +104,78 @@ public sealed class ImageViewerInformationViewModelTests
     }
 
     [Fact]
+    public void SelectedAnimationFrameChanged_WithMultipleFrames_OmitsFrameNumber()
+    {
+        PicaImageItem item = CreateItem();
+        ImageViewerSession session = CreateSession(item);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.Animation,
+                    4)
+            }.AsReadOnly(),
+            0);
+        session.SetFramePresentation(
+            4,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+        StubImagePresentationInfo presentation = new();
+        presentation.SetPresentation(
+            item,
+            new ImageDimensions(640, 480));
+        ImageViewerSettingsViewModel settings = CreateSettings(
+            session,
+            showModificationDate: false);
+        ImageViewerInformationViewModel viewModel = new(
+            session,
+            presentation,
+            new RecordingImageFileMetadataProvider(),
+            settings,
+            new RecordingViewModelErrorHandler());
+        viewModel.Start();
+
+        session.NavigateFrame(1);
+
+        viewModel.Information.Should().Be(
+            "image.png · 640×480");
+        viewModel.Dispose();
+        settings.Dispose();
+    }
+
+    [Fact]
+    public void Start_WithReverseFrameNumbering_OmitsFrameNumber()
+    {
+        PicaImageItem item = CreateItem();
+        ImageViewerSession session = CreateSession(item);
+        session.SetFramePresentation(
+            9,
+            ImageFramePresentationModes.ManualNavigation,
+            8,
+            ImageFrameNumbering.Reverse);
+        StubImagePresentationInfo presentation = new();
+        presentation.SetPresentation(
+            item,
+            new ImageDimensions(256, 256));
+        ImageViewerSettingsViewModel settings = CreateSettings(
+            session,
+            showModificationDate: false);
+        ImageViewerInformationViewModel viewModel = new(
+            session,
+            presentation,
+            new RecordingImageFileMetadataProvider(),
+            settings,
+            new RecordingViewModelErrorHandler());
+
+        viewModel.Start();
+
+        viewModel.Information.Should().Be(
+            "image.png · 256×256");
+        viewModel.Dispose();
+        settings.Dispose();
+    }
+
+    [Fact]
     public async Task InformationSettingChanged_WithDisabledName_UpdatesInformation()
     {
         PicaImageItem item = CreateItem();

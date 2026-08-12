@@ -1,4 +1,5 @@
 using FluentAssertions;
+using ImageMagick;
 using Xunit;
 
 using Pica.Viewer.Services;
@@ -11,12 +12,14 @@ public sealed class ImageFormatRegistryTests
 
     [Theory]
     [InlineData("image.png")]
+    [InlineData("image.apng")]
     [InlineData("image.jpg")]
     [InlineData("image.jpeg")]
     [InlineData("image.webp")]
     [InlineData("image.bmp")]
     [InlineData("image.gif")]
     [InlineData("image.ico")]
+    [InlineData("image.cur")]
     [InlineData("image.avif")]
     [InlineData("image.heic")]
     [InlineData("image.heif")]
@@ -55,7 +58,7 @@ public sealed class ImageFormatRegistryTests
     [InlineData("image.webp", typeof(AvaloniaBitmapDecoder))]
     [InlineData("image.bmp", typeof(AvaloniaBitmapDecoder))]
     [InlineData("image.gif", typeof(AvaloniaBitmapDecoder))]
-    [InlineData("image.ico", typeof(AvaloniaBitmapDecoder))]
+    [InlineData("image.ico", typeof(IcoImageDecoder))]
     [InlineData("image.avif", typeof(MagickImageDecoder))]
     [InlineData("image.heic", typeof(MagickImageDecoder))]
     [InlineData("image.heif", typeof(MagickImageDecoder))]
@@ -65,8 +68,142 @@ public sealed class ImageFormatRegistryTests
         string fileName,
         Type expectedDecoderType)
     {
-        IImageDecoder decoder = ((IImageDecoderResolver)_registry).Resolve(fileName);
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(fileName);
 
-        decoder.GetType().Should().Be(expectedDecoderType);
+        decoderSelection.Decoder.GetType().Should().Be(expectedDecoderType);
+    }
+
+    [Theory]
+    [InlineData(
+        "image.gif",
+        (int)ImageFramePresentationModes.AutomaticPlayback)]
+    [InlineData(
+        "image.webp",
+        (int)ImageFramePresentationModes.AutomaticPlayback)]
+    [InlineData(
+        "image.png",
+        (int)ImageFramePresentationModes.AutomaticPlayback)]
+    [InlineData(
+        "image.ico",
+        (int)ImageFramePresentationModes.ManualNavigation)]
+    [InlineData(
+        "image.cur",
+        (int)ImageFramePresentationModes.ManualNavigation)]
+    [InlineData(
+        "image.tiff",
+        (int)ImageFramePresentationModes.ManualNavigation)]
+    [InlineData(
+        "image.avif",
+        (int)(ImageFramePresentationModes.ManualNavigation
+            | ImageFramePresentationModes.AutomaticPlayback))]
+    public void Resolve_WithMultiFrameExtension_ReturnsExpectedPresentationMode(
+        string fileName,
+        int expectedMode)
+    {
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(fileName);
+
+        decoderSelection.FramePresentationMode.Should().Be(
+            (ImageFramePresentationModes)expectedMode);
+    }
+
+    [Theory]
+    [InlineData("image.ico")]
+    [InlineData("image.cur")]
+    public void Resolve_WithIconExtension_ReturnsIconReadFormat(
+        string fileName)
+    {
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(fileName);
+
+        decoderSelection.MultiFrameReadFormat.Should().Be(
+            MagickFormat.Ico);
+    }
+
+    [Theory]
+    [InlineData("image.png")]
+    [InlineData("image.apng")]
+    public void Resolve_WithPngExtension_ReturnsApngFrameDecoder(
+        string fileName)
+    {
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(fileName);
+
+        decoderSelection.FrameDecoderKind.Should().Be(
+            ImageFrameDecoderKind.ApngAnimation);
+    }
+
+    [Fact]
+    public void Resolve_WithGifExtension_ReturnsAnimatedImageFrameDecoder()
+    {
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(
+                "image.gif");
+
+        decoderSelection.FrameDecoderKind.Should().Be(
+            ImageFrameDecoderKind.AnimatedImage);
+    }
+
+    [Fact]
+    public void Resolve_WithWebpExtension_ReturnsSkiaAnimationFrameDecoder()
+    {
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(
+                "image.webp");
+
+        decoderSelection.FrameDecoderKind.Should().Be(
+            ImageFrameDecoderKind.SkiaAnimation);
+    }
+
+    [Theory]
+    [InlineData("image.avif")]
+    [InlineData("image.heic")]
+    [InlineData("image.heif")]
+    public void Resolve_WithHeifFamilyExtension_ReturnsMagickAnimationFrameDecoder(
+        string fileName)
+    {
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(fileName);
+
+        decoderSelection.FrameDecoderKind.Should().Be(
+            ImageFrameDecoderKind.MagickAnimation);
+    }
+
+    [Theory]
+    [InlineData("image.gif", 2)]
+    [InlineData("image.png", 2)]
+    [InlineData("image.apng", 2)]
+    [InlineData("image.webp", 8)]
+    [InlineData("image.avif", 12)]
+    [InlineData("image.heic", 12)]
+    [InlineData("image.heif", 12)]
+    public void Resolve_WithAnimatedExtension_ReturnsExpectedPlaybackBufferSize(
+        string fileName,
+        int expectedFrameCount)
+    {
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(fileName);
+
+        decoderSelection
+            .EffectiveAnimationBufferingPolicy
+            .PlaybackStartFrameCount
+            .Should()
+            .Be(expectedFrameCount);
+    }
+
+    [Theory]
+    [InlineData("image.ico")]
+    [InlineData("image.cur")]
+    public void Resolve_WithIconExtension_SelectsLargestInitialFrame(
+        string fileName)
+    {
+        ImageDecoderSelection decoderSelection =
+            ((IImageDecoderResolver)_registry).Resolve(fileName);
+
+        decoderSelection.InitialFrameSelection.Should().Be(
+            ImageInitialFrameSelection.LargestArea);
+        decoderSelection.FrameNumbering.Should().Be(
+            ImageFrameNumbering.Reverse);
     }
 }

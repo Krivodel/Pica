@@ -4,5 +4,6 @@ internal enum ImageLoadTransitionKind
 {
     Started,
     PreviewApplied,
-    FullResolutionApplied
+    FullResolutionApplied,
+    ContentGroupApplied
 }

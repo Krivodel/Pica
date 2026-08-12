@@ -147,6 +147,16 @@ internal sealed partial class ImageViewerInformationViewModel :
 
     private void StartMetadataLoad(PicaImageItem item)
     {
+        if (_hasLoadedMetadata
+            && (_metadataItemId == item.Id)
+            && string.Equals(
+                _metadataFilePath,
+                item.FilePath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         if ((_metadataLoadCancellation is not null)
             && (_metadataItemId == item.Id)
             && string.Equals(

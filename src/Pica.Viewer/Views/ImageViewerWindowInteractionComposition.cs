@@ -218,6 +218,7 @@ internal sealed class ImageViewerWindowInteractionComposition :
         ViewerImagePresentationController presentation = new(
             owner,
             view,
+            session,
             information,
             imagePresentation,
             settings,

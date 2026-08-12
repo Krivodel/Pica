@@ -55,6 +55,22 @@ public sealed class ImageViewerStateServiceTests
     }
 
     [Fact]
+    public async Task SaveAsync_WithViewerState_DoesNotPersistRemovedFrameNumberSetting()
+    {
+        using ImageViewerStateTestContext context = new();
+
+        await context.Service.SaveAsync(
+            new ImageViewerState(),
+            CancellationToken.None);
+        string stateJson = await File.ReadAllTextAsync(
+            context.StateFilePath,
+            CancellationToken.None);
+
+        stateJson.Should().NotContain(
+            "showImageFrameNumber");
+    }
+
+    [Fact]
     public async Task SaveAsync_WithWindowPlacement_RoundTripsState()
     {
         using ImageViewerStateTestContext context = new();

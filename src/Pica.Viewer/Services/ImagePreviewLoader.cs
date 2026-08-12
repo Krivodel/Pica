@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Media.Imaging;
+using ImageMagick;
 using Microsoft.Extensions.Logging;
 
 using Pica.Protocol;
@@ -35,8 +36,14 @@ internal sealed class ImagePreviewLoader : IImagePreviewLoader
         PixelSize sourcePixelSize,
         CancellationToken ct)
     {
-        IImageDecoder decoder = _decoderResolver.Resolve(previewPath);
-        using FileStream previewStream = File.OpenRead(previewPath);
+        IImageDecoder decoder = _decoderResolver
+            .Resolve(previewPath)
+            .Decoder;
+        byte[] previewData = File.ReadAllBytes(previewPath);
+        ct.ThrowIfCancellationRequested();
+        using MemoryStream previewStream = new(
+            previewData,
+            writable: false);
         Bitmap bitmap = decoder.Decode(previewStream, ct);
 
         return new DecodedImagePreview(bitmap, sourcePixelSize);
@@ -68,8 +75,30 @@ internal sealed class ImagePreviewLoader : IImagePreviewLoader
     private DecodedImagePreview Load(PicaImageItem item, CancellationToken ct)
     {
         string sourcePath = Path.GetFullPath(item.FilePath);
-        IImageDecoder decoder = _decoderResolver.Resolve(sourcePath);
-        using FileStream sourceStream = File.OpenRead(sourcePath);
+        IImageDecoder decoder = _decoderResolver
+            .Resolve(sourcePath)
+            .Decoder;
+        byte[] sourceData = File.ReadAllBytes(sourcePath);
+        ct.ThrowIfCancellationRequested();
+
+        if (IsoBmffMixedContentSupport.IsSupportedFile(sourcePath))
+        {
+            DecodedImagePreview? projectedPreview =
+                TryDecodeInitialStillImagePreview(
+                    sourceData,
+                    decoder,
+                    item,
+                    ct);
+
+            if (projectedPreview is not null)
+            {
+                return projectedPreview;
+            }
+        }
+
+        using MemoryStream sourceStream = new(
+            sourceData,
+            writable: false);
         PixelSize sourcePixelSize = decoder.ReadPixelSize(sourceStream, ct);
         sourceStream.Position = 0;
         string? existingPreviewPath = GetExistingPreviewPath(item);
@@ -91,5 +120,81 @@ internal sealed class ImagePreviewLoader : IImagePreviewLoader
         }
 
         return DecodeSourcePreview(decoder, sourceStream, sourcePixelSize, ct);
+    }
+
+    private DecodedImagePreview? TryDecodeInitialStillImagePreview(
+        byte[] sourceData,
+        IImageDecoder decoder,
+        PicaImageItem item,
+        CancellationToken ct)
+    {
+        IsoBmffTopLevelContent? content =
+            IsoBmffTopLevelContentReader.Read(sourceData);
+
+        if ((content is null)
+            || !content.StartsWithStillImages)
+        {
+            return null;
+        }
+
+        try
+        {
+            using IsoBmffMovieBoxProjection projection = new(sourceData);
+            using MemoryStream stream = new(
+                projection.Data,
+                writable: false);
+            PixelSize sourcePixelSize = decoder.ReadPixelSize(
+                stream,
+                ct);
+            string? existingPreviewPath =
+                GetExistingPreviewPath(item);
+
+            if (existingPreviewPath is not null)
+            {
+                try
+                {
+                    return DecodePreviewFile(
+                        existingPreviewPath,
+                        sourcePixelSize,
+                        ct);
+                }
+                catch (OperationCanceledException)
+                    when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Failed to use the prebuilt image thumbnail.");
+                }
+            }
+
+            stream.Position = 0;
+
+            return DecodeSourcePreview(
+                decoder,
+                stream,
+                sourcePixelSize,
+                ct);
+        }
+        catch (OperationCanceledException)
+            when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (MagickException)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to decode the initial still-image section preview.");
+
+            return null;
+        }
     }
 }

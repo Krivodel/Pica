@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -9,9 +7,6 @@ namespace Pica.Viewer.Services;
 
 internal sealed class MagickImageDecoder : IImageDecoder
 {
-    private const int BytesPerPixel = 4;
-    private const double DefaultDpi = 96d;
-
     public PixelSize ReadPixelSize(Stream sourceStream, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(sourceStream);
@@ -49,6 +44,43 @@ internal sealed class MagickImageDecoder : IImageDecoder
 
     public Bitmap DecodeToWidth(Stream sourceStream, int width, CancellationToken ct)
     {
+        using MagickImage image = ReadImage(sourceStream, ct);
+        ResizeToWidth(image, width, ct);
+
+        return CreateBitmap(image, ct);
+    }
+
+    internal static Bitmap CreateBitmap(
+        IMagickImage<byte> image,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        PixelSize pixelSize = new(
+            checked((int)image.Width),
+            checked((int)image.Height));
+        using IPixelCollection<byte> pixelCollection = image.GetPixels();
+        byte[]? exportedPixels = pixelCollection.ToByteArray(PixelMapping.BGRA);
+
+        if (exportedPixels is null)
+        {
+            throw new InvalidDataException("The image decoder did not return a pixel buffer.");
+        }
+
+        ct.ThrowIfCancellationRequested();
+        return BgraBitmapFactory.Create(
+            pixelSize,
+            exportedPixels,
+            AlphaFormat.Unpremul,
+            ct);
+    }
+
+    internal static void ResizeToWidth(
+        IMagickImage<byte> image,
+        int width,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+
         if (width <= 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -57,27 +89,38 @@ internal sealed class MagickImageDecoder : IImageDecoder
                 "The decoded image width must be positive.");
         }
 
-        using MagickImage image = ReadImage(sourceStream, ct);
-        uint height = CalculateScaledHeight(image.Width, image.Height, width);
+        uint height = CalculateScaledHeight(
+            image.Width,
+            image.Height,
+            width);
         image.Resize(checked((uint)width), height);
         ct.ThrowIfCancellationRequested();
-
-        return CreateBitmap(image, ct);
     }
 
-    private static uint CalculateScaledHeight(uint sourceWidth, uint sourceHeight, int targetWidth)
+    private static uint CalculateScaledHeight(
+        uint sourceWidth,
+        uint sourceHeight,
+        int targetWidth)
     {
         if ((sourceWidth == 0) || (sourceHeight == 0))
         {
-            throw new InvalidDataException("The image dimensions must be positive.");
+            throw new InvalidDataException(
+                "The image dimensions must be positive.");
         }
 
-        double scaledHeight = (double)sourceHeight * targetWidth / sourceWidth;
+        double scaledHeight =
+            (double)sourceHeight
+            * targetWidth
+            / sourceWidth;
 
-        return checked((uint)Math.Max(1d, Math.Round(scaledHeight)));
+        return checked((uint)Math.Max(
+            1d,
+            Math.Round(scaledHeight)));
     }
 
-    private static MagickImage ReadImage(Stream sourceStream, CancellationToken ct)
+    private static MagickImage ReadImage(
+        Stream sourceStream,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(sourceStream);
         ct.ThrowIfCancellationRequested();
@@ -94,77 +137,6 @@ internal sealed class MagickImageDecoder : IImageDecoder
         {
             image.Dispose();
             throw;
-        }
-    }
-
-    private static Bitmap CreateBitmap(MagickImage image, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        PixelSize pixelSize = new(
-            checked((int)image.Width),
-            checked((int)image.Height));
-        using IPixelCollection<byte> pixelCollection = image.GetPixels();
-        byte[]? exportedPixels = pixelCollection.ToByteArray(PixelMapping.BGRA);
-
-        if (exportedPixels is null)
-        {
-            throw new InvalidDataException("The image decoder did not return a pixel buffer.");
-        }
-
-        ct.ThrowIfCancellationRequested();
-        WriteableBitmap bitmap = new(
-            pixelSize,
-            new Vector(DefaultDpi, DefaultDpi),
-            PixelFormat.Bgra8888,
-            AlphaFormat.Unpremul);
-
-        try
-        {
-            CopyPixels(bitmap, exportedPixels, ct);
-
-            return bitmap;
-        }
-        catch
-        {
-            bitmap.Dispose();
-            throw;
-        }
-    }
-
-    private static void CopyPixels(
-        WriteableBitmap bitmap,
-        byte[] source,
-        CancellationToken ct)
-    {
-        int sourceRowBytes = checked(bitmap.PixelSize.Width * BytesPerPixel);
-        int expectedLength = checked(sourceRowBytes * bitmap.PixelSize.Height);
-
-        if (source.Length != expectedLength)
-        {
-            throw new InvalidDataException(
-                $"The decoded image pixel buffer has length {source.Length}, expected {expectedLength}.");
-        }
-
-        using ILockedFramebuffer framebuffer = bitmap.Lock();
-
-        if (framebuffer.RowBytes == sourceRowBytes)
-        {
-            Marshal.Copy(source, 0, framebuffer.Address, source.Length);
-            ct.ThrowIfCancellationRequested();
-            return;
-        }
-
-        for (int row = 0; row < framebuffer.Size.Height; row++)
-        {
-            ct.ThrowIfCancellationRequested();
-            IntPtr destinationAddress = IntPtr.Add(
-                framebuffer.Address,
-                row * framebuffer.RowBytes);
-            Marshal.Copy(
-                source,
-                row * sourceRowBytes,
-                destinationAddress,
-                sourceRowBytes);
         }
     }
 }

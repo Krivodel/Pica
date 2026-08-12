@@ -18,6 +18,32 @@ public static class DependencyInjection
             provider.GetRequiredService<ImageFormatRegistry>());
         services.AddSingleton<IImageDecoderResolver>(provider =>
             provider.GetRequiredService<ImageFormatRegistry>());
+        services.AddSingleton<MagickMultiFrameImageDecoder>();
+        services.AddSingleton<ApngImageFrameDecoder>();
+        services.AddSingleton<AnimatedImageFrameDecoder>();
+        services.AddSingleton<SkiaAnimatedImageFrameDecoder>();
+        services.AddSingleton<MagickAnimatedImageFrameDecoder>();
+        services.AddSingleton<IImageFrameDecoder>(provider =>
+            provider.GetRequiredService<
+                MagickMultiFrameImageDecoder>());
+        services.AddSingleton<IImageFrameDecoder>(provider =>
+            provider.GetRequiredService<
+                ApngImageFrameDecoder>());
+        services.AddSingleton<IImageFrameDecoder>(provider =>
+            provider.GetRequiredService<
+                AnimatedImageFrameDecoder>());
+        services.AddSingleton<IImageFrameDecoder>(provider =>
+            provider.GetRequiredService<
+                SkiaAnimatedImageFrameDecoder>());
+        services.AddSingleton<IImageFrameDecoder>(provider =>
+            provider.GetRequiredService<
+                MagickAnimatedImageFrameDecoder>());
+        services.AddSingleton<
+            IMultiFrameImageDecoder,
+            MultiFrameImageDecoder>();
+        services.AddSingleton<
+            IImageAnimationDelayScheduler,
+            ImageAnimationDelayScheduler>();
         services.AddSingleton<IImageViewerStateService, ImageViewerStateService>();
         services.AddSingleton<IViewModelErrorHandler, ViewModelErrorHandler>();
         services.AddSingleton<

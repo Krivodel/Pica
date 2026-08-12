@@ -1,8 +1,8 @@
-using Avalonia.Media.Imaging;
-
 namespace Pica.Viewer.Services;
 
 internal interface IFullResolutionImageLoader
 {
-    Task<Bitmap> LoadAsync(string fullPath, CancellationToken ct);
+    Task<DecodedImageContent> LoadAsync(
+        string fullPath,
+        CancellationToken ct);
 }

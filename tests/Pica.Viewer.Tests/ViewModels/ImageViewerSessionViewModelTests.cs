@@ -113,6 +113,424 @@ public sealed class ImageViewerSessionViewModelTests
     }
 
     [Fact]
+    public void NavigateFrameCommand_WithAnimationFrames_WrapsBackward()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.Animation,
+                    3)
+            }.AsReadOnly(),
+            0);
+        session.SetFramePresentation(
+            3,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+
+        viewModel.NavigateFrameCommand.Execute(-1);
+
+        viewModel.SelectedFrameIndex.Should().Be(2);
+        viewModel.FrameCount.Should().Be(3);
+        viewModel.CanNavigateFrames.Should().BeTrue();
+    }
+
+    [Fact]
+    public void NavigateFrameCommand_WithAnimationFrames_AdvancesForward()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.Animation,
+                    4)
+            }.AsReadOnly(),
+            0);
+        session.SetFramePresentation(
+            4,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+
+        viewModel.NavigateFrameCommand.Execute(1);
+
+        viewModel.SelectedFrameIndex.Should().Be(1);
+    }
+
+    [Fact]
+    public void NavigateFrameCommand_WithStillImages_KeepsSelection()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.StillImages,
+                    4,
+                    ImageFrameNumbering.Reverse)
+            }.AsReadOnly(),
+            0);
+        session.SetFramePresentation(
+            4,
+            ImageFramePresentationModes.ManualNavigation,
+            3,
+            ImageFrameNumbering.Reverse);
+
+        viewModel.NavigateFrameCommand.Execute(1);
+
+        viewModel.SelectedFrameIndex.Should().Be(3);
+        viewModel.CanNavigateFrames.Should().BeFalse();
+    }
+
+    [Fact]
+    public void NavigateFrameCommand_WhileAnimationContentLoads_KeepsSelection()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.Animation,
+                    3)
+            }.AsReadOnly(),
+            0);
+        session.SetFramePresentation(
+            3,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+        session.SetContentGroupLoading(true);
+
+        viewModel.NavigateFrameCommand.Execute(1);
+
+        viewModel.SelectedFrameIndex.Should().Be(0);
+        viewModel.CanNavigateFrames.Should().BeFalse();
+    }
+
+    [Fact]
+    public void NavigateContentCommand_WithMixedContent_CyclesImagesAndAnimations()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        IReadOnlyList<ImageContentGroupDefinition> groups =
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.StillImages,
+                    2),
+                new(
+                    ImageContentGroupKind.Animation,
+                    12),
+                new(
+                    ImageContentGroupKind.Animation,
+                    24)
+            }.AsReadOnly();
+        List<(int GroupIndex, int FrameIndex)> transitions = [];
+        session.ContentNavigationRequested += (_, e) =>
+            transitions.Add((e.GroupIndex, e.FrameIndex));
+        session.SetContentGroups(groups, 0);
+        session.SetFramePresentation(
+            2,
+            ImageFramePresentationModes.ManualNavigation,
+            0);
+
+        viewModel.NavigateContentCommand.Execute(1);
+        viewModel.SelectedFrameIndex.Should().Be(1);
+        session.SelectedContentGroupIndex.Should().Be(0);
+
+        viewModel.NavigateContentCommand.Execute(1);
+        session.SelectedContentGroupIndex.Should().Be(1);
+
+        viewModel.NavigateContentCommand.Execute(1);
+        session.SelectedContentGroupIndex.Should().Be(2);
+
+        viewModel.NavigateContentCommand.Execute(1);
+        session.SelectedContentGroupIndex.Should().Be(0);
+
+        viewModel.NavigateContentCommand.Execute(1);
+
+        viewModel.SelectedFrameIndex.Should().Be(1);
+        transitions.Should().Equal(
+            (0, 1),
+            (1, 0),
+            (2, 0),
+            (0, 0),
+            (0, 1));
+    }
+
+    [Fact]
+    public void NavigateContentCommand_WithReverseImageNumbering_UsesDisplayedOrder()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        IReadOnlyList<ImageContentGroupDefinition> groups =
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.StillImages,
+                    3,
+                    ImageFrameNumbering.Reverse)
+            }.AsReadOnly();
+        session.SetContentGroups(groups, 0);
+        session.SetFramePresentation(
+            3,
+            ImageFramePresentationModes.ManualNavigation,
+            2,
+            ImageFrameNumbering.Reverse);
+
+        viewModel.NavigateContentCommand.Execute(1);
+
+        viewModel.SelectedFrameIndex.Should().Be(1);
+    }
+
+    [Fact]
+    public void NavigateContentCommand_WithoutContentGroups_KeepsFileSelection()
+    {
+        ImageViewerSessionViewModel viewModel = CreateViewModel();
+
+        viewModel.NavigateContentCommand.Execute(1);
+
+        viewModel.SelectedIndex.Should().Be(0);
+        viewModel.SelectedItem?.Id.Should().Be(FirstItemId);
+    }
+
+    [Fact]
+    public void NavigateContentCommand_WithZeroDirection_ThrowsArgumentOutOfRangeException()
+    {
+        ImageViewerSessionViewModel viewModel = CreateViewModel();
+
+        Action act = () => viewModel.NavigateContentCommand.Execute(0);
+
+        act.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void ContentNavigationPanel_WithSingleStillImage_IsHidden()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.StillImages,
+                    1)
+            }.AsReadOnly(),
+            0);
+        session.SetFramePresentation(
+            1,
+            ImageFramePresentationModes.None,
+            0);
+
+        viewModel.IsContentNavigationPanelVisible.Should().BeFalse();
+        viewModel.IsNavigationInformationVisible.Should().BeFalse();
+        viewModel.IsImagesOnlyNavigationVisible.Should().BeFalse();
+        viewModel.IsAnimationNavigationVisible.Should().BeFalse();
+        viewModel.IsContentSelectionVisible.Should().BeFalse();
+        viewModel.IsContentNavigationEnabled.Should().BeFalse();
+        viewModel.IsFrameSelectionVisible.Should().BeFalse();
+        viewModel.SelectedContentText.Should().BeEmpty();
+        viewModel.SelectedFrameText.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ContentNavigationPanel_WithMultipleStillImages_ShowsImagesOnlyNavigation()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.StillImages,
+                    3)
+            }.AsReadOnly(),
+            0);
+        session.SetFramePresentation(
+            3,
+            ImageFramePresentationModes.ManualNavigation,
+            0);
+
+        viewModel.IsContentNavigationPanelVisible.Should().BeTrue();
+        viewModel.IsNavigationInformationVisible.Should().BeTrue();
+        viewModel.IsImagesOnlyNavigationVisible.Should().BeTrue();
+        viewModel.IsAnimationNavigationVisible.Should().BeFalse();
+        viewModel.IsContentNavigationEnabled.Should().BeTrue();
+        viewModel.IsFrameSelectionVisible.Should().BeFalse();
+        viewModel.SelectedContentText.Should().Be("Изображение 1/3");
+    }
+
+    [Fact]
+    public void ContentNavigationPanel_WithSingleAnimation_ShowsOnlyFrames()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.Animation,
+                    12)
+            }.AsReadOnly(),
+            0);
+        session.SetFramePresentation(
+            12,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+
+        session.AdvanceAnimationFrame();
+
+        viewModel.IsContentNavigationPanelVisible.Should().BeTrue();
+        viewModel.IsNavigationInformationVisible.Should().BeTrue();
+        viewModel.IsImagesOnlyNavigationVisible.Should().BeFalse();
+        viewModel.IsAnimationNavigationVisible.Should().BeTrue();
+        viewModel.IsContentSelectionVisible.Should().BeFalse();
+        viewModel.IsContentNavigationEnabled.Should().BeFalse();
+        viewModel.IsFrameSelectionVisible.Should().BeTrue();
+        viewModel.IsFrameSelectionSeparatorVisible.Should().BeFalse();
+        viewModel.SelectedFrameText.Should().Be("Кадр 2/12");
+    }
+
+    [Fact]
+    public void ContentNavigationPanel_WithMixedContent_ShowsTypeRelativeNumbers()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(CreateMixedContentGroups(), 0);
+        session.SetFramePresentation(
+            3,
+            ImageFramePresentationModes.ManualNavigation,
+            2,
+            ImageFrameNumbering.Reverse);
+
+        viewModel.NavigateContentCommand.Execute(1);
+
+        viewModel.SelectedContentText.Should().Be(
+            "Изображение 2/3 · Анимаций: 2");
+        viewModel.IsImagesOnlyNavigationVisible.Should().BeFalse();
+        viewModel.IsAnimationNavigationVisible.Should().BeTrue();
+        viewModel.IsContentNavigationEnabled.Should().BeTrue();
+        viewModel.IsFrameSelectionVisible.Should().BeFalse();
+        viewModel.IsFrameSelectionSeparatorVisible.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ContentNavigationPanel_WithSelectedAnimation_ShowsAnimationAndFrameNumbers()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(CreateMixedContentGroups(), 2);
+        session.SetFramePresentation(
+            24,
+            ImageFramePresentationModes.AutomaticPlayback,
+            3);
+
+        viewModel.SelectedContentText.Should().Be(
+            "Изображений: 3 · Анимация 2/2");
+        viewModel.SelectedFrameText.Should().Be("Кадр 4/24");
+        viewModel.IsAnimationNavigationVisible.Should().BeTrue();
+        viewModel.IsContentNavigationEnabled.Should().BeTrue();
+        viewModel.IsFrameSelectionVisible.Should().BeTrue();
+        viewModel.IsFrameSelectionSeparatorVisible.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ContentNavigationPanel_WithMultipleImageGroups_AggregatesImageNumbers()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(
+            new List<ImageContentGroupDefinition>
+            {
+                new(
+                    ImageContentGroupKind.StillImages,
+                    2),
+                new(
+                    ImageContentGroupKind.Animation,
+                    8),
+                new(
+                    ImageContentGroupKind.StillImages,
+                    3,
+                    ImageFrameNumbering.Reverse)
+            }.AsReadOnly(),
+            2);
+        session.SetFramePresentation(
+            3,
+            ImageFramePresentationModes.ManualNavigation,
+            2,
+            ImageFrameNumbering.Reverse);
+
+        viewModel.SelectedContentText.Should().Be(
+            "Изображение 3/5 · Анимаций: 1");
+    }
+
+    [Fact]
+    public void ContentNavigationPanel_WhileAnimationLoads_HidesStaleFrameInformation()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+        session.SetContentGroups(CreateMixedContentGroups(), 2);
+        session.SetFramePresentation(
+            24,
+            ImageFramePresentationModes.AutomaticPlayback,
+            3);
+
+        session.SetContentGroupLoading(true);
+
+        viewModel.IsContentNavigationPanelVisible.Should().BeTrue();
+        viewModel.SelectedContentText.Should().Be(
+            "Изображений: 3 · Анимация 2/2");
+        viewModel.IsAnimationNavigationVisible.Should().BeTrue();
+        viewModel.IsContentNavigationEnabled.Should().BeTrue();
+        viewModel.IsFrameSelectionVisible.Should().BeFalse();
+        viewModel.IsFrameSelectionSeparatorVisible.Should().BeFalse();
+        viewModel.SelectedFrameText.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AdvanceAnimationFrame_WithAutomaticPlayback_AdvancesSelection()
+    {
+        ImageViewerSession session = CreateSession();
+        session.SetFramePresentation(
+            2,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0);
+        session.AdvanceAnimationFrame();
+
+        session.SelectedFrameIndex.Should().Be(1);
+    }
+
+    [Fact]
+    public void AdvanceAnimationFrame_WithReverseNumbering_KeepsDecoderFrameOrder()
+    {
+        ImageViewerSession session = CreateSession();
+        session.SetFramePresentation(
+            3,
+            ImageFramePresentationModes.AutomaticPlayback,
+            0,
+            ImageFrameNumbering.Reverse);
+
+        session.AdvanceAnimationFrame();
+
+        session.SelectedFrameIndex.Should().Be(1);
+    }
+
+    [Fact]
+    public void SetAnimationBuffering_WhenStateChanges_ExposesUpdatedState()
+    {
+        ImageViewerSession session = CreateSession();
+        using ImageViewerSessionViewModel viewModel = new(session);
+
+        session.SetAnimationBuffering(true);
+
+        viewModel.IsAnimationBuffering.Should().BeTrue();
+    }
+
+    [Fact]
     public void ChannelAvailability_WhenAlphaBecomesUnavailable_SelectsBlueChannel()
     {
         ImageViewerSession session = CreateSession();
@@ -197,6 +615,24 @@ public sealed class ImageViewerSessionViewModelTests
         return new ImageViewerSession(
             CreateRequest(FirstItemId),
             false);
+    }
+
+    private static IReadOnlyList<ImageContentGroupDefinition>
+        CreateMixedContentGroups()
+    {
+        return new List<ImageContentGroupDefinition>
+        {
+            new(
+                ImageContentGroupKind.StillImages,
+                3,
+                ImageFrameNumbering.Reverse),
+            new(
+                ImageContentGroupKind.Animation,
+                12),
+            new(
+                ImageContentGroupKind.Animation,
+                24)
+        }.AsReadOnly();
     }
 
     private static PicaViewerRequest CreateRequest(Guid selectedItemId)

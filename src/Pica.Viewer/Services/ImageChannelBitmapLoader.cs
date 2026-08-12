@@ -24,13 +24,20 @@ internal sealed class ImageChannelBitmapLoader : IImageChannelBitmapLoader
         CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
-        IImageDecoder decoder = _decoderResolver.Resolve(fullPath);
+        IImageDecoder decoder = _decoderResolver
+            .Resolve(fullPath)
+            .Decoder;
+        byte[] data = await File.ReadAllBytesAsync(
+            fullPath,
+            ct).ConfigureAwait(false);
 
         return await RunLockedAsync(
             () => Task.Run(
                 () =>
                 {
-                    using FileStream stream = File.OpenRead(fullPath);
+                    using MemoryStream stream = new(
+                        data,
+                        writable: false);
 
                     return decoder.ReadHasAlpha(stream, ct);
                 },

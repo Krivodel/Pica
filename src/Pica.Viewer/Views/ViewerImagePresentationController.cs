@@ -14,6 +14,7 @@ internal sealed class ViewerImagePresentationController :
 {
     private readonly Window _owner;
     private readonly ImageViewerView _view;
+    private readonly ImageViewerSessionViewModel _session;
     private readonly ImageViewerInformationViewModel _information;
     private readonly ImagePresentationController _imagePresentation;
     private readonly ImageViewerSettingsViewModel _settings;
@@ -22,10 +23,13 @@ internal sealed class ViewerImagePresentationController :
     private readonly ViewerSelectionInteractionController
         _selectionInteraction;
     private readonly ViewerWindowModeController _windowMode;
+    private Guid? _displayedItemId;
+    private int _displayedFrameIndex = -1;
 
     internal ViewerImagePresentationController(
         Window owner,
         ImageViewerView view,
+        ImageViewerSessionViewModel session,
         ImageViewerInformationViewModel information,
         ImagePresentationController imagePresentation,
         ImageViewerSettingsViewModel settings,
@@ -37,6 +41,8 @@ internal sealed class ViewerImagePresentationController :
         _owner = owner
             ?? throw new ArgumentNullException(nameof(owner));
         _view = view ?? throw new ArgumentNullException(nameof(view));
+        _session = session
+            ?? throw new ArgumentNullException(nameof(session));
         _information = information
             ?? throw new ArgumentNullException(nameof(information));
         _imagePresentation = imagePresentation
@@ -163,6 +169,35 @@ internal sealed class ViewerImagePresentationController :
         }
     }
 
+    private bool HasDisplayedBitmapLayoutSizeChanged()
+    {
+        return (_view.Image.Width
+                != _viewport.GetImageDipWidth())
+            || (_view.Image.Height
+                != _viewport.GetImageDipHeight());
+    }
+
+    private bool IsStillImageSwitch()
+    {
+        if (!_imagePresentation.IsSourceBitmapDisplayed
+            || (_imagePresentation.CurrentItem is not { } currentItem))
+        {
+            return false;
+        }
+
+        int currentFrameIndex = _session.SelectedFrameIndex;
+        bool isFrameSwitch =
+            (_displayedItemId == currentItem.Id)
+            && (_displayedFrameIndex >= 0)
+            && (_displayedFrameIndex != currentFrameIndex);
+        _displayedItemId = currentItem.Id;
+        _displayedFrameIndex = currentFrameIndex;
+
+        return isFrameSwitch
+            && (_session.SelectedContentGroupKind
+                == ImageContentGroupKind.StillImages);
+    }
+
     private void OnImageLoadTransitioned(
         object? sender,
         ImageLoadTransitionEventArgs e)
@@ -181,6 +216,11 @@ internal sealed class ViewerImagePresentationController :
                 break;
             case ImageLoadTransitionKind.FullResolutionApplied:
                 ApplyFullResolutionLayout(e);
+                break;
+            case ImageLoadTransitionKind.ContentGroupApplied:
+                _viewport.ResetPanMotion();
+                _selectionInteraction.Cancel();
+                ApplyLoadedImageLayout();
                 break;
             default:
                 throw new ArgumentOutOfRangeException(
@@ -201,13 +241,31 @@ internal sealed class ViewerImagePresentationController :
             _view.Image.Source as Bitmap;
         Bitmap? displayedBitmap =
             _imagePresentation.DisplayedBitmap;
+        bool isStillImageSwitch =
+            IsStillImageSwitch();
         _view.Image.Source = displayedBitmap;
 
         if (!object.ReferenceEquals(
             previousBitmap,
             displayedBitmap))
         {
+            if (isStillImageSwitch)
+            {
+                ApplyLoadedImageLayout();
+            }
+            else if ((displayedBitmap is not null)
+                && HasDisplayedBitmapLayoutSizeChanged())
+            {
+                _viewport.ApplyImageLayout();
+            }
+
             RefreshSelectionAfterDisplayedBitmapChange();
+        }
+
+        if (displayedBitmap is null)
+        {
+            _displayedItemId = null;
+            _displayedFrameIndex = -1;
         }
     }
 

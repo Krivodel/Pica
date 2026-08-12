@@ -1,0 +1,10 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StreamGeometry x:Key="ViewerNextContentIconGeometry">M8,5 L15,12 L8,19 L10,19 L17,12 L10,5 Z</StreamGeometry>
+    <StreamGeometry x:Key="ViewerNextFrameIconGeometry">M7,5 L15,12 L7,19 Z M15,5 L17,5 L17,19 L15,19 Z</StreamGeometry>
+    <StreamGeometry x:Key="ViewerNextNavigationIconGeometry">M9,4 L17,12 L9,20 Z</StreamGeometry>
+    <StreamGeometry x:Key="ViewerPlayIconGeometry">M8,5 L19,12 L8,19 Z</StreamGeometry>
+    <StreamGeometry x:Key="ViewerPreviousContentIconGeometry">M16,5 L9,12 L16,19 L14,19 L7,12 L14,5 Z</StreamGeometry>
+    <StreamGeometry x:Key="ViewerPreviousFrameIconGeometry">M17,5 L9,12 L17,19 Z M7,5 L9,5 L9,19 L7,19 Z</StreamGeometry>
+    <StreamGeometry x:Key="ViewerPreviousNavigationIconGeometry">M15,4 L7,12 L15,20 Z</StreamGeometry>
+</ResourceDictionary>

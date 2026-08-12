@@ -7,4 +7,10 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Headless" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\src\Pica.Viewer\Assets\AppIcon.ico"
+          Link="AppIcon.ico"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

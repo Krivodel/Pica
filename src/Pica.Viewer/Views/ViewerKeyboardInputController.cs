@@ -146,6 +146,17 @@ internal sealed class ViewerKeyboardInputController
             return;
         }
 
+        if (TryGetFrameNavigationDirection(
+            e.Key,
+            e.PhysicalKey,
+            out int frameNavigationDirection))
+        {
+            _session.NavigateFrameCommand.Execute(
+                frameNavigationDirection);
+            e.Handled = true;
+            return;
+        }
+
         if (_selection.IsActive)
         {
             await HandleSelectionKeyDownAsync(e);
@@ -161,8 +172,9 @@ internal sealed class ViewerKeyboardInputController
             e.Key,
             out int navigationDirection))
         {
-            _session.NavigateCommand.Execute(
-                navigationDirection);
+            Navigate(
+                navigationDirection,
+                e.KeyModifiers);
             e.Handled = true;
         }
         else if ((e.Key == Key.C)
@@ -218,6 +230,29 @@ internal sealed class ViewerKeyboardInputController
         return false;
     }
 
+    private static bool TryGetFrameNavigationDirection(
+        Key key,
+        PhysicalKey physicalKey,
+        out int direction)
+    {
+        if ((key == Key.OemComma)
+            || (physicalKey == PhysicalKey.Comma))
+        {
+            direction = -1;
+            return true;
+        }
+
+        if ((key == Key.OemPeriod)
+            || (physicalKey == PhysicalKey.Period))
+        {
+            direction = 1;
+            return true;
+        }
+
+        direction = 0;
+        return false;
+    }
+
     private int GetEffectiveZoomSpeed(
         KeyModifiers modifiers)
     {
@@ -225,6 +260,19 @@ internal sealed class ViewerKeyboardInputController
             .IsBaseZoomSpeedRequested(modifiers)
             ? ViewerSettingsDefaults.MinimumSpeed
             : _settings.ZoomSpeed;
+    }
+
+    private void Navigate(
+        int direction,
+        KeyModifiers modifiers)
+    {
+        if (AlternateActionModifierPolicy.IsActive(modifiers))
+        {
+            _session.NavigateContentCommand.Execute(direction);
+            return;
+        }
+
+        _session.NavigateCommand.Execute(direction);
     }
 
     private void HandleEscape(KeyEventArgs e)
@@ -269,12 +317,16 @@ internal sealed class ViewerKeyboardInputController
                 CancellationToken.None);
             e.Handled = true;
         }
-        else if (_session.IsChannelModeActive
+        else if ((_session.IsChannelModeActive
+                || AlternateActionModifierPolicy.IsActive(
+                    e.KeyModifiers))
             && TryGetNavigationDirection(
                 e.Key,
                 out int channelDirection))
         {
-            _session.NavigateCommand.Execute(channelDirection);
+            Navigate(
+                channelDirection,
+                e.KeyModifiers);
             e.Handled = true;
         }
     }

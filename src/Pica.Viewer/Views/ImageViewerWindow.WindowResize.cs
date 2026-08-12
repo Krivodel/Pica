@@ -65,13 +65,20 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         _ = sender;
 
+        bool isContentNavigationRequested =
+            AlternateActionModifierPolicy.IsActive(
+                e.KeyModifiers);
+
         if (_selection.IsActive
-            && !Session.IsChannelModeActive)
+            && !Session.IsChannelModeActive
+            && !isContentNavigationRequested)
         {
             return;
         }
 
-        Session.NavigateCommand.Execute(-1);
+        NavigateFromNavigationArea(
+            -1,
+            isContentNavigationRequested);
         e.Handled = true;
     }
 
@@ -81,13 +88,33 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         _ = sender;
 
+        bool isContentNavigationRequested =
+            AlternateActionModifierPolicy.IsActive(
+                e.KeyModifiers);
+
         if (_selection.IsActive
-            && !Session.IsChannelModeActive)
+            && !Session.IsChannelModeActive
+            && !isContentNavigationRequested)
         {
             return;
         }
 
-        Session.NavigateCommand.Execute(1);
+        NavigateFromNavigationArea(
+            1,
+            isContentNavigationRequested);
         e.Handled = true;
+    }
+
+    private void NavigateFromNavigationArea(
+        int direction,
+        bool isContentNavigationRequested)
+    {
+        if (isContentNavigationRequested)
+        {
+            Session.NavigateContentCommand.Execute(direction);
+            return;
+        }
+
+        Session.NavigateCommand.Execute(direction);
     }
 }

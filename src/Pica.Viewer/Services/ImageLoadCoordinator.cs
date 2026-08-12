@@ -139,6 +139,39 @@ internal sealed class ImageLoadCoordinator :
         return _isFullResolutionReady;
     }
 
+    private static Bitmap GetRequiredInitialFrameBitmap(
+        DecodedImageContent content)
+    {
+        DecodedImage image = content.Groups[
+            content.InitialGroupIndex].GetRequiredImage();
+        DecodedImageFrame? frame = image.GetFrame(
+            image.PreferredInitialFrameIndex);
+
+        return frame?.Bitmap
+            ?? throw new InvalidOperationException(
+                $"Initial image frame {image.PreferredInitialFrameIndex} is not available.");
+    }
+
+    private static void DisposeUntransferredContent(
+        DecodedImageContent? content)
+    {
+        if (content is null)
+        {
+            return;
+        }
+
+        foreach (DecodedImageContentGroup group in content.Groups)
+        {
+            IReadOnlyList<DecodedImage> images =
+                group.StopAndGetLoadedImages();
+
+            foreach (DecodedImage image in images)
+            {
+                image.Dispose();
+            }
+        }
+    }
+
     private static string GetExistingImagePath(PicaImageItem item)
     {
         string fullPath = Path.GetFullPath(item.FilePath);
@@ -255,15 +288,19 @@ internal sealed class ImageLoadCoordinator :
         long loadId,
         CancellationToken ct)
     {
-        Bitmap? bitmap = null;
+        DecodedImageContent? content = null;
 
         try
         {
-            bitmap = await _fullResolutionImageLoader
+            content = await _fullResolutionImageLoader
                 .LoadAsync(fullPath, ct)
                 .ConfigureAwait(false);
 
-            Bitmap loadedBitmap = bitmap;
+            DecodedImageContent loadedContent = content;
+            DecodedImage loadedImage = loadedContent.Groups[
+                loadedContent.InitialGroupIndex].GetRequiredImage();
+            Bitmap initialFrameBitmap =
+                GetRequiredInitialFrameBitmap(loadedContent);
             bool isOwnershipTransferred = false;
             await _uiDispatcher.InvokeAsync(
                 () =>
@@ -277,7 +314,7 @@ internal sealed class ImageLoadCoordinator :
                         item,
                         fullPath,
                         null,
-                        loadedBitmap);
+                        loadedContent);
                     _isFullResolutionReady = true;
                     isOwnershipTransferred = true;
                 },
@@ -288,12 +325,13 @@ internal sealed class ImageLoadCoordinator :
                 return;
             }
 
-            bitmap = null;
+            content = null;
             _logger.LogInformation(
-                "Loaded Pica image {ItemId} at full resolution {Width}x{Height}",
+                "Loaded Pica image {ItemId} at full resolution {Width}x{Height} with {FrameCount} frames",
                 item.Id,
-                loadedBitmap.PixelSize.Width,
-                loadedBitmap.PixelSize.Height);
+                initialFrameBitmap.PixelSize.Width,
+                initialFrameBitmap.PixelSize.Height,
+                loadedImage.FrameCount);
         }
         catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
         {
@@ -308,7 +346,7 @@ internal sealed class ImageLoadCoordinator :
         }
         finally
         {
-            bitmap?.Dispose();
+            DisposeUntransferredContent(content);
         }
     }
 
@@ -321,7 +359,7 @@ internal sealed class ImageLoadCoordinator :
     {
         DecodedImagePreview? preview =
             _previewPrefetcher.Take(fullPath);
-        Bitmap? fullResolutionBitmap = null;
+        DecodedImageContent? fullResolutionContent = null;
         bool isPreviewOwnershipTransferred = false;
 
         try
@@ -359,11 +397,16 @@ internal sealed class ImageLoadCoordinator :
                     .ConfigureAwait(false);
             }
 
-            fullResolutionBitmap = await _fullResolutionImageLoader
+            fullResolutionContent = await _fullResolutionImageLoader
                 .LoadAsync(fullPath, ct)
                 .ConfigureAwait(false);
 
-            Bitmap loadedBitmap = fullResolutionBitmap;
+            DecodedImageContent loadedContent =
+                fullResolutionContent;
+            DecodedImage loadedImage = loadedContent.Groups[
+                loadedContent.InitialGroupIndex].GetRequiredImage();
+            Bitmap initialFrameBitmap =
+                GetRequiredInitialFrameBitmap(loadedContent);
             DecodedImagePreview? displayedPreview =
                 isPreviewOwnershipTransferred
                     ? preview
@@ -381,7 +424,7 @@ internal sealed class ImageLoadCoordinator :
                         item,
                         fullPath,
                         displayedPreview,
-                        loadedBitmap);
+                        loadedContent);
                     _isFullResolutionReady = true;
                     isFullResolutionApplied = true;
                 },
@@ -392,12 +435,13 @@ internal sealed class ImageLoadCoordinator :
                 return;
             }
 
-            fullResolutionBitmap = null;
+            fullResolutionContent = null;
             _logger.LogInformation(
-                "Progressively loaded Pica image {ItemId} at full resolution {Width}x{Height}",
+                "Progressively loaded Pica image {ItemId} at full resolution {Width}x{Height} with {FrameCount} frames",
                 item.Id,
-                loadedBitmap.PixelSize.Width,
-                loadedBitmap.PixelSize.Height);
+                initialFrameBitmap.PixelSize.Width,
+                initialFrameBitmap.PixelSize.Height,
+                loadedImage.FrameCount);
 
             await PrefetchAdjacentPreviewBitmapsAsync(
                 selectedIndex,
@@ -422,7 +466,7 @@ internal sealed class ImageLoadCoordinator :
                 preview?.Bitmap.Dispose();
             }
 
-            fullResolutionBitmap?.Dispose();
+            DisposeUntransferredContent(fullResolutionContent);
         }
     }
 

@@ -1,5 +1,3 @@
-using Avalonia.Media.Imaging;
-
 using Pica.Protocol;
 
 namespace Pica.Viewer.Services;
@@ -17,5 +15,5 @@ internal interface IImageLoadPresentationSink
         PicaImageItem item,
         string fullPath,
         DecodedImagePreview? displayedPreview,
-        Bitmap bitmap);
+        DecodedImageContent content);
 }

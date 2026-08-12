@@ -593,7 +593,9 @@ public sealed class ImageLoadCoordinatorTests
             new ImagePreviewLoader(
                 formatRegistry,
                 NullLogger<ImagePreviewLoader>.Instance),
-            new FullResolutionImageLoader(formatRegistry),
+            new FullResolutionImageLoader(
+                formatRegistry,
+                MultiFrameImageDecoderTestFactory.Create()),
             new AvaloniaViewerUiDispatcher(),
             isFastLoadingEnabled);
     }

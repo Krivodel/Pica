@@ -12,6 +12,7 @@ namespace Pica.Viewer.Services;
 internal sealed class ImagePresentationController :
     IImagePresentationInfo,
     IImageLoadPresentationSink,
+    IImageFrameSource,
     IDisposable
 {
     public PicaImageItem? CurrentItem { get; private set; }
@@ -19,6 +20,42 @@ internal sealed class ImagePresentationController :
         new(SourcePixelSize.Width, SourcePixelSize.Height);
 
     public event EventHandler? Changed;
+
+    int IImageFrameSource.FrameCount =>
+        _decodedImage?.FrameCount ?? 0;
+    int IImageFrameSource.LoadedFrameCount =>
+        _decodedImage?.LoadedFrameCount ?? 0;
+    int IImageFrameSource.PlaybackBufferFrameCount =>
+        _decodedImage?.PlaybackStartFrameCount ?? 0;
+    TimeSpan IImageFrameSource.CurrentFrameDuration =>
+        GetCurrentFrame()?.Duration ?? TimeSpan.Zero;
+    ImageFramePresentationModes IImageFrameSource.FramePresentationMode =>
+        _isContentGroupTransitioning
+            ? ImageFramePresentationModes.None
+            : _decodedImage?.FramePresentationMode
+        ?? ImageFramePresentationModes.None;
+    uint IImageFrameSource.AnimationIterations =>
+        _decodedImage?.AnimationIterations ?? 0;
+    bool IImageFrameSource.IsPlaybackStartBufferReady =>
+        _decodedImage?.IsPlaybackStartBufferReady
+        == true;
+    bool IImageFrameSource.IsFullyDecoded =>
+        _decodedImage?.IsFullyDecoded
+        == true;
+    bool IImageFrameSource.IsDecodingComplete =>
+        _decodedImage?.IsDecodingComplete
+        == true;
+
+    event EventHandler? IImageFrameSource.FramesChanged
+    {
+        add => FramesChanged += value;
+        remove => FramesChanged -= value;
+    }
+    event EventHandler? IImageFrameSource.FrameAvailabilityChanged
+    {
+        add => FrameAvailabilityChanged += value;
+        remove => FrameAvailabilityChanged -= value;
+    }
 
     internal Bitmap? DisplayedBitmap { get; private set; }
     internal Bitmap? SourceBitmap { get; private set; }
@@ -30,6 +67,8 @@ internal sealed class ImagePresentationController :
         && object.ReferenceEquals(DisplayedBitmap, SourceBitmap);
 
     internal event EventHandler<ImageLoadTransitionEventArgs>? LoadTransitioned;
+    internal event EventHandler? FramesChanged;
+    internal event EventHandler? FrameAvailabilityChanged;
 
     private readonly ImageViewerSession _session;
     private readonly IImageChannelBitmapLoader _channelBitmapLoader;
@@ -42,12 +81,20 @@ internal sealed class ImagePresentationController :
     private readonly HashSet<Bitmap> _pendingBitmapDisposals =
         new(ReferenceEqualityComparer.Instance);
     private Bitmap? _channelBitmap;
+    private DecodedImageContent? _decodedContent;
+    private DecodedImage? _decodedImage;
+    private int _activeContentGroupIndex;
+    private int _contentGroupLoadId;
+    private int _contentNavigationTargetGroupIndex = -1;
+    private int _contentNavigationTargetFrameIndex;
+    private readonly Dictionary<int, int> _contentGroupFrameIndices = [];
     private long _channelLoadId;
     private OperationCancellation? _channelLoadCancellation;
     private Task? _activeChannelLoadTask;
     private TaskCompletionSource? _bitmapLeaseReleaseCompletion;
     private Task? _disposalTask;
     private bool _disposed;
+    private bool _isContentGroupTransitioning;
 
     internal ImagePresentationController(
         ImageViewerSession session,
@@ -62,6 +109,8 @@ internal sealed class ImagePresentationController :
             ?? throw new ArgumentNullException(nameof(uiDispatcher));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _session.PropertyChanged += OnSessionPropertyChanged;
+        _session.ContentNavigationRequested +=
+            OnContentNavigationRequested;
     }
 
     public void Dispose()
@@ -111,24 +160,35 @@ internal sealed class ImagePresentationController :
         PicaImageItem item,
         string fullPath,
         DecodedImagePreview? displayedPreview,
-        Bitmap bitmap)
+        DecodedImageContent content)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
-        ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentNullException.ThrowIfNull(content);
         Bitmap? previewBitmap = displayedPreview?.Bitmap;
         bool wasPreviewDisplayed = (previewBitmap is not null)
             && object.ReferenceEquals(DisplayedBitmap, previewBitmap);
         PixelSize previousPixelSize =
             previewBitmap?.PixelSize ?? new PixelSize();
         PicaImageItem displayedItem = item with { FilePath = fullPath };
-        ReplaceFullResolutionBitmap(displayedItem, bitmap);
+        ReplaceFullResolutionContent(displayedItem, content);
+        DecodedImage image = content.Groups[
+            content.InitialGroupIndex].GetRequiredImage();
+        Bitmap initialFrameBitmap = GetRequiredFrame(
+            image,
+            image.PreferredInitialFrameIndex).Bitmap;
         OnLoadTransitioned(
             new ImageLoadTransitionEventArgs(
                 ImageLoadTransitionKind.FullResolutionApplied,
                 wasPreviewDisplayed,
                 previousPixelSize,
-                bitmap.PixelSize));
+                initialFrameBitmap.PixelSize));
+    }
+
+    bool IImageFrameSource.IsFrameAvailable(int frameIndex)
+    {
+        return _decodedImage?.IsFrameAvailable(frameIndex)
+            == true;
     }
 
     internal void ReplacePreviewBitmap(
@@ -149,12 +209,25 @@ internal sealed class ImagePresentationController :
     internal void BeginImageLoad()
     {
         ThrowIfDisposed();
+        _contentGroupLoadId++;
+        _isContentGroupTransitioning = false;
+        ClearContentNavigationTarget();
+        _contentGroupFrameIndices.Clear();
+        DecodedImage? image;
+        DecodedImageContent? content;
 
         lock (_bitmapOwnershipSync)
         {
             IsFullResolutionReady = false;
+            image = _decodedImage;
+            content = _decodedContent;
         }
 
+        image?.CancelDecoding();
+        CancelContentLoading(content);
+        _session.ClearContentGroups();
+        _session.ClearFramePresentation();
+        OnFramesChanged();
         CancelPendingChannelLoad();
     }
 
@@ -165,11 +238,95 @@ internal sealed class ImagePresentationController :
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(bitmap);
         ThrowIfDisposed();
-        ReplaceSourceBitmap(
+        ReplaceFullResolutionImage(
             item,
-            bitmap,
-            bitmap.PixelSize,
-            true);
+            DecodedImage.CreateSingle(bitmap));
+    }
+
+    internal void ReplaceFullResolutionImage(
+        PicaImageItem item,
+        DecodedImage image)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(image);
+        ReplaceFullResolutionContent(
+            item,
+            DecodedImageContent.CreateSingle(image));
+    }
+
+    internal void ReplaceFullResolutionContent(
+        PicaImageItem item,
+        DecodedImageContent content)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(content);
+        ThrowIfDisposed();
+        DecodedImage image = content.Groups[
+            content.InitialGroupIndex].GetRequiredImage();
+        _contentGroupLoadId++;
+        _isContentGroupTransitioning = false;
+        ClearContentNavigationTarget();
+        _contentGroupFrameIndices.Clear();
+        Task? activeChannelLoadTask = _activeChannelLoadTask;
+        CancelPendingChannelLoad();
+        Bitmap? previousChannelBitmap;
+        Bitmap? previousSourceBitmap;
+        DecodedImage? previousDecodedImage;
+        DecodedImageContent? previousDecodedContent;
+        image.SetStoredBitmapReleaseHandler(
+            DisposeBitmapWhenUnused);
+        image.SetPlaybackFrameIndex(
+            image.PreferredInitialFrameIndex);
+        DecodedImageFrame initialFrame = GetRequiredFrame(
+            image,
+            image.PreferredInitialFrameIndex);
+
+        lock (_bitmapOwnershipSync)
+        {
+            previousChannelBitmap = _channelBitmap;
+            previousSourceBitmap = SourceBitmap;
+            previousDecodedImage = _decodedImage;
+            previousDecodedContent = _decodedContent;
+
+            if (previousDecodedImage is not null)
+            {
+                previousDecodedImage.FrameDecoded -=
+                    OnDecodedImageFrameDecoded;
+            }
+
+            _channelBitmap = null;
+            _decodedContent = content;
+            _decodedImage = image;
+            _activeContentGroupIndex = content.InitialGroupIndex;
+            DisplayedChannel = null;
+            SourceBitmap = initialFrame.Bitmap;
+            DisplayedBitmap = initialFrame.Bitmap;
+            CurrentItem = item;
+            SourcePixelSize = initialFrame.Bitmap.PixelSize;
+            IsFullResolutionReady = true;
+        }
+
+        image.FrameDecoded += OnDecodedImageFrameDecoded;
+        DisposeBitmapWhenUnused(previousChannelBitmap);
+        DisposeReplacedContent(
+            previousDecodedContent,
+            previousDecodedImage,
+            previousSourceBitmap,
+            activeChannelLoadTask);
+        _session.SetContentGroups(
+            content.Groups
+                .Select(group => group.Definition)
+                .ToList()
+                .AsReadOnly(),
+            content.InitialGroupIndex);
+        _session.SetFramePresentation(
+            image.FrameCount,
+            image.FramePresentationMode,
+            image.PreferredInitialFrameIndex,
+            image.FrameNumbering);
+        _ = ObserveDecodedImageCompletionAsync(image);
+        OnFramesChanged();
+        OnDisplayedBitmapChanged();
         StartSelectedChannelLoad();
     }
 
@@ -234,6 +391,15 @@ internal sealed class ImagePresentationController :
             .ConfigureAwait(false);
     }
 
+    private static DecodedImageFrame GetRequiredFrame(
+        DecodedImage image,
+        int frameIndex)
+    {
+        return image.GetFrame(frameIndex)
+            ?? throw new InvalidOperationException(
+                $"Decoded image frame {frameIndex} is not available.");
+    }
+
     private Task BeginDisposal()
     {
         lock (_disposalSync)
@@ -244,6 +410,8 @@ internal sealed class ImagePresentationController :
             }
 
             _session.PropertyChanged -= OnSessionPropertyChanged;
+            _session.ContentNavigationRequested -=
+                OnContentNavigationRequested;
             _disposed = true;
             _disposalTask = ReleaseResourcesAsync();
 
@@ -257,12 +425,25 @@ internal sealed class ImagePresentationController :
         CancelPendingChannelLoad();
         Bitmap? channelBitmap;
         Bitmap? sourceBitmap;
+        DecodedImage? decodedImage;
+        DecodedImageContent? decodedContent;
 
         lock (_bitmapOwnershipSync)
         {
             channelBitmap = _channelBitmap;
             sourceBitmap = SourceBitmap;
+            decodedImage = _decodedImage;
+            decodedContent = _decodedContent;
+
+            if (decodedImage is not null)
+            {
+                decodedImage.FrameDecoded -=
+                    OnDecodedImageFrameDecoded;
+            }
+
             _channelBitmap = null;
+            _decodedContent = null;
+            _decodedImage = null;
             DisplayedBitmap = null;
             SourceBitmap = null;
             CurrentItem = null;
@@ -274,7 +455,22 @@ internal sealed class ImagePresentationController :
         OnDisplayedBitmapChanged();
         DisposeBitmapWhenUnused(channelBitmap);
 
-        if (sourceBitmap is not null)
+        if (decodedContent is not null)
+        {
+            await DisposeDecodedContentForCleanupAsync(
+                decodedContent,
+                decodedImage,
+                activeChannelLoadTask)
+                .ConfigureAwait(false);
+        }
+        else if (decodedImage is not null)
+        {
+            await DisposeDecodedImageForCleanupAsync(
+                decodedImage,
+                activeChannelLoadTask)
+                .ConfigureAwait(false);
+        }
+        else if (sourceBitmap is not null)
         {
             await DisposeBitmapForCleanupAsync(
                 sourceBitmap,
@@ -599,12 +795,25 @@ internal sealed class ImagePresentationController :
         CancelPendingChannelLoad();
         Bitmap? previousChannelBitmap;
         Bitmap? previousSourceBitmap;
+        DecodedImage? previousDecodedImage;
+        DecodedImageContent? previousDecodedContent;
 
         lock (_bitmapOwnershipSync)
         {
             previousChannelBitmap = _channelBitmap;
             previousSourceBitmap = SourceBitmap;
+            previousDecodedImage = _decodedImage;
+            previousDecodedContent = _decodedContent;
+
+            if (previousDecodedImage is not null)
+            {
+                previousDecodedImage.FrameDecoded -=
+                    OnDecodedImageFrameDecoded;
+            }
+
             _channelBitmap = null;
+            _decodedContent = null;
+            _decodedImage = null;
             DisplayedChannel = null;
             SourceBitmap = bitmap;
             DisplayedBitmap = bitmap;
@@ -615,14 +824,502 @@ internal sealed class ImagePresentationController :
 
         DisposeBitmapWhenUnused(previousChannelBitmap);
 
-        if (previousSourceBitmap is not null)
-        {
-            DisposeBitmapAfterTask(
-                previousSourceBitmap,
-                activeChannelLoadTask);
-        }
+        DisposeReplacedContent(
+            previousDecodedContent,
+            previousDecodedImage,
+            previousSourceBitmap,
+            activeChannelLoadTask);
 
         OnDisplayedBitmapChanged();
+    }
+
+    private DecodedImageFrame? GetCurrentFrame()
+    {
+        DecodedImage? image = _decodedImage;
+        int frameIndex = _session.SelectedFrameIndex;
+
+        return image?.GetFrame(frameIndex);
+    }
+
+    private void ShowSelectedFrame()
+    {
+        if (!IsFullResolutionReady)
+        {
+            return;
+        }
+
+        DecodedImage? image = _decodedImage;
+
+        if (image is null)
+        {
+            return;
+        }
+
+        image.SetPlaybackFrameIndex(
+            _session.SelectedFrameIndex);
+        DecodedImageFrame? frame = GetCurrentFrame();
+
+        if (frame is null)
+        {
+            return;
+        }
+
+        CancelPendingChannelLoad();
+        Bitmap? channelBitmap;
+
+        lock (_bitmapOwnershipSync)
+        {
+            channelBitmap = _channelBitmap;
+            _channelBitmap = null;
+            DisplayedChannel = null;
+            SourceBitmap = frame.Bitmap;
+            DisplayedBitmap = frame.Bitmap;
+            SourcePixelSize = frame.Bitmap.PixelSize;
+        }
+
+        DisposeBitmapWhenUnused(channelBitmap);
+        OnDisplayedBitmapChanged();
+        StartSelectedChannelLoad();
+    }
+
+    private void StartContentGroupSelection()
+    {
+        DecodedImageContent? content = _decodedContent;
+        int requestedGroupIndex =
+            _session.SelectedContentGroupIndex;
+
+        if ((content is null)
+            || (requestedGroupIndex < 0)
+            || (requestedGroupIndex >= content.Groups.Count))
+        {
+            return;
+        }
+
+        if (requestedGroupIndex != _contentNavigationTargetGroupIndex)
+        {
+            ClearContentNavigationTarget();
+        }
+
+        if ((requestedGroupIndex == _activeContentGroupIndex)
+            && !_isContentGroupTransitioning)
+        {
+            return;
+        }
+
+        int previousGroupIndex = _activeContentGroupIndex;
+        _contentGroupFrameIndices[previousGroupIndex] =
+            _session.SelectedFrameIndex;
+        int loadId = ++_contentGroupLoadId;
+        _isContentGroupTransitioning = true;
+        OnFramesChanged();
+        DecodedImageContentGroup group =
+            content.Groups[requestedGroupIndex];
+
+        if (group.IsLoaded)
+        {
+            ApplyContentGroup(
+                content,
+                requestedGroupIndex,
+                loadId);
+            return;
+        }
+
+        _session.SetContentGroupLoading(true);
+        _ = LoadContentGroupAsync(
+            content,
+            requestedGroupIndex,
+            previousGroupIndex,
+            loadId);
+    }
+
+    private async Task LoadContentGroupAsync(
+        DecodedImageContent content,
+        int groupIndex,
+        int previousGroupIndex,
+        int loadId)
+    {
+        try
+        {
+            await content.Groups[groupIndex]
+                .LoadAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+            await _uiDispatcher.InvokeAsync(
+                () => ApplyContentGroup(
+                    content,
+                    groupIndex,
+                    loadId),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            await CompleteFailedContentGroupSelectionAsync(
+                content,
+                groupIndex,
+                previousGroupIndex,
+                loadId,
+                null).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await CompleteFailedContentGroupSelectionAsync(
+                content,
+                groupIndex,
+                previousGroupIndex,
+                loadId,
+                ex).ConfigureAwait(false);
+        }
+    }
+
+    private async Task CompleteFailedContentGroupSelectionAsync(
+        DecodedImageContent content,
+        int groupIndex,
+        int previousGroupIndex,
+        int loadId,
+        Exception? exception)
+    {
+        if (exception is not null)
+        {
+            _logger.LogError(
+                exception,
+                "Failed to load image content group {GroupKind}.",
+                content.Groups[groupIndex].Definition.Kind);
+        }
+
+        await _uiDispatcher.InvokeAsync(
+            () =>
+            {
+                if (!CanApplyContentGroup(
+                    content,
+                    groupIndex,
+                    loadId))
+                {
+                    return;
+                }
+
+                _isContentGroupTransitioning = false;
+                _session.SetContentGroupLoading(false);
+                ClearContentNavigationTarget(groupIndex);
+                _session.RestoreContentGroupSelection(
+                    previousGroupIndex);
+                OnFramesChanged();
+            },
+            CancellationToken.None).ConfigureAwait(false);
+    }
+
+    private void ApplyContentGroup(
+        DecodedImageContent content,
+        int groupIndex,
+        int loadId)
+    {
+        if (!CanApplyContentGroup(content, groupIndex, loadId))
+        {
+            return;
+        }
+
+        DecodedImageContentGroup group = content.Groups[groupIndex];
+        DecodedImage image = group.GetRequiredImage();
+        int frameIndex = GetContentGroupFrameIndex(
+            group,
+            groupIndex,
+            image);
+        image.SetStoredBitmapReleaseHandler(
+            DisposeBitmapWhenUnused);
+        image.SetPlaybackFrameIndex(frameIndex);
+        DecodedImageFrame initialFrame = GetRequiredFrame(
+            image,
+            frameIndex);
+        PixelSize previousPixelSize = SourcePixelSize;
+        CancelPendingChannelLoad();
+        Bitmap? previousChannelBitmap;
+        DecodedImage? previousImage;
+
+        lock (_bitmapOwnershipSync)
+        {
+            previousChannelBitmap = _channelBitmap;
+            previousImage = _decodedImage;
+
+            if (previousImage is not null)
+            {
+                previousImage.FrameDecoded -=
+                    OnDecodedImageFrameDecoded;
+            }
+
+            _channelBitmap = null;
+            _decodedImage = image;
+            _activeContentGroupIndex = groupIndex;
+            DisplayedChannel = null;
+            SourceBitmap = initialFrame.Bitmap;
+            DisplayedBitmap = initialFrame.Bitmap;
+            SourcePixelSize = initialFrame.Bitmap.PixelSize;
+        }
+
+        image.FrameDecoded += OnDecodedImageFrameDecoded;
+        DisposeBitmapWhenUnused(previousChannelBitmap);
+        _isContentGroupTransitioning = false;
+        _session.SetContentGroupLoading(false);
+        ClearContentNavigationTarget(groupIndex);
+        _session.SetFramePresentation(
+            image.FrameCount,
+            image.FramePresentationMode,
+            frameIndex,
+            image.FrameNumbering);
+        _ = ObserveDecodedImageCompletionAsync(image);
+        OnFramesChanged();
+        OnDisplayedBitmapChanged();
+        OnLoadTransitioned(
+            new ImageLoadTransitionEventArgs(
+                ImageLoadTransitionKind.ContentGroupApplied,
+                false,
+                previousPixelSize,
+                initialFrame.Bitmap.PixelSize));
+        StartSelectedChannelLoad();
+    }
+
+    private bool CanApplyContentGroup(
+        DecodedImageContent content,
+        int groupIndex,
+        int loadId)
+    {
+        return !_disposed
+            && object.ReferenceEquals(content, _decodedContent)
+            && (groupIndex == _session.SelectedContentGroupIndex)
+            && (loadId == _contentGroupLoadId);
+    }
+
+    private int GetContentGroupFrameIndex(
+        DecodedImageContentGroup group,
+        int groupIndex,
+        DecodedImage image)
+    {
+        if (group.Definition.Kind == ImageContentGroupKind.Animation)
+        {
+            return 0;
+        }
+
+        if (groupIndex == _contentNavigationTargetGroupIndex)
+        {
+            return _contentNavigationTargetFrameIndex;
+        }
+
+        return _contentGroupFrameIndices.GetValueOrDefault(
+            groupIndex,
+            image.PreferredInitialFrameIndex);
+    }
+
+    private void ClearContentNavigationTarget(int groupIndex)
+    {
+        if (groupIndex == _contentNavigationTargetGroupIndex)
+        {
+            ClearContentNavigationTarget();
+        }
+    }
+
+    private void ClearContentNavigationTarget()
+    {
+        _contentNavigationTargetGroupIndex = -1;
+        _contentNavigationTargetFrameIndex = 0;
+    }
+
+    private void DisposeReplacedSource(
+        DecodedImage? decodedImage,
+        Bitmap? sourceBitmap,
+        Task? activeTask)
+    {
+        if (decodedImage is not null)
+        {
+            DisposeDecodedImageAfterTask(
+                decodedImage,
+                activeTask);
+            return;
+        }
+
+        if (sourceBitmap is not null)
+        {
+            DisposeBitmapAfterTask(sourceBitmap, activeTask);
+        }
+    }
+
+    private static void CancelContentLoading(
+        DecodedImageContent? content)
+    {
+        if (content is null)
+        {
+            return;
+        }
+
+        foreach (DecodedImageContentGroup group in content.Groups)
+        {
+            group.CancelLoading();
+        }
+    }
+
+    private void DisposeReplacedContent(
+        DecodedImageContent? content,
+        DecodedImage? activeImage,
+        Bitmap? activeBitmap,
+        Task? activeTask)
+    {
+        if (content is null)
+        {
+            DisposeReplacedSource(
+                activeImage,
+                activeBitmap,
+                activeTask);
+            return;
+        }
+
+        foreach (DecodedImageContentGroup group in content.Groups)
+        {
+            IReadOnlyList<DecodedImage> images =
+                group.StopAndGetLoadedImages();
+
+            foreach (DecodedImage image in images)
+            {
+                bool isActiveImage = object.ReferenceEquals(
+                    image,
+                    activeImage);
+                DisposeDecodedImageAfterTask(
+                    image,
+                    isActiveImage ? activeTask : null);
+            }
+
+            ObserveStoppedGroupLoading(group);
+        }
+    }
+
+    private void ObserveStoppedGroupLoading(
+        DecodedImageContentGroup group)
+    {
+        Task? loadingCompletion = group.GetLoadingCompletion();
+
+        if ((loadingCompletion is not null)
+            && !loadingCompletion.IsCompletedSuccessfully)
+        {
+            _ = ObserveStoppedGroupLoadingAsync(loadingCompletion);
+        }
+    }
+
+    private async Task ObserveStoppedGroupLoadingAsync(Task loadingTask)
+    {
+        try
+        {
+            await loadingTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "A deferred image content group failed while its container was being released.");
+        }
+    }
+
+    private void DisposeDecodedImageAfterTask(
+        DecodedImage image,
+        Task? activeTask)
+    {
+        image.CancelDecoding();
+        _ = DisposeDecodedImageAfterTaskAsync(
+            image,
+            activeTask);
+    }
+
+    private async Task DisposeDecodedImageAfterTaskAsync(
+        DecodedImage image,
+        Task? activeTask)
+    {
+        try
+        {
+            await image.DecodingCompletion.ConfigureAwait(false);
+
+            if (activeTask is not null)
+            {
+                try
+                {
+                    await activeTask.ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "A channel operation failed while releasing a replaced Pica image.");
+                }
+            }
+
+            image.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to release a replaced progressively decoded Pica image.");
+        }
+    }
+
+    private async Task DisposeDecodedImageForCleanupAsync(
+        DecodedImage image,
+        Task? activeTask)
+    {
+        image.CancelDecoding();
+        await image.DecodingCompletion.ConfigureAwait(false);
+
+        if (activeTask is not null)
+        {
+            try
+            {
+                await activeTask.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "A channel operation failed while closing the Pica viewer.");
+            }
+        }
+
+        image.Dispose();
+    }
+
+    private async Task DisposeDecodedContentForCleanupAsync(
+        DecodedImageContent content,
+        DecodedImage? activeImage,
+        Task? activeTask)
+    {
+        foreach (DecodedImageContentGroup group in content.Groups)
+        {
+            IReadOnlyList<DecodedImage> images =
+                group.StopAndGetLoadedImages();
+
+            foreach (DecodedImage image in images)
+            {
+                await DisposeDecodedImageForCleanupAsync(
+                    image,
+                    object.ReferenceEquals(image, activeImage)
+                        ? activeTask
+                        : null).ConfigureAwait(false);
+            }
+
+            Task? loadingCompletion = group.GetLoadingCompletion();
+
+            if (loadingCompletion is not null)
+            {
+                try
+                {
+                    await loadingCompletion.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "A deferred image content group failed while closing the Pica viewer.");
+                }
+            }
+        }
     }
 
     private void DisposeBitmapWhenUnused(Bitmap? bitmap)
@@ -719,6 +1416,72 @@ internal sealed class ImagePresentationController :
         }
     }
 
+    private async Task ObserveDecodedImageCompletionAsync(
+        DecodedImage image)
+    {
+        Exception? decodingException =
+            await image.DecodingCompletion.ConfigureAwait(false);
+
+        if (decodingException is not null)
+        {
+            _logger.LogError(
+                decodingException,
+                "Failed to decode all frames of a Pica image.");
+        }
+
+        bool isCurrentImage;
+
+        lock (_bitmapOwnershipSync)
+        {
+            isCurrentImage = object.ReferenceEquals(
+                image,
+                _decodedImage);
+        }
+
+        if (isCurrentImage)
+        {
+            OnFrameAvailabilityChanged();
+        }
+    }
+
+    private async Task ApplyDecodedFrameAvailabilityAsync(
+        DecodedImage image)
+    {
+        try
+        {
+            await _uiDispatcher.InvokeAsync(
+                () =>
+                {
+                    if (_disposed
+                        || !object.ReferenceEquals(
+                            image,
+                            _decodedImage))
+                    {
+                        return;
+                    }
+
+                    DecodedImageFrame? selectedFrame =
+                        image.GetFrame(
+                            _session.SelectedFrameIndex);
+
+                    if ((selectedFrame is not null)
+                        && !object.ReferenceEquals(
+                            selectedFrame.Bitmap,
+                            SourceBitmap))
+                    {
+                        ShowSelectedFrame();
+                    }
+                },
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to apply a progressively decoded Pica image frame.");
+        }
+    }
+
     private void CancelPendingChannelLoad()
     {
         _channelLoadId++;
@@ -738,9 +1501,42 @@ internal sealed class ImagePresentationController :
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    private void OnFramesChanged()
+    {
+        FramesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnFrameAvailabilityChanged()
+    {
+        FrameAvailabilityChanged?.Invoke(
+            this,
+            EventArgs.Empty);
+    }
+
     private void OnLoadTransitioned(ImageLoadTransitionEventArgs e)
     {
         LoadTransitioned?.Invoke(this, e);
+    }
+
+    private void OnDecodedImageFrameDecoded(
+        object? sender,
+        DecodedImageFrameDecodedEventArgs e)
+    {
+        if ((sender is not DecodedImage image)
+            || !object.ReferenceEquals(
+                image,
+                _decodedImage))
+        {
+            return;
+        }
+
+        OnFrameAvailabilityChanged();
+
+        if (e.FrameIndex
+            == _session.SelectedFrameIndex)
+        {
+            _ = ApplyDecodedFrameAvailabilityAsync(image);
+        }
     }
 
     private void OnSessionPropertyChanged(
@@ -748,6 +1544,15 @@ internal sealed class ImagePresentationController :
         PropertyChangedEventArgs e)
     {
         _ = sender;
+
+        if (string.Equals(
+            e.PropertyName,
+            nameof(ImageViewerSession.SelectedContentGroupIndex),
+            StringComparison.Ordinal))
+        {
+            StartContentGroupSelection();
+            return;
+        }
 
         if (string.Equals(
             e.PropertyName,
@@ -768,6 +1573,15 @@ internal sealed class ImagePresentationController :
 
         if (string.Equals(
             e.PropertyName,
+            nameof(ImageViewerSession.SelectedFrameIndex),
+            StringComparison.Ordinal))
+        {
+            ShowSelectedFrame();
+            return;
+        }
+
+        if (string.Equals(
+            e.PropertyName,
             nameof(ImageViewerSession.SelectedChannel),
             StringComparison.Ordinal)
             && _session.IsChannelModeActive)
@@ -775,5 +1589,23 @@ internal sealed class ImagePresentationController :
             OnDisplayedBitmapChanged();
             StartSelectedChannelLoad();
         }
+    }
+
+    private void OnContentNavigationRequested(
+        object? sender,
+        ImageContentNavigationRequestedEventArgs e)
+    {
+        _ = sender;
+        _contentGroupFrameIndices[e.GroupIndex] = e.FrameIndex;
+
+        if ((e.GroupIndex == _activeContentGroupIndex)
+            && !_isContentGroupTransitioning)
+        {
+            ClearContentNavigationTarget();
+            return;
+        }
+
+        _contentNavigationTargetGroupIndex = e.GroupIndex;
+        _contentNavigationTargetFrameIndex = e.FrameIndex;
     }
 }

@@ -14,12 +14,26 @@ internal sealed class RecordingImageLoadPresentationSink :
     internal int FullResolutionCount { get; private set; }
     internal PicaImageItem? LastItem { get; private set; }
     internal DecodedImagePreview? Preview { get; private set; }
-    internal Bitmap? FullResolutionBitmap { get; private set; }
+    internal Bitmap? FullResolutionBitmap =>
+        FullResolutionImage?.Frames[0].Bitmap;
+    internal DecodedImage? FullResolutionImage { get; private set; }
+    internal DecodedImageContent? FullResolutionContent { get; private set; }
 
     public void Dispose()
     {
         Preview?.Bitmap.Dispose();
-        FullResolutionBitmap?.Dispose();
+        if (FullResolutionContent is not null)
+        {
+            foreach (DecodedImageContentGroup group
+                in FullResolutionContent.Groups)
+            {
+                foreach (DecodedImage image
+                    in group.StopAndGetLoadedImages())
+                {
+                    image.Dispose();
+                }
+            }
+        }
     }
 
     public void BeginImageLoad(PicaImageItem item)
@@ -44,13 +58,15 @@ internal sealed class RecordingImageLoadPresentationSink :
         PicaImageItem item,
         string fullPath,
         DecodedImagePreview? displayedPreview,
-        Bitmap bitmap)
+        DecodedImageContent content)
     {
         LastItem = item ?? throw new ArgumentNullException(nameof(item));
         ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
         Preview = displayedPreview;
-        FullResolutionBitmap = bitmap
-            ?? throw new ArgumentNullException(nameof(bitmap));
+        FullResolutionContent = content
+            ?? throw new ArgumentNullException(nameof(content));
+        FullResolutionImage = content.Groups[
+            content.InitialGroupIndex].GetRequiredImage();
         FullResolutionCount++;
     }
 }

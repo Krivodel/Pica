@@ -1,0 +1,136 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Pica.Viewer.ViewModels"
+             x:Class="Pica.Viewer.Controls.ImageContentNavigationControl"
+             x:DataType="vm:ImageViewerSessionViewModel">
+    <StackPanel HorizontalAlignment="Center"
+                Spacing="6">
+        <Border x:Name="ContentNavigationInformation"
+                Classes="viewer-content-navigation-information"
+                IsVisible="{Binding IsNavigationInformationVisible}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6">
+                <Grid IsVisible="{Binding IsContentSelectionVisible}">
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Classes="viewer-content-navigation-label"
+                               IsHitTestVisible="False"
+                               Opacity="0"
+                               Text="{Binding ImageContentWidthReferenceText}" />
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Classes="viewer-content-navigation-label"
+                               IsHitTestVisible="False"
+                               Opacity="0"
+                               Text="{Binding AnimationContentWidthReferenceText}" />
+                    <TextBlock x:Name="SelectedContentText"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Center"
+                               Classes="viewer-content-navigation-label"
+                               Text="{Binding SelectedContentText}" />
+                </Grid>
+
+                <Border Classes="viewer-content-navigation-information-separator"
+                        IsVisible="{Binding IsFrameSelectionSeparatorVisible}" />
+
+                <Grid IsVisible="{Binding IsFrameSelectionVisible}">
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Classes="viewer-frame-navigation-label"
+                               IsHitTestVisible="False"
+                               Opacity="0"
+                               Text="{Binding FrameWidthReferenceText}" />
+                    <TextBlock x:Name="SelectedFrameText"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Center"
+                               Classes="viewer-frame-navigation-label"
+                               Text="{Binding SelectedFrameText}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Grid x:Name="NavigationControlsPanel"
+              HorizontalAlignment="Center">
+            <StackPanel x:Name="ImagesOnlyNavigationPanel"
+                        HorizontalAlignment="Center"
+                        IsVisible="{Binding IsImagesOnlyNavigationVisible}"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                <Button x:Name="ImagesOnlyPreviousContentButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding IsContentNavigationEnabled}"
+                        Command="{Binding NavigateContentCommand}">
+                    <Button.CommandParameter>
+                        <x:Int32>-1</x:Int32>
+                    </Button.CommandParameter>
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerPreviousContentIconGeometry}" />
+                </Button>
+                <Button x:Name="ImagesOnlyNextContentButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding IsContentNavigationEnabled}"
+                        Command="{Binding NavigateContentCommand}">
+                    <Button.CommandParameter>
+                        <x:Int32>1</x:Int32>
+                    </Button.CommandParameter>
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerNextContentIconGeometry}" />
+                </Button>
+            </StackPanel>
+
+            <StackPanel x:Name="AnimationNavigationPanel"
+                        HorizontalAlignment="Center"
+                        IsVisible="{Binding IsAnimationNavigationVisible}"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                <Button x:Name="PreviousFrameButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding IsFrameSelectionVisible}"
+                        Command="{Binding NavigateFrameCommand}">
+                    <Button.CommandParameter>
+                        <x:Int32>-1</x:Int32>
+                    </Button.CommandParameter>
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerPreviousFrameIconGeometry}" />
+                </Button>
+                <Button x:Name="NextFrameButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding IsFrameSelectionVisible}"
+                        Command="{Binding NavigateFrameCommand}">
+                    <Button.CommandParameter>
+                        <x:Int32>1</x:Int32>
+                    </Button.CommandParameter>
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerNextFrameIconGeometry}" />
+                </Button>
+
+                <Button x:Name="PlayAnimationButton"
+                        Classes="viewer-tool-button">
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerPlayIconGeometry}" />
+                </Button>
+
+                <Button x:Name="PreviousContentButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding IsContentNavigationEnabled}"
+                        Command="{Binding NavigateContentCommand}">
+                    <Button.CommandParameter>
+                        <x:Int32>-1</x:Int32>
+                    </Button.CommandParameter>
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerPreviousContentIconGeometry}" />
+                </Button>
+                <Button x:Name="NextContentButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding IsContentNavigationEnabled}"
+                        Command="{Binding NavigateContentCommand}">
+                    <Button.CommandParameter>
+                        <x:Int32>1</x:Int32>
+                    </Button.CommandParameter>
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerNextContentIconGeometry}" />
+                </Button>
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</UserControl>

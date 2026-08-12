@@ -8,6 +8,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using FluentAssertions;
 using SkiaSharp;
 using Xunit;
@@ -15,6 +16,7 @@ using Xunit;
 using Pica.Protocol;
 using Pica.Tests.Common;
 using Pica.Viewer.Services;
+using Pica.Viewer.Tests;
 using Pica.Viewer.Tests.TestDoubles;
 using Pica.Viewer.ViewModels;
 using Pica.Viewer.Views;
@@ -35,7 +37,7 @@ public sealed class ImageViewerWindowTests
     public static AppBuilder BuildAvaloniaApp()
     {
         return AppBuilder
-            .Configure<Application>()
+            .Configure<ViewerTestApplication>()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions());
     }
 
@@ -137,6 +139,342 @@ public sealed class ImageViewerWindowTests
 
                 view.CheckerboardBackground.IsVisible.Should().BeFalse();
                 view.Image.Source.Should().BeSameAs(source);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ModifiedNavigationKeys_WithDifferentStillImageSizes_NavigateAndResetImageLayout()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            PicaImageItem item = new(
+                ItemId,
+                imagePath,
+                "image.heif");
+            PicaViewerRequest request = new(
+                new List<PicaImageItem> { item },
+                ItemId);
+            ControlledFullResolutionImageLoader fullResolutionLoader = new(
+                new List<string> { imagePath });
+            ImageViewerState state = new()
+            {
+                IsFastLoadingEnabled = false,
+                ResizeBehavior = WindowResizeBehavior.Free
+            };
+            ImageViewerWindow window = CreateWindow(
+                request,
+                state,
+                new RecordingImageChannelBitmapLoader(),
+                new ImagePreviewLoader(
+                    new ImageFormatRegistry(),
+                    NullLogger<ImagePreviewLoader>.Instance),
+                fullResolutionLoader);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+            using CancellationTokenSource timeout = new(
+                TimeSpan.FromSeconds(TestTimeoutSeconds));
+            Bitmap firstBitmap = CreateBitmap(1024, 536);
+            Bitmap secondBitmap = CreateBitmap(640, 480);
+            DecodedImage image = new(
+                [
+                    new DecodedImageFrame(firstBitmap, TimeSpan.Zero),
+                    new DecodedImageFrame(secondBitmap, TimeSpan.Zero)
+                ],
+                ImageFramePresentationModes.ManualNavigation,
+                0);
+
+            try
+            {
+                window.Show();
+                await fullResolutionLoader.WaitUntilStartedAsync(
+                    imagePath,
+                    timeout.Token);
+                fullResolutionLoader.Complete(imagePath, image);
+                await WaitForImageSourceAsync(
+                    view,
+                    firstBitmap,
+                    timeout.Token);
+
+                window.KeyPress(
+                    Key.OemPeriod,
+                    RawInputModifiers.None,
+                    PhysicalKey.Period,
+                    null);
+                await WaitForImageSourceAsync(
+                    view,
+                    firstBitmap,
+                    timeout.Token);
+
+                window.KeyPress(
+                    Key.Right,
+                    RawInputModifiers.Shift,
+                    PhysicalKey.ArrowRight,
+                    null);
+                await WaitForImageSourceAsync(
+                    view,
+                    secondBitmap,
+                    timeout.Token);
+
+                Size viewportSize = view.ViewerArea.Bounds.Size;
+                double renderScaling = window.RenderScaling;
+                double expectedScale =
+                    ImageWindowGeometry.CalculateFittedScale(
+                        secondBitmap.PixelSize,
+                        new Size(
+                            viewportSize.Width * renderScaling,
+                            viewportSize.Height * renderScaling));
+                double expectedWidth =
+                    secondBitmap.PixelSize.Width
+                    * expectedScale
+                    / renderScaling;
+                double expectedHeight =
+                    secondBitmap.PixelSize.Height
+                    * expectedScale
+                    / renderScaling;
+                view.Image.Width.Should().BeApproximately(
+                    expectedWidth,
+                    0.001d);
+                view.Image.Height.Should().BeApproximately(
+                    expectedHeight,
+                    0.001d);
+                Canvas.GetLeft(view.Image).Should().BeApproximately(
+                    (viewportSize.Width - expectedWidth) / 2d,
+                    0.001d);
+                Canvas.GetTop(view.Image).Should().BeApproximately(
+                    (viewportSize.Height - expectedHeight) / 2d,
+                    0.001d);
+                view.CheckerboardBackground.Width.Should().Be(
+                    view.Image.Width);
+                view.CheckerboardBackground.Height.Should().Be(
+                    view.Image.Height);
+
+                window.KeyPress(
+                    Key.Left,
+                    RawInputModifiers.Shift,
+                    PhysicalKey.ArrowLeft,
+                    null);
+                await WaitForImageSourceAsync(
+                    view,
+                    firstBitmap,
+                    timeout.Token);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task FramePunctuationKeys_WithAnimation_NavigateFrames()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            PicaImageItem item = new(
+                ItemId,
+                imagePath,
+                "image.gif");
+            PicaViewerRequest request = new(
+                new List<PicaImageItem> { item },
+                ItemId);
+            ControlledFullResolutionImageLoader fullResolutionLoader = new(
+                new List<string> { imagePath });
+            ImageViewerState state = new()
+            {
+                IsFastLoadingEnabled = false,
+                ResizeBehavior = WindowResizeBehavior.Free
+            };
+            ImageViewerWindow window = CreateWindow(
+                request,
+                state,
+                new RecordingImageChannelBitmapLoader(),
+                new ImagePreviewLoader(
+                    new ImageFormatRegistry(),
+                    NullLogger<ImagePreviewLoader>.Instance),
+                fullResolutionLoader);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+            using CancellationTokenSource timeout = new(
+                TimeSpan.FromSeconds(TestTimeoutSeconds));
+            Bitmap firstBitmap = CreateBitmap(640, 360);
+            Bitmap secondBitmap = CreateBitmap(640, 360);
+            DecodedImage animation = new(
+                [
+                    new DecodedImageFrame(
+                        firstBitmap,
+                        TimeSpan.FromHours(1d)),
+                    new DecodedImageFrame(
+                        secondBitmap,
+                        TimeSpan.FromHours(1d))
+                ],
+                ImageFramePresentationModes.AutomaticPlayback,
+                0);
+
+            try
+            {
+                window.Show();
+                await fullResolutionLoader.WaitUntilStartedAsync(
+                    imagePath,
+                    timeout.Token);
+                fullResolutionLoader.Complete(imagePath, animation);
+                await WaitForImageSourceAsync(
+                    view,
+                    firstBitmap,
+                    timeout.Token);
+
+                window.KeyPress(
+                    Key.OemPeriod,
+                    RawInputModifiers.None,
+                    PhysicalKey.Period,
+                    null);
+                await WaitForImageSourceAsync(
+                    view,
+                    secondBitmap,
+                    timeout.Token);
+
+                window.KeyPress(
+                    Key.None,
+                    RawInputModifiers.None,
+                    PhysicalKey.Comma,
+                    null);
+                await WaitForImageSourceAsync(
+                    view,
+                    firstBitmap,
+                    timeout.Token);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ModifiedNavigationKeys_WithMixedContent_CycleImagesAndAnimations()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            PicaImageItem item = new(
+                ItemId,
+                imagePath,
+                "image.avif");
+            PicaViewerRequest request = new(
+                new List<PicaImageItem> { item },
+                ItemId);
+            ControlledFullResolutionImageLoader fullResolutionLoader = new(
+                new List<string> { imagePath });
+            ImageViewerState state = new()
+            {
+                IsFastLoadingEnabled = false,
+                ResizeBehavior = WindowResizeBehavior.Free
+            };
+            ImageViewerWindow window = CreateWindow(
+                request,
+                state,
+                new RecordingImageChannelBitmapLoader(),
+                new ImagePreviewLoader(
+                    new ImageFormatRegistry(),
+                    NullLogger<ImagePreviewLoader>.Instance),
+                fullResolutionLoader);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+            using CancellationTokenSource timeout = new(
+                TimeSpan.FromSeconds(TestTimeoutSeconds));
+            Bitmap firstStillBitmap = CreateBitmap(640, 360);
+            Bitmap secondStillBitmap = CreateBitmap(480, 480);
+            Bitmap animationBitmap = CreateBitmap(360, 640);
+            DecodedImage stillImages = new(
+                [
+                    new DecodedImageFrame(
+                        firstStillBitmap,
+                        TimeSpan.Zero),
+                    new DecodedImageFrame(
+                        secondStillBitmap,
+                        TimeSpan.Zero)
+                ],
+                ImageFramePresentationModes.ManualNavigation,
+                0);
+            DecodedImage animation = new(
+                [
+                    new DecodedImageFrame(
+                        animationBitmap,
+                        TimeSpan.FromMilliseconds(100d))
+                ],
+                ImageFramePresentationModes.AutomaticPlayback,
+                0);
+            DecodedImageContent content = new(
+                [
+                    new DecodedImageContentGroup(
+                        new ImageContentGroupDefinition(
+                            ImageContentGroupKind.StillImages,
+                            2),
+                        stillImages),
+                    new DecodedImageContentGroup(
+                        new ImageContentGroupDefinition(
+                            ImageContentGroupKind.Animation,
+                            1),
+                        animation)
+                ],
+                0);
+
+            try
+            {
+                window.Show();
+                await fullResolutionLoader.WaitUntilStartedAsync(
+                    imagePath,
+                    timeout.Token);
+                fullResolutionLoader.Complete(imagePath, content);
+                await WaitForImageSourceAsync(
+                    view,
+                    firstStillBitmap,
+                    timeout.Token);
+
+                window.KeyPress(
+                    Key.D,
+                    RawInputModifiers.Shift,
+                    PhysicalKey.D,
+                    null);
+                await WaitForImageSourceAsync(
+                    view,
+                    secondStillBitmap,
+                    timeout.Token);
+
+                window.KeyPress(
+                    Key.Right,
+                    RawInputModifiers.Control,
+                    PhysicalKey.ArrowRight,
+                    null);
+                await WaitForImageSourceAsync(
+                    view,
+                    animationBitmap,
+                    timeout.Token);
+
+                window.KeyPress(
+                    Key.Left,
+                    RawInputModifiers.Alt,
+                    PhysicalKey.ArrowLeft,
+                    null);
+                await WaitForImageSourceAsync(
+                    view,
+                    secondStillBitmap,
+                    timeout.Token);
             }
             finally
             {
@@ -493,7 +831,9 @@ public sealed class ImageViewerWindowTests
             new ImagePreviewLoader(
                 formatRegistry,
                 NullLogger<ImagePreviewLoader>.Instance),
-            new FullResolutionImageLoader(formatRegistry));
+            new FullResolutionImageLoader(
+                formatRegistry,
+                MultiFrameImageDecoderTestFactory.Create()));
     }
 
     private static ImageViewerWindow CreateWindow(
@@ -559,15 +899,19 @@ public sealed class ImageViewerWindowTests
             formatRegistry,
             NullLogger<ImagePreviewLoader>.Instance);
         fullResolutionLoader ??=
-            new FullResolutionImageLoader(formatRegistry);
+            new FullResolutionImageLoader(
+                formatRegistry,
+                MultiFrameImageDecoderTestFactory.Create());
         ViewModelErrorHandler errorHandler = new(
             NullLogger<ViewModelErrorHandler>.Instance);
         ImageViewerPresentationFactory presentationFactory = new(
             previewLoader,
             fullResolutionLoader,
             channelBitmapLoader,
+            new ImageAnimationDelayScheduler(),
             uiDispatcher,
             NullLogger<ImagePresentationController>.Instance,
+            NullLogger<ImageAnimationPlaybackController>.Instance,
             NullLogger<ImageLoadCoordinator>.Instance,
             NullLogger<ImagePreviewPrefetcher>.Instance);
         ImageViewerSettingsFactory settingsFactory = new(
@@ -673,6 +1017,59 @@ public sealed class ImageViewerWindowTests
             content.ToArray());
 
         return imagePath;
+    }
+
+    private static Bitmap CreateBitmap(
+        int width,
+        int height)
+    {
+        return new WriteableBitmap(
+            new PixelSize(width, height),
+            new Vector(96d, 96d),
+            PixelFormat.Bgra8888,
+            AlphaFormat.Unpremul);
+    }
+
+    private static async Task WaitForImageSourceAsync(
+        ImageViewerView view,
+        Bitmap expectedBitmap,
+        CancellationToken ct)
+    {
+        if (object.ReferenceEquals(
+            view.Image.Source,
+            expectedBitmap))
+        {
+            return;
+        }
+
+        TaskCompletionSource sourceChanged = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnImagePropertyChanged(
+            object? sender,
+            AvaloniaPropertyChangedEventArgs e)
+        {
+            _ = sender;
+
+            if ((e.Property == Image.SourceProperty)
+                && object.ReferenceEquals(
+                    view.Image.Source,
+                    expectedBitmap))
+            {
+                sourceChanged.TrySetResult();
+            }
+        }
+
+        view.Image.PropertyChanged += OnImagePropertyChanged;
+
+        try
+        {
+            await sourceChanged.Task.WaitAsync(ct);
+        }
+        finally
+        {
+            view.Image.PropertyChanged -= OnImagePropertyChanged;
+        }
     }
 
     private static async Task DispatchAsync(Action action)

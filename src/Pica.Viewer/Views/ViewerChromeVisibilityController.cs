@@ -71,10 +71,14 @@ internal sealed class ViewerChromeVisibilityController
         SetControlVisibility(
             _view.RightNavigationArea,
             pointerPosition.X >= viewport.Width - edgeWidth);
+        bool areBottomControlsVisible = pointerPosition.Y
+            >= viewport.Height - BottomRevealSize;
         SetControlVisibility(
             _view.BottomControls,
-            pointerPosition.Y
-                >= viewport.Height - BottomRevealSize);
+            areBottomControlsVisible);
+        SetControlVisibility(
+            _view.ContentNavigationPanel,
+            areBottomControlsVisible);
         UpdateInformationVisibility(pointerPosition);
         UpdateWindowButtonVisibility(pointerPosition, viewport);
     }
@@ -90,6 +94,7 @@ internal sealed class ViewerChromeVisibilityController
         SetControlVisibility(_view.LeftNavigationArea, false);
         SetControlVisibility(_view.RightNavigationArea, false);
         SetControlVisibility(_view.BottomControls, false);
+        SetControlVisibility(_view.ContentNavigationPanel, false);
         SetInformationVisibility(false);
         SetControlVisibility(
             _view.FullscreenSettingsButton,

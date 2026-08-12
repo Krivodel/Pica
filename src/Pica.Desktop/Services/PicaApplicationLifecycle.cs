@@ -259,9 +259,6 @@ internal sealed class PicaApplicationLifecycle : IDisposable
         _backgroundIdleCoordinator.Start(
             idleTimeout,
             _applicationCancellationSource.Token);
-        _logger.LogInformation(
-            "Pica is waiting in the background for {IdleTimeoutSeconds} seconds",
-            state.BackgroundIdleTimeoutSeconds);
         IPicaBackgroundActivation? activation = null;
         Task<IPicaBackgroundActivation?> activationCompletion =
             _backgroundIdleCoordinator.Completion;
@@ -273,6 +270,14 @@ internal sealed class PicaApplicationLifecycle : IDisposable
                 activationCompletion,
                 _applicationCancellationSource.Token);
             await _clipboardImageWriter.FlushAsync(CancellationToken.None);
+
+            if (!activationCompletion.IsCompleted)
+            {
+                _logger.LogInformation(
+                    "Pica is waiting in the background for {IdleTimeoutSeconds} seconds",
+                    state.BackgroundIdleTimeoutSeconds);
+            }
+
             activation = await activationCompletion;
         }
         finally

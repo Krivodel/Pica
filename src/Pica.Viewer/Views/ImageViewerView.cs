@@ -28,9 +28,11 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     internal Border CheckerboardBackground { get; }
     internal Border CheckerboardPattern { get; }
     internal Image Image { get; }
+    internal Control AnimationLoadingIndicator { get; }
     internal Border LeftNavigationArea { get; }
     internal Border RightNavigationArea { get; }
     internal Grid BottomControls { get; }
+    internal ImageContentNavigationControl ContentNavigationPanel { get; }
     internal Button ToolMenuButton { get; }
     internal Canvas ToolMenuLayer { get; }
     internal Border ToolMenu { get; }
@@ -79,15 +81,19 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         "ViewerWindowButtonSize";
     private const string WindowIconHostSizeResourceKey =
         "ViewerWindowIconHostSize";
+    private const string CheckerboardDarkColorResourceKey =
+        "ViewerCheckerboardDarkColor";
+    private const string CheckerboardLightColorResourceKey =
+        "ViewerCheckerboardLightColor";
     private const double SettingsPanelTopGap = 8d;
     private const double SettingsPanelRightMargin = 12d;
     private const double SelectionButtonSize = 42d;
     private const double SelectionButtonSpacing = 6d;
     private const double SelectionToolbarPadding = 8d;
     private readonly List<Bitmap> _openWithIcons = [];
+    private readonly WriteableBitmap _checkerboardBitmap;
     private readonly ImageViewerToolMenuControl _toolMenuControl;
     private readonly Grid _viewerDynamicLayer;
-    private readonly double _checkerboardTileSize;
     private readonly TranslateTransform _checkerboardPatternTransform;
 
     internal ImageViewerView(
@@ -103,6 +109,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         ArgumentNullException.ThrowIfNull(events);
 
         InitializeComponent();
+        DataContext = session;
         HiddenControlsOpacity =
             GetRequiredDouble(HiddenControlsOpacityResourceKey);
         NavigationAreaMinimumWidth =
@@ -128,26 +135,27 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             this.FindControl<Border>("CheckerboardPatternControl")
             ?? throw new InvalidOperationException(
                 "The image viewer is missing its checkerboard pattern.");
-        VisualBrush checkerboardBrush =
-            CheckerboardPattern.Background as VisualBrush
-            ?? throw new InvalidOperationException(
-                "The image viewer is missing its checkerboard brush.");
-        _checkerboardTileSize =
-            checkerboardBrush.DestinationRect.Rect.Width;
-
-        if (_checkerboardTileSize <= 0d)
-        {
-            throw new InvalidOperationException(
-                "The image viewer checkerboard tile must have a positive size.");
-        }
-
+        _checkerboardBitmap = ViewerCheckerboardFactory.CreateBitmap(
+            GetRequiredColor(
+                CheckerboardLightColorResourceKey),
+            GetRequiredColor(
+                CheckerboardDarkColorResourceKey));
+        CheckerboardPattern.Background =
+            ViewerCheckerboardFactory.CreateBrush(
+                _checkerboardBitmap);
         _checkerboardPatternTransform = new TranslateTransform();
-        CheckerboardPattern.Margin = new Thickness(-_checkerboardTileSize);
+        CheckerboardPattern.Margin = new Thickness(
+            -ViewerCheckerboardFactory.TileSize);
         CheckerboardPattern.RenderTransformOrigin = RelativePoint.TopLeft;
         CheckerboardPattern.RenderTransform = _checkerboardPatternTransform;
         Image = this.FindControl<Image>("ImageControl")
             ?? throw new InvalidOperationException(
                 "The image viewer is missing its image control.");
+        AnimationLoadingIndicator =
+            this.FindControl<Control>(
+                "AnimationLoadingIndicatorControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its animation loading indicator.");
         _viewerDynamicLayer = this.FindControl<Grid>("ViewerDynamicLayerControl")
             ?? throw new InvalidOperationException(
                 "The image viewer is missing its dynamic layer.");
@@ -173,6 +181,11 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         BottomControls = this.FindControl<Grid>("BottomControlsControl")
             ?? throw new InvalidOperationException(
                 "The image viewer is missing its bottom controls.");
+        ContentNavigationPanel =
+            this.FindControl<ImageContentNavigationControl>(
+                "ContentNavigationPanelControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its content navigation panel.");
         Button zoomOutButton = GetRequiredButton("ZoomOutButton");
         Button resetButton = GetRequiredButton("ResetButton");
         Button zoomInButton = GetRequiredButton("ZoomInButton");
@@ -251,6 +264,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     public void Dispose()
     {
         DisposeOpenWithIcons();
+        CheckerboardPattern.Background = null;
+        _checkerboardBitmap.Dispose();
     }
 
     internal void UpdateSettingsPanelPlacement(ViewerWindowMode windowMode)
@@ -875,7 +890,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
 
     private double NormalizeCheckerboardPatternOffset(double offset)
     {
-        return offset % _checkerboardTileSize;
+        return offset % ViewerCheckerboardFactory.TileSize;
     }
 
     private void DisposeOpenWithIcons()
@@ -903,6 +918,23 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         }
 
         return brush;
+    }
+
+    private Color GetRequiredColor(string resourceKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
+
+        if (!this.TryFindResource(
+            resourceKey,
+            ActualThemeVariant,
+            out object? resource)
+            || resource is not Color color)
+        {
+            throw new InvalidOperationException(
+                $"The image viewer is missing its '{resourceKey}' color.");
+        }
+
+        return color;
     }
 
     private IEffect GetRequiredEffect(string resourceKey)

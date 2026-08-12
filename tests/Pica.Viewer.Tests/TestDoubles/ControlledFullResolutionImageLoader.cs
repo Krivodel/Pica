@@ -8,7 +8,7 @@ internal sealed class ControlledFullResolutionImageLoader :
     IFullResolutionImageLoader
 {
     private readonly object _sync = new();
-    private readonly Dictionary<string, TaskCompletionSource<Bitmap>>
+    private readonly Dictionary<string, TaskCompletionSource<DecodedImageContent>>
         _completions;
     private readonly Dictionary<string, TaskCompletionSource<bool>>
         _starts;
@@ -19,7 +19,7 @@ internal sealed class ControlledFullResolutionImageLoader :
     {
         ArgumentNullException.ThrowIfNull(fullPaths);
         _completions =
-            new Dictionary<string, TaskCompletionSource<Bitmap>>(
+            new Dictionary<string, TaskCompletionSource<DecodedImageContent>>(
                 StringComparer.OrdinalIgnoreCase);
         _starts =
             new Dictionary<string, TaskCompletionSource<bool>>(
@@ -32,7 +32,7 @@ internal sealed class ControlledFullResolutionImageLoader :
             ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
             _completions.Add(
                 fullPath,
-                new TaskCompletionSource<Bitmap>(
+                new TaskCompletionSource<DecodedImageContent>(
                     TaskCreationOptions.RunContinuationsAsynchronously));
             _starts.Add(
                 fullPath,
@@ -41,12 +41,12 @@ internal sealed class ControlledFullResolutionImageLoader :
         }
     }
 
-    public Task<Bitmap> LoadAsync(
+    public Task<DecodedImageContent> LoadAsync(
         string fullPath,
         CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
-        TaskCompletionSource<Bitmap> completion;
+        TaskCompletionSource<DecodedImageContent> completion;
         TaskCompletionSource<bool> start;
 
         lock (_sync)
@@ -65,7 +65,28 @@ internal sealed class ControlledFullResolutionImageLoader :
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
         ArgumentNullException.ThrowIfNull(bitmap);
-        _completions[fullPath].TrySetResult(bitmap);
+        _completions[fullPath].TrySetResult(
+            DecodedImageContent.CreateSingle(
+                DecodedImage.CreateSingle(bitmap)));
+    }
+
+    internal void Complete(
+        string fullPath,
+        DecodedImage image)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
+        ArgumentNullException.ThrowIfNull(image);
+        _completions[fullPath].TrySetResult(
+            DecodedImageContent.CreateSingle(image));
+    }
+
+    internal void Complete(
+        string fullPath,
+        DecodedImageContent content)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
+        ArgumentNullException.ThrowIfNull(content);
+        _completions[fullPath].TrySetResult(content);
     }
 
     internal CancellationToken GetCancellationToken(string fullPath)
