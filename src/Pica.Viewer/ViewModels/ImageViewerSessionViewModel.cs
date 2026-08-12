@@ -91,7 +91,7 @@ internal sealed partial class ImageViewerSessionViewModel :
     internal string AnimationTimeText =>
         IsAnimationTimeVisible
             ? ImageContentNavigationFormatter.FormatAnimationTime(
-                _session.AnimationPosition,
+                GetDisplayedAnimationPosition(),
                 _session.AnimationDuration)
             : string.Empty;
     internal string ImageContentWidthReferenceText =>
@@ -206,6 +206,14 @@ internal sealed partial class ImageViewerSessionViewModel :
     private bool CanSeekAnimation()
     {
         return IsAnimationTimelineEnabled;
+    }
+
+    private TimeSpan GetDisplayedAnimationPosition()
+    {
+        return IsAnimationTimelineEnabled
+            && (SelectedFrameIndex == FrameCount - 1)
+                ? _session.AnimationDuration
+                : _session.AnimationPosition;
     }
 
     private void OnSessionPropertyChanged(

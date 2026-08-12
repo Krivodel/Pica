@@ -671,7 +671,7 @@ public sealed class ImageViewerSessionViewModelTests
         viewModel.AnimationTimelineMaximum.Should().Be(2d);
         viewModel.AnimationTimelineValue.Should().Be(2d);
         viewModel.AnimationTimeText.Should().Be(
-            "0:00.20 / 0:00.30");
+            "0:00.30 / 0:00.30");
     }
 
     [Fact]
