@@ -4,11 +4,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Chrome;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.VisualTree;
 using FluentAssertions;
 using SkiaSharp;
 using Xunit;
@@ -63,6 +65,103 @@ public sealed class ImageViewerWindowTests
                         "The viewer content must be created.");
 
                 view.CheckerboardBackground.IsVisible.Should().BeTrue();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task TitleBarDoubleClick_InWindowedMode_EntersFullScreenMode()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+
+            try
+            {
+                window.Show();
+                window.CanResize.Should().BeFalse();
+                window.CanMaximize.Should().BeFalse();
+                Button maximizeButton = window
+                    .GetVisualDescendants()
+                    .OfType<Button>()
+                    .Single(button => string.Equals(
+                        button.Name,
+                        "PART_MaximizeButton",
+                        StringComparison.Ordinal));
+                Control titleBar = window
+                    .GetVisualDescendants()
+                    .OfType<Control>()
+                    .Single(control => string.Equals(
+                        control.Name,
+                        "PART_TitleBar",
+                        StringComparison.Ordinal));
+                maximizeButton.IsVisible.Should().BeFalse();
+                titleBar
+                    .GetVisualDescendants()
+                    .Prepend(titleBar)
+                    .Should()
+                    .NotContain(visual =>
+                        WindowDecorationProperties.GetElementRole(visual)
+                        == WindowDecorationsElementRole.TitleBar);
+                Point titleBarCenter = titleBar.TranslatePoint(
+                    new Point(
+                        titleBar.Bounds.Width / 2d,
+                        titleBar.Bounds.Height / 2d),
+                    window)
+                    ?? throw new InvalidOperationException(
+                        "The title bar is not attached to the test window.");
+
+                DoubleClick(window, titleBarCenter);
+
+                window.CurrentWindowMode
+                    .Should()
+                    .Be(ViewerWindowMode.FullScreen);
+                window.WindowState.Should().Be(WindowState.FullScreen);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task TitleBarDoubleClick_OnSettingsButton_KeepsWindowedMode()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+
+            try
+            {
+                window.Show();
+                Control settingsButton = window
+                    .RightWindowTitleBarControls
+                    .Single();
+                Point settingsButtonCenter = settingsButton.TranslatePoint(
+                    new Point(
+                        settingsButton.Bounds.Width / 2d,
+                        settingsButton.Bounds.Height / 2d),
+                    window)
+                    ?? throw new InvalidOperationException(
+                        "The title bar settings button is not attached to the test window.");
+
+                DoubleClick(window, settingsButtonCenter);
+
+                window.CurrentWindowMode
+                    .Should()
+                    .Be(ViewerWindowMode.Windowed);
+                window.WindowState.Should().Be(WindowState.Normal);
             }
             finally
             {
@@ -805,6 +904,38 @@ public sealed class ImageViewerWindowTests
         return new PicaViewerRequest(
             new List<PicaImageItem>(),
             Guid.Empty);
+    }
+
+    private static ImageViewerState CreateWindowedState()
+    {
+        return new ImageViewerState
+        {
+            ExpandOnDoubleClick = false,
+            IsWindowed = true,
+            RememberWindowPlacement = true
+        };
+    }
+
+    private static void DoubleClick(
+        ImageViewerWindow window,
+        Point position)
+    {
+        window.MouseDown(
+            position,
+            MouseButton.Left,
+            RawInputModifiers.None);
+        window.MouseUp(
+            position,
+            MouseButton.Left,
+            RawInputModifiers.None);
+        window.MouseDown(
+            position,
+            MouseButton.Left,
+            RawInputModifiers.None);
+        window.MouseUp(
+            position,
+            MouseButton.Left,
+            RawInputModifiers.None);
     }
 
     private static ImageViewerWindow CreateWindow()

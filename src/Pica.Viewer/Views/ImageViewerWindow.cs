@@ -138,6 +138,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     protected override void OnClosed(EventArgs e)
     {
+        DetachTitleBarInteraction();
         ImageViewerWindowInteractionComposition? interaction = _interaction;
         ImageViewerView? view = _view;
         Bitmap? logoBitmap = _logoBitmap;
@@ -373,6 +374,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private void ConfigureWindow()
     {
         Background = Brushes.Black;
+        CanMaximize = false;
         CanResize = false;
         CanFullScreen = true;
         CanPin = true;
