@@ -95,43 +95,6 @@
                         IsVisible="{Binding IsAnimationNavigationVisible}"
                         Orientation="Horizontal"
                         Spacing="8">
-                <Button x:Name="PreviousFrameButton"
-                        Classes="viewer-tool-button"
-                        IsEnabled="{Binding IsFrameSelectionVisible}"
-                        Command="{Binding NavigateFrameCommand}">
-                    <Button.CommandParameter>
-                        <x:Int32>-1</x:Int32>
-                    </Button.CommandParameter>
-                    <PathIcon Classes="viewer-tool-icon"
-                              Data="{StaticResource ViewerPreviousFrameIconGeometry}" />
-                </Button>
-                <Button x:Name="NextFrameButton"
-                        Classes="viewer-tool-button"
-                        IsEnabled="{Binding IsFrameSelectionVisible}"
-                        Command="{Binding NavigateFrameCommand}">
-                    <Button.CommandParameter>
-                        <x:Int32>1</x:Int32>
-                    </Button.CommandParameter>
-                    <PathIcon Classes="viewer-tool-icon"
-                              Data="{StaticResource ViewerNextFrameIconGeometry}" />
-                </Button>
-
-                <Button x:Name="PlayAnimationButton"
-                        Classes="viewer-tool-button"
-                        IsEnabled="{Binding CanControlAnimationPlayback}"
-                        Command="{Binding ToggleAnimationPlaybackCommand}">
-                    <Grid>
-                        <PathIcon x:Name="PlayAnimationIcon"
-                                  Classes="viewer-tool-icon"
-                                  Data="{StaticResource ViewerPlayIconGeometry}"
-                                  IsVisible="{Binding IsPlayAnimationIconVisible}" />
-                        <PathIcon x:Name="PauseAnimationIcon"
-                                  Classes="viewer-tool-icon"
-                                  Data="{StaticResource ViewerPauseIconGeometry}"
-                                  IsVisible="{Binding IsPauseAnimationIconVisible}" />
-                    </Grid>
-                </Button>
-
                 <Button x:Name="PreviousContentButton"
                         Classes="viewer-tool-button"
                         IsEnabled="{Binding IsContentNavigationEnabled}"
@@ -151,6 +114,43 @@
                     </Button.CommandParameter>
                     <PathIcon Classes="viewer-tool-icon"
                               Data="{StaticResource ViewerNextContentIconGeometry}" />
+                </Button>
+
+                <Button x:Name="PlayAnimationButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding CanControlAnimationPlayback}"
+                        Command="{Binding ToggleAnimationPlaybackCommand}">
+                    <Grid>
+                        <PathIcon x:Name="PlayAnimationIcon"
+                                  Classes="viewer-tool-icon"
+                                  Data="{StaticResource ViewerPlayIconGeometry}"
+                                  IsVisible="{Binding IsPlayAnimationIconVisible}" />
+                        <PathIcon x:Name="PauseAnimationIcon"
+                                  Classes="viewer-tool-icon"
+                                  Data="{StaticResource ViewerPauseIconGeometry}"
+                                  IsVisible="{Binding IsPauseAnimationIconVisible}" />
+                    </Grid>
+                </Button>
+
+                <Button x:Name="PreviousFrameButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding IsFrameSelectionVisible}"
+                        Command="{Binding NavigateFrameCommand}">
+                    <Button.CommandParameter>
+                        <x:Int32>-1</x:Int32>
+                    </Button.CommandParameter>
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerPreviousFrameIconGeometry}" />
+                </Button>
+                <Button x:Name="NextFrameButton"
+                        Classes="viewer-tool-button"
+                        IsEnabled="{Binding IsFrameSelectionVisible}"
+                        Command="{Binding NavigateFrameCommand}">
+                    <Button.CommandParameter>
+                        <x:Int32>1</x:Int32>
+                    </Button.CommandParameter>
+                    <PathIcon Classes="viewer-tool-icon"
+                              Data="{StaticResource ViewerNextFrameIconGeometry}" />
                 </Button>
             </StackPanel>
         </Grid>
