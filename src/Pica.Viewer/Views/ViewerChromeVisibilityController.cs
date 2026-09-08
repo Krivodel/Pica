@@ -87,8 +87,10 @@ internal sealed class ViewerChromeVisibilityController
         SetControlVisibility(
             _view.RightNavigationArea,
             pointerPosition.X >= viewport.Width - edgeWidth);
-        double bottomRevealTop = CalculateBottomRevealTop(
-            _view.ContentNavigationPanel.Bounds.Top);
+        double bottomPanelTop = _view.ContentNavigationPanel.IsVisible
+            ? _view.ContentNavigationPanel.Bounds.Top
+            : _view.BottomControls.Bounds.Top;
+        double bottomRevealTop = CalculateBottomRevealTop(bottomPanelTop);
         bool areBottomControlsVisible =
             pointerPosition.Y >= bottomRevealTop;
         SetControlVisibility(
