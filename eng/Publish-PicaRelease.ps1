@@ -64,18 +64,57 @@ function Invoke-DotNet {
     )
 
     $previousDotNetCliUiLanguage = $env:DOTNET_CLI_UI_LANGUAGE
+    $previousErrorActionPreference = $ErrorActionPreference
 
     try {
         $env:DOTNET_CLI_UI_LANGUAGE = 'en-US'
-        & dotnet @Arguments
+        $ErrorActionPreference = 'Continue'
+        $dotNetOutput = @(
+            & dotnet @Arguments 2>&1
+        )
         $exitCode = $LASTEXITCODE
     }
     finally {
         $env:DOTNET_CLI_UI_LANGUAGE = $previousDotNetCliUiLanguage
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $dotNetOutput | ForEach-Object {
+        if ($_ -is [System.Management.Automation.ErrorRecord]) {
+            Write-Output $_.ToString()
+        }
+        else {
+            Write-Output $_
+        }
     }
 
     if ($exitCode -ne 0) {
         throw "dotnet command failed with exit code $exitCode."
+    }
+}
+
+function Restore-DotNetTools {
+    $previousErrorActionPreference = $ErrorActionPreference
+
+    try {
+        $ErrorActionPreference = 'Continue'
+        $restoreOutput = @(
+            & dotnet tool restore 2>&1
+        )
+        $restoreExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $restoreText = ($restoreOutput | ForEach-Object { $_.ToString() }) -join "`n"
+    $restoreOutput | ForEach-Object {
+        Write-Output $_
+    }
+
+    if (($restoreExitCode -ne 0) -and
+        ($restoreText -notmatch 'Restore was successful')) {
+        throw "dotnet tool restore failed with exit code $restoreExitCode."
     }
 }
 
@@ -327,7 +366,7 @@ function Assert-PicaPackageSignatures {
     }
 }
 
-Invoke-DotNet -Arguments @('tool', 'restore')
+Restore-DotNetTools
 
 if ([string]::IsNullOrWhiteSpace($PreparedApplicationDirectory)) {
     Invoke-DotNet -Arguments @(
@@ -362,6 +401,8 @@ if (($publishedVersion.Major -ne $requestedVersion.Major) -or
 }
 
 $packArguments = @(
+    'tool',
+    'run',
     'vpk',
     'pack',
     '--packId',
@@ -449,6 +490,8 @@ if ($PublishToGitHub) {
     try {
         $env:VPK_TOKEN = $env:GITHUB_TOKEN
         Invoke-DotNet -Arguments @(
+            'tool',
+            'run',
             'vpk',
             'upload',
             'github',
