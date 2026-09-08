@@ -1,8 +1,8 @@
-# <img src="src/Pica.Viewer/Assets/AppIcon.ico" alt="Pica" width="32" height="32"> Pica
-
 **English** | [Русский](https://github.com/Krivodel/Pica/blob/main/README.ru.md)
 
 [![Download for Windows](https://badgen.net/badge/icon/Download%20for%20Windows?icon=windows&label)](https://github.com/Krivodel/Pica/releases/latest/download/Pica-win-Setup.exe)
+
+# <img src="src/Pica.Viewer/Assets/AppIcon.ico" alt="Pica" width="32" height="32"> Pica
 
 A convenient image viewer. It can run as a standalone application or be used by other applications as an embedded viewer.
 
