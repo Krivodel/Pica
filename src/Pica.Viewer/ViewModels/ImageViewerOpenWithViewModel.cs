@@ -65,6 +65,12 @@ internal sealed partial class ImageViewerOpenWithViewModel :
         OpenWithTarget target,
         CancellationToken ct)
     {
+        if ((target == OpenWithTarget.CurrentImage)
+            && !_imageCommands.CanOpenCurrentImageWithApplication)
+        {
+            return;
+        }
+
         HasLoadedApplications = false;
         LoadedTarget = null;
         OnPropertyChanged(nameof(HasLoadedApplications));
@@ -96,6 +102,11 @@ internal sealed partial class ImageViewerOpenWithViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteAction))]
     private async Task PrepareCurrentImageAsync(CancellationToken ct)
     {
+        if (!_imageCommands.CanOpenCurrentImageWithApplication)
+        {
+            return;
+        }
+
         ResetPreparation();
         await ExecuteActionAsync(
             async operationCt =>

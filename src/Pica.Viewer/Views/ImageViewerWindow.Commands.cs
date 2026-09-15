@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -104,8 +106,11 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
+        _logger?.LogDebug("Pica context menu click: Copy");
+
         _floatingMenus.HideContext();
         await _actionController.CopyCurrentAsync(CancellationToken.None);
+        _logger?.LogDebug("Pica context menu command completed: Copy");
     }
 
     private async void OnContextExternalActionClicked(object? sender, RoutedEventArgs e)
@@ -116,13 +121,22 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
         if (action is null)
         {
+            _logger?.LogWarning(
+                "Pica context menu external action click had no action payload");
             return;
         }
+
+        _logger?.LogDebug(
+            "Pica context menu click: external action {ActionId}",
+            action.Id);
 
         _floatingMenus.HideContext();
         await _actionController.DispatchCurrentAsync(
             action,
             CancellationToken.None);
+        _logger?.LogDebug(
+            "Pica context menu command completed: external action {ActionId}",
+            action.Id);
     }
 
     private async void OnContextSaveAsClicked(object? sender, RoutedEventArgs e)
@@ -130,14 +144,19 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
 
+        _logger?.LogDebug("Pica context menu click: SaveAs");
+
         _floatingMenus.HideContext();
         await _actionController.SaveCurrentAsAsync(CancellationToken.None);
+        _logger?.LogDebug("Pica context menu command completed: SaveAs");
     }
 
     private async void OnContextRevealInFolderClicked(object? sender, RoutedEventArgs e)
     {
         _ = sender;
         _ = e;
+
+        _logger?.LogDebug("Pica context menu click: RevealInFolder");
 
         FileRevealWindowMode windowMode =
             AlternateActionModifierPolicy.IsActive(
@@ -148,6 +167,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         await _actionController.RevealInFolderAsync(
             windowMode,
             CancellationToken.None);
+        _logger?.LogDebug("Pica context menu command completed: RevealInFolder");
     }
 
     private async void OnContextOpenWithClicked(
@@ -156,10 +176,13 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         _ = e;
 
+        _logger?.LogDebug("Pica context menu click: OpenWith");
+
         Control anchor = sender as Control ?? View.ContextOpenWithButton;
         await _floatingMenus.ShowOpenWithAsync(
             OpenWithTarget.CurrentImage,
             anchor);
+        _logger?.LogDebug("Pica context menu command completed: OpenWith");
     }
 
     private async void OnOpenWithApplicationClicked(object? sender, RoutedEventArgs e)

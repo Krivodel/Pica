@@ -68,6 +68,55 @@ public sealed class ImageLoadCoordinatorTests
     }
 
     [Fact]
+    public async Task Start_WithInProcessBitmap_AppliesBitmapWithoutReadingFile()
+    {
+        await DispatchAsync(async () =>
+        {
+            PicaImageItem item = new(
+                ItemId,
+                Path.Combine(
+                    Path.GetTempPath(),
+                    "pica-missing-in-process.png"),
+                "image.png");
+            ImageViewerSession session = CreateSession(item);
+            using RecordingImageLoadPresentationSink presentationSink = new();
+            RecordingViewerRenderFrameAwaiter frameAwaiter = new();
+            ControlledFullResolutionImageLoader fullResolutionLoader = new(
+                []);
+            TrackingBitmap bitmap = new(CreateImageStream());
+            TrackingBitmapSource bitmapSource = new(bitmap);
+            using ImageLoadCoordinator coordinator = CreateCoordinator(
+                session,
+                presentationSink,
+                frameAwaiter,
+                new ImagePreviewLoader(
+                    new ImageFormatRegistry(),
+                    NullLogger<ImagePreviewLoader>.Instance),
+                fullResolutionLoader,
+                new InlineViewerUiDispatcher(),
+                false,
+                new Dictionary<Guid, IPicaImageBitmapSource>
+                {
+                    [item.Id] = bitmapSource
+                });
+
+            coordinator.Start();
+            bool isReady = await coordinator.WaitForFullResolutionAsync(
+                CancellationToken.None);
+
+            isReady.Should().BeTrue();
+            presentationSink.FullResolutionCount.Should().Be(1);
+            presentationSink.FullResolutionBitmap.Should().BeSameAs(bitmap);
+            presentationSink.LastBitmapIsFileBacked.Should().BeFalse();
+            presentationSink.LastBitmapHasAlpha.Should().BeTrue();
+
+            coordinator.Dispose();
+            presentationSink.Dispose();
+            bitmapSource.LeaseDisposed.Should().BeTrue();
+        });
+    }
+
+    [Fact]
     public async Task Start_WithFastLoading_AppliesPreviewBeforeFullResolution()
     {
         await DispatchAsync(async () =>
@@ -607,7 +656,8 @@ public sealed class ImageLoadCoordinatorTests
         IImagePreviewLoader previewLoader,
         IFullResolutionImageLoader fullResolutionLoader,
         IViewerUiDispatcher uiDispatcher,
-        bool isFastLoadingEnabled)
+        bool isFastLoadingEnabled,
+        IReadOnlyDictionary<Guid, IPicaImageBitmapSource>? bitmapSources = null)
     {
         return new ImageLoadCoordinator(
             session,
@@ -618,7 +668,8 @@ public sealed class ImageLoadCoordinatorTests
             uiDispatcher,
             NullLogger<ImageLoadCoordinator>.Instance,
             NullLogger<ImagePreviewPrefetcher>.Instance,
-            isFastLoadingEnabled);
+            isFastLoadingEnabled,
+            bitmapSources);
     }
 
     private static ImageViewerSession CreateSession(PicaImageItem item)
@@ -653,6 +704,66 @@ public sealed class ImageLoadCoordinatorTests
         await File.WriteAllBytesAsync(imagePath, content);
 
         return imagePath;
+    }
+
+    private static Stream CreateImageStream()
+    {
+        using Bitmap bitmap = BgraBitmapTestData.CreateBitmap();
+        byte[] content = new PngImageEncoder().EncodeAsync(
+            bitmap,
+            CancellationToken.None).GetAwaiter().GetResult();
+        return new MemoryStream(content, writable: false);
+    }
+
+    private sealed class TrackingBitmapSource : IPicaImageBitmapSource
+    {
+        private readonly TrackingBitmap _bitmap;
+
+        internal TrackingBitmapSource(TrackingBitmap bitmap)
+        {
+            _bitmap = bitmap;
+        }
+
+        internal bool LeaseDisposed { get; private set; }
+
+        public bool IsFileBacked => false;
+
+        public ValueTask<IPicaImageBitmapLease> AcquireAsync(
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IPicaImageBitmapLease>(
+                new TrackingBitmapLease(
+                    _bitmap,
+                    () => LeaseDisposed = true));
+        }
+    }
+
+    private sealed class TrackingBitmapLease : IPicaImageBitmapLease
+    {
+        private readonly Action _onDispose;
+        private bool _isDisposed;
+
+        internal TrackingBitmapLease(
+            Bitmap bitmap,
+            Action onDispose)
+        {
+            Bitmap = bitmap;
+            _onDispose = onDispose;
+        }
+
+        public Bitmap Bitmap { get; }
+
+        public void Dispose()
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            _isDisposed = true;
+            _onDispose();
+        }
     }
 
     private static async Task DispatchAsync(Func<Task> action)

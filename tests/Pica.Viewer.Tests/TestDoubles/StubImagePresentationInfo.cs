@@ -8,6 +8,7 @@ internal sealed class StubImagePresentationInfo :
 {
     public PicaImageItem? CurrentItem { get; private set; }
     public ImageDimensions SourceDimensions { get; private set; }
+    public bool IsCurrentImageFileBacked { get; private set; } = true;
 
     public event EventHandler? Changed;
 

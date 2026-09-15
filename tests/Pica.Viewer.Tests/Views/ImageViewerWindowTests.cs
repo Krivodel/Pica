@@ -171,6 +171,58 @@ public sealed class ImageViewerWindowTests
     }
 
     [Fact]
+    public async Task ContextMenuButton_Click_HidesContextMenu()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                new ImageViewerState(),
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+
+            try
+            {
+                window.Show();
+                window.MouseDown(
+                    new Point(100d, 100d),
+                    MouseButton.Right,
+                    RawInputModifiers.None);
+
+                view.ViewerContextMenu.IsVisible.Should().BeTrue();
+                Button menuButton = view.ViewerContextMenu
+                    .GetVisualDescendants()
+                    .OfType<Button>()
+                    .First();
+                Point buttonPosition = menuButton.TranslatePoint(
+                    new Point(
+                        menuButton.Bounds.Width / 2d,
+                        menuButton.Bounds.Height / 2d),
+                    window)
+                    ?? throw new InvalidOperationException(
+                        "The context menu button is not attached to the viewer window.");
+
+                window.MouseDown(
+                    buttonPosition,
+                    MouseButton.Left,
+                    RawInputModifiers.None);
+                window.MouseUp(
+                    buttonPosition,
+                    MouseButton.Left,
+                    RawInputModifiers.None);
+
+                view.ViewerContextMenu.IsVisible.Should().BeFalse();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public async Task OnKeyDown_WithLoadedImage_TogglesCheckerboardLayerWithoutReplacingSource()
     {
         await DispatchAsync(async () =>

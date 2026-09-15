@@ -8,6 +8,8 @@ internal sealed class RecordingViewerImageCommandService :
 {
     public string? PreparedOpenWithFilePath { get; private set; }
 
+    public bool CanOpenCurrentImageWithApplication { get; set; } = true;
+
     public event EventHandler? PreparedSelectionSaved;
 
     internal int CopyCurrentCount { get; private set; }

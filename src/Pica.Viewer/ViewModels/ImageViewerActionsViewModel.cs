@@ -266,8 +266,21 @@ internal sealed partial class ImageViewerActionsViewModel :
         await ExecuteActionAsync(
             async operationCt =>
             {
+                string? filePath = item.FilePath;
+
+                if (!_presentation.IsCurrentImageFileBacked)
+                {
+                    await _imageCommands.PrepareCurrentOpenWithFileAsync(operationCt);
+                    filePath = _imageCommands.PreparedOpenWithFilePath;
+                }
+
+                if (filePath is null)
+                {
+                    return;
+                }
+
                 await _platformFileActions.RevealInFolderAsync(
-                    item.FilePath,
+                    filePath,
                     windowMode,
                     operationCt);
                 LogCompletedPlatformAction("Reveal in folder");

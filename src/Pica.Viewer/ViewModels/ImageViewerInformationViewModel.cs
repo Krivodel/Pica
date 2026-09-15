@@ -124,11 +124,14 @@ internal sealed partial class ImageViewerInformationViewModel :
         ImageViewerInformationOptions options =
             _settings.CreateInformationOptions();
 
-        if (options.ShowModificationDate && refreshMetadata)
+        if (options.ShowModificationDate
+            && refreshMetadata
+            && _presentation.IsCurrentImageFileBacked)
         {
             StartMetadataLoad(informationItem);
         }
-        else if (!options.ShowModificationDate)
+        else if (!options.ShowModificationDate
+            || !_presentation.IsCurrentImageFileBacked)
         {
             CancelMetadataLoad();
             ClearLoadedMetadata();

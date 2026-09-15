@@ -34,6 +34,19 @@ internal sealed class ImageViewerWindowFactory : IImageViewerWindowFactory
         IViewerActionDispatcher actionDispatcher,
         CancellationToken ct)
     {
+        return await CreateAsync(
+            request,
+            actionDispatcher,
+            null,
+            ct).ConfigureAwait(false);
+    }
+
+    public async Task<ImageViewerWindow> CreateAsync(
+        PicaViewerRequest request,
+        IViewerActionDispatcher actionDispatcher,
+        IReadOnlyDictionary<Guid, IPicaImageBitmapSource>? bitmapSources,
+        CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(actionDispatcher);
         ImageViewerState state = await _stateService
@@ -47,7 +60,8 @@ internal sealed class ImageViewerWindowFactory : IImageViewerWindowFactory
                 request,
                 actionDispatcher,
                 state,
-                settingContributions),
+                settingContributions,
+                bitmapSources),
             ct).ConfigureAwait(false);
     }
 

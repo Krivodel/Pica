@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 
 using Pica.Viewer.Services;
 using Pica.Viewer.ViewModels;
@@ -73,11 +74,17 @@ internal sealed class ViewerPointerInputController
     {
         _ = sender;
 
+        if (IsFloatingMenuInput(e.Source, _view))
+        {
+            e.Handled = true;
+            return;
+        }
+
         PointerPoint point =
             e.GetCurrentPoint(_view.ViewerArea);
         Point position = point.Position;
         _lastPointerScreenPosition =
-            VisualExtensions.PointToScreen(
+            Avalonia.VisualExtensions.PointToScreen(
                 _view.Root,
                 e.GetPosition(_view.Root));
         _chromeVisibility.SetControlModifierActive(
@@ -149,9 +156,15 @@ internal sealed class ViewerPointerInputController
     {
         _ = sender;
 
+        if (IsFloatingMenuInput(e.Source, _view))
+        {
+            e.Handled = true;
+            return;
+        }
+
         Point position = e.GetPosition(_view.ViewerArea);
         PixelPoint screenPosition =
-            VisualExtensions.PointToScreen(
+            Avalonia.VisualExtensions.PointToScreen(
                 _view.Root,
                 e.GetPosition(_view.Root));
         bool hasPointerMoved = ViewerPointerMotion.HasMoved(
@@ -206,6 +219,12 @@ internal sealed class ViewerPointerInputController
         PointerReleasedEventArgs e)
     {
         _ = sender;
+
+        if (IsFloatingMenuInput(e.Source, _view))
+        {
+            e.Handled = true;
+            return;
+        }
 
         Point position = e.GetPosition(_view.ViewerArea);
         bool isImageClick = _isImageClickCandidate
@@ -350,6 +369,37 @@ internal sealed class ViewerPointerInputController
         return !_doubleClickTracker.IsWithinMovementTolerance(
             _pointerPressPosition,
             position);
+    }
+
+    internal static bool IsFloatingMenuInput(
+        object? source,
+        ImageViewerView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+
+        if (source is not Visual visual)
+        {
+            return false;
+        }
+
+        Visual? current = visual;
+
+        while (current is not null)
+        {
+            if (object.ReferenceEquals(current, view.ViewerContextMenu)
+                || object.ReferenceEquals(current, view.OpenWithMenu)
+                || object.ReferenceEquals(current, view.ToolMenu)
+                || object.ReferenceEquals(current, view.ModeMenu)
+                || object.ReferenceEquals(current, view.SelectionToolbar)
+                || object.ReferenceEquals(current, view.SettingsPanel))
+            {
+                return true;
+            }
+
+            current = current.GetVisualParent();
+        }
+
+        return false;
     }
 
     private void RegisterImageClick(Point position)

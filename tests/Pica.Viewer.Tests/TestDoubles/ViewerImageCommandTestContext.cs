@@ -47,7 +47,8 @@ internal sealed class ViewerImageCommandTestContext : IDisposable
     }
 
     internal static async Task<ViewerImageCommandTestContext> CreateAsync(
-        IStorageProvider? storageProvider = null)
+        IStorageProvider? storageProvider = null,
+        bool isFileBacked = true)
     {
         Guid itemId =
             Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -69,7 +70,9 @@ internal sealed class ViewerImageCommandTestContext : IDisposable
         Bitmap sourceBitmap = BgraBitmapTestData.CreateBitmap();
         presentation.ReplaceFullResolutionBitmap(
             item,
-            sourceBitmap);
+            sourceBitmap,
+            isFileBacked: isFileBacked,
+            hasAlpha: false);
         RecordingViewerClipboardWriter clipboardWriter = new();
         RecordingViewerActionDispatcher actionDispatcher = new();
         ViewerWindowPlatformContext platformContext = new(

@@ -37,7 +37,8 @@ internal sealed class ImageViewerWindowComposer
         PicaViewerRequest request,
         IViewerActionDispatcher actionDispatcher,
         ImageViewerState state,
-        IReadOnlyList<ViewerSettingContribution> settingContributions)
+        IReadOnlyList<ViewerSettingContribution> settingContributions,
+        IReadOnlyDictionary<Guid, IPicaImageBitmapSource>? bitmapSources = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(actionDispatcher);
@@ -51,7 +52,8 @@ internal sealed class ImageViewerWindowComposer
                 request,
                 actionDispatcher,
                 state,
-                settingContributions),
+                settingContributions,
+                bitmapSources),
             _windowLogger);
     }
 
@@ -61,7 +63,8 @@ internal sealed class ImageViewerWindowComposer
         PicaViewerRequest request,
         IViewerActionDispatcher actionDispatcher,
         ImageViewerState state,
-        IReadOnlyList<ViewerSettingContribution> settingContributions)
+        IReadOnlyList<ViewerSettingContribution> settingContributions,
+        IReadOnlyDictionary<Guid, IPicaImageBitmapSource>? bitmapSources = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(frameScheduler);
@@ -79,7 +82,8 @@ internal sealed class ImageViewerWindowComposer
                 sessionState,
                 frameScheduler,
                 frameScheduler,
-                state.IsFastLoadingEnabled);
+                state.IsFastLoadingEnabled,
+                bitmapSources);
             ViewerWindowPlacement initialPlacement = new(
                 state.IsWindowed == true,
                 state.WindowX,

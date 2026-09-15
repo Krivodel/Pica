@@ -29,6 +29,11 @@ internal sealed class TemporaryImageFileStore : ITemporaryImageFileStore
         return CreateFilePath(SelectionFilePrefix);
     }
 
+    public string CreateImageFilePath()
+    {
+        return CreateFilePath("Pica-image-");
+    }
+
     public async Task SaveAsync(
         string filePath,
         PreparedClipboardImage image,

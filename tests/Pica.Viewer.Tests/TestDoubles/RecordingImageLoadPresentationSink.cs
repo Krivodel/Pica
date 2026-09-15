@@ -18,6 +18,8 @@ internal sealed class RecordingImageLoadPresentationSink :
         FullResolutionImage?.Frames[0].Bitmap;
     internal DecodedImage? FullResolutionImage { get; private set; }
     internal DecodedImageContent? FullResolutionContent { get; private set; }
+    internal bool LastBitmapIsFileBacked { get; private set; }
+    internal bool LastBitmapHasAlpha { get; private set; }
 
     public void Dispose()
     {
@@ -67,6 +69,24 @@ internal sealed class RecordingImageLoadPresentationSink :
             ?? throw new ArgumentNullException(nameof(content));
         FullResolutionImage = content.Groups[
             content.InitialGroupIndex].GetRequiredImage();
+        FullResolutionCount++;
+    }
+
+    public void ApplyFullResolution(
+        PicaImageItem item,
+        IPicaImageBitmapLease bitmapLease,
+        bool isFileBacked,
+        bool hasAlpha)
+    {
+        LastItem = item ?? throw new ArgumentNullException(nameof(item));
+        ArgumentNullException.ThrowIfNull(bitmapLease);
+        FullResolutionImage = DecodedImage.CreateSingle(bitmapLease.Bitmap);
+        LastBitmapIsFileBacked = isFileBacked;
+        LastBitmapHasAlpha = hasAlpha;
+        FullResolutionImage.SetStoredBitmapReleaseHandler(
+            _ => bitmapLease.Dispose());
+        FullResolutionContent = DecodedImageContent.CreateSingle(
+            FullResolutionImage);
         FullResolutionCount++;
     }
 }

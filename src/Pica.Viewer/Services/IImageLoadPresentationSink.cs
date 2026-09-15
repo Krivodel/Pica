@@ -16,4 +16,10 @@ internal interface IImageLoadPresentationSink
         string fullPath,
         DecodedImagePreview? displayedPreview,
         DecodedImageContent content);
+
+    void ApplyFullResolution(
+        PicaImageItem item,
+        IPicaImageBitmapLease bitmapLease,
+        bool isFileBacked,
+        bool hasAlpha);
 }

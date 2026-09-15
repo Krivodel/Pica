@@ -561,22 +561,16 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             0d,
             menuForegroundBrush));
 
-        foreach (PicaActionDefinition action in GetActions(actions, PicaActionTargets.Selection))
-        {
-            Button button = CreateSelectionButton(
-                action.IconGeometry,
-                events.SelectionExternalActionClicked,
-                action.IconRotationDegrees,
-                menuForegroundBrush);
-            button.Tag = action;
-            toolbar.Children.Add(button);
-        }
+        AddSelectionActions(toolbar, actions, events, menuForegroundBrush,
+            PicaSelectionActionPlacement.BeforeSave);
 
         toolbar.Children.Add(CreateSelectionButton(
             SaveIconGeometry,
             events.SelectionSaveAsClicked,
             0d,
             menuForegroundBrush));
+        AddSelectionActions(toolbar, actions, events, menuForegroundBrush,
+            PicaSelectionActionPlacement.AfterSave);
         openWithButton = CreateSelectionButton(
             OpenWithIconGeometry,
             events.SelectionOpenWithClicked,
@@ -758,6 +752,27 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         button.Click += clickHandler;
 
         return button;
+    }
+
+    private static void AddSelectionActions(
+        StackPanel toolbar,
+        IReadOnlyList<PicaActionDefinition> actions,
+        ImageViewerViewEvents events,
+        IBrush foreground,
+        PicaSelectionActionPlacement placement)
+    {
+        foreach (PicaActionDefinition action in GetActions(actions, PicaActionTargets.Selection)
+            .Where(action => action.SelectionPlacement == placement))
+        {
+            Button button = CreateSelectionButton(
+                action.IconGeometry,
+                events.SelectionExternalActionClicked,
+                action.IconRotationDegrees,
+                foreground);
+            button.Tag = action;
+            ToolTip.SetTip(button, action.DisplayName);
+            toolbar.Children.Add(button);
+        }
     }
 
     private static Button CreateSelectionButton(

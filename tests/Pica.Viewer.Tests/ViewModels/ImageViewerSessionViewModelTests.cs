@@ -14,6 +14,20 @@ public sealed class ImageViewerSessionViewModelTests
     private static readonly Guid SecondItemId =
         Guid.Parse("22222222-2222-2222-2222-222222222222");
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SetHasAlpha_InMainMode_PreservesMainImageSelection(bool hasAlpha)
+    {
+        ImageViewerSession session = new(CreateRequest(FirstItemId), true);
+
+        session.SetHasAlpha(hasAlpha);
+
+        session.IsMainImageModeActive.Should().BeTrue();
+        session.SelectedChannel.Should().BeNull();
+        session.IsChannelAvailabilityKnown.Should().BeTrue();
+    }
+
     [Fact]
     public void Constructor_WithSelectedItem_ExposesSelectedItem()
     {

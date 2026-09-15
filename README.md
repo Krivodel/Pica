@@ -118,6 +118,27 @@ PicaViewerRequest request = new(images, selectedImageId);
 
 You can pass the path to a ready-made low-resolution image in `PicaImageItem.PreviewFilePath` for fast loading. If there is no preview image, this parameter can be omitted, but loading may take slightly longer.
 
+## In-memory images
+
+To show an Avalonia `Bitmap` without first writing it to disk, associate the image ID with an `IPicaImageBitmapSource` and pass the sources to `CreateAsync`:
+
+```csharp
+IReadOnlyDictionary<Guid, IPicaImageBitmapSource> bitmapSources =
+    new Dictionary<Guid, IPicaImageBitmapSource>
+    {
+        [imageId] = new MyBitmapSource(bitmap)
+    };
+IViewerActionDispatcher actionDispatcher = new ViewerActionDispatcher();
+
+ImageViewerWindow window = await windowFactory.CreateAsync(
+    request,
+    actionDispatcher,
+    bitmapSources,
+    CancellationToken.None);
+```
+
+`AcquireAsync` must return an `IPicaImageBitmapLease`. Pica keeps the lease while it uses the bitmap and disposes it when the bitmap is no longer needed. Set `IsFileBacked` to `false` for a memory-only image: Pica then uses `PicaImageItem.FileName` when saving or creating a temporary PNG for "Open with", and does not read file metadata from `FilePath`. Set it to `true` only when `FilePath` points to the original image file.
+
 ## Custom context menu items
 
 Pass the list of items in `PicaViewerRequest` and their click handler in `CreateAsync`:
@@ -132,6 +153,9 @@ PicaActionDefinition[] actions =
         IconRotationDegrees: 0d,
         Targets: PicaActionTargets.CurrentImage | PicaActionTargets.Selection,
         Order: 0)
+    {
+        SelectionPlacement = PicaSelectionActionPlacement.AfterSave
+    }
 ];
 PicaViewerRequest request = new(images, selectedImageId, actions);
 ImageViewerWindow window = await windowFactory.CreateAsync(request, actionDispatcher, CancellationToken.None);

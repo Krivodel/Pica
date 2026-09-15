@@ -6,4 +6,7 @@ public sealed record PicaActionDefinition(
     string IconGeometry,
     double IconRotationDegrees,
     PicaActionTargets Targets,
-    int Order);
+    int Order)
+{
+    public PicaSelectionActionPlacement SelectionPlacement { get; init; }
+}

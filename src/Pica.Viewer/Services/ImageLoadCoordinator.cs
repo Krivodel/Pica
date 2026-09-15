@@ -3,6 +3,7 @@ using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 
 using Pica.Protocol;
 
@@ -22,6 +23,8 @@ internal sealed class ImageLoadCoordinator :
     private readonly IViewerUiDispatcher _uiDispatcher;
     private readonly ILogger<ImageLoadCoordinator> _logger;
     private readonly ImagePreviewPrefetcher _previewPrefetcher;
+    private readonly IReadOnlyDictionary<Guid, IPicaImageBitmapSource>?
+        _bitmapSources;
     private readonly object _disposalSync = new();
     private bool _isFastLoadingEnabled;
     private bool _isFullResolutionReady;
@@ -42,7 +45,8 @@ internal sealed class ImageLoadCoordinator :
         IViewerUiDispatcher uiDispatcher,
         ILogger<ImageLoadCoordinator> logger,
         ILogger<ImagePreviewPrefetcher> previewPrefetcherLogger,
-        bool isFastLoadingEnabled)
+        bool isFastLoadingEnabled,
+        IReadOnlyDictionary<Guid, IPicaImageBitmapSource>? bitmapSources = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _imagePreviewLoader = imagePreviewLoader
@@ -61,6 +65,7 @@ internal sealed class ImageLoadCoordinator :
             imagePreviewLoader,
             previewPrefetcherLogger);
         _isFastLoadingEnabled = isFastLoadingEnabled;
+        _bitmapSources = bitmapSources;
     }
 
     public void SetFastLoadingEnabled(bool isFastLoadingEnabled)
@@ -221,6 +226,14 @@ internal sealed class ImageLoadCoordinator :
 
         try
         {
+            if (await TryLoadBitmapSourceAsync(
+                    item,
+                    loadId,
+                    ct).ConfigureAwait(false))
+            {
+                return;
+            }
+
             string fullPath;
 
             try
@@ -270,6 +283,92 @@ internal sealed class ImageLoadCoordinator :
 
             cancellation.Complete();
         }
+    }
+
+    private async Task<bool> TryLoadBitmapSourceAsync(
+        PicaImageItem item,
+        long loadId,
+        CancellationToken ct)
+    {
+        if ((_bitmapSources is null)
+            || !_bitmapSources.TryGetValue(item.Id, out IPicaImageBitmapSource? source))
+        {
+            return false;
+        }
+
+        IPicaImageBitmapLease? bitmapLease = null;
+
+        try
+        {
+            bitmapLease = await source
+                .AcquireAsync(ct)
+                .ConfigureAwait(false);
+            if (bitmapLease is null)
+            {
+                throw new InvalidOperationException(
+                    $"In-process bitmap source returned no lease for image {item.Id}.");
+            }
+
+            Bitmap loadedBitmap = bitmapLease.Bitmap;
+            bool isOwnershipTransferred = false;
+
+            await _uiDispatcher.InvokeAsync(
+                () =>
+                {
+                    if (!CanApplyLoad(loadId, ct))
+                    {
+                        return;
+                    }
+
+                    _presentationSink.ApplyFullResolution(
+                        item,
+                        bitmapLease,
+                        source.IsFileBacked,
+                        HasAlpha(loadedBitmap));
+                    _isFullResolutionReady = true;
+                    isOwnershipTransferred = true;
+                },
+                ct).ConfigureAwait(false);
+
+            if (isOwnershipTransferred)
+            {
+                bitmapLease = null;
+                _logger.LogInformation(
+                    "Applied in-process Pica image {ItemId} at full resolution {Width}x{Height}",
+                    item.Id,
+                    loadedBitmap.PixelSize.Width,
+                    loadedBitmap.PixelSize.Height);
+            }
+
+            return isOwnershipTransferred;
+        }
+        catch (OperationCanceledException ex) when (ct.IsCancellationRequested)
+        {
+            _logger.LogDebug(
+                ex,
+                "Cancelled in-process bitmap load for Pica image {ItemId}",
+                item.Id);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to load in-process bitmap for Pica image {ItemId}",
+                item.Id);
+            return !source.IsFileBacked;
+        }
+        finally
+        {
+            bitmapLease?.Dispose();
+        }
+    }
+
+    private static bool HasAlpha(Bitmap bitmap)
+    {
+        ArgumentNullException.ThrowIfNull(bitmap);
+        return bitmap.AlphaFormat is { } alphaFormat
+            && alphaFormat != AlphaFormat.Opaque;
     }
 
     private void StartImageLoad(PicaImageItem item)

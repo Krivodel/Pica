@@ -447,7 +447,9 @@ internal sealed partial class ImageViewerSession : ObservableObject
             _selectedChannelIndex,
             0,
             _availableChannels.Count - 1);
-        SelectedChannel = _availableChannels[_selectedChannelIndex];
+        SelectedChannel = IsChannelModeActive
+            ? _availableChannels[_selectedChannelIndex]
+            : null;
         IsChannelAvailabilityKnown = true;
     }
 

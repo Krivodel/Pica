@@ -6,6 +6,8 @@ internal interface IViewerImageCommandService
 {
     string? PreparedOpenWithFilePath { get; }
 
+    bool CanOpenCurrentImageWithApplication { get; }
+
     event EventHandler? PreparedSelectionSaved;
 
     Task CopyCurrentAsync(CancellationToken ct);

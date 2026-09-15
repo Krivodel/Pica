@@ -50,7 +50,8 @@ internal sealed class ImageViewerPresentationFactory
         ImageViewerSession session,
         IViewerRenderFrameAwaiter renderFrameAwaiter,
         IUiFrameScheduler animationFrameScheduler,
-        bool isFastLoadingEnabled)
+        bool isFastLoadingEnabled,
+        IReadOnlyDictionary<Guid, IPicaImageBitmapSource>? bitmapSources = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(renderFrameAwaiter);
@@ -82,7 +83,8 @@ internal sealed class ImageViewerPresentationFactory
                 _uiDispatcher,
                 _loadLogger,
                 _previewPrefetcherLogger,
-                isFastLoadingEnabled);
+                isFastLoadingEnabled,
+                bitmapSources);
             ImagePresentationReadiness readiness = new(
                 session,
                 loadCoordinator,

@@ -6,6 +6,8 @@ internal interface ITemporaryImageFileStore : IDisposable
 
     string CreateSelectionFilePath();
 
+    string CreateImageFilePath();
+
     Task SaveAsync(
         string filePath,
         PreparedClipboardImage image,

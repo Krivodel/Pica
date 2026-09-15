@@ -23,6 +23,66 @@ public sealed class ViewerImageCommandServiceTests
     }
 
     [Fact]
+    public async Task CopyCurrentAsync_WithMemoryImage_CopiesPng()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(
+            typeof(ViewerImageCommandServiceTests), SessionLock, async () =>
+            {
+                using ViewerImageCommandTestContext context =
+                    await ViewerImageCommandTestContext.CreateAsync(isFileBacked: false);
+                context.Session.SelectMainImageModeCommand.Execute(null);
+
+                await context.CommandService.CopyCurrentAsync(CancellationToken.None);
+
+                context.ClipboardWriter.PreparedImageCount.Should().Be(1);
+                context.ClipboardWriter.FileCount.Should().Be(0);
+            });
+    }
+
+    [Fact]
+    public async Task SaveCurrentAsync_WithMemoryImage_SavesPng()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(
+            typeof(ViewerImageCommandServiceTests), SessionLock, async () =>
+            {
+                using RecordingStorageProvider storage = new();
+                using ViewerImageCommandTestContext context =
+                    await ViewerImageCommandTestContext.CreateAsync(storage.Provider, isFileBacked: false);
+                context.Session.SelectMainImageModeCommand.Execute(null);
+
+                await context.CommandService.SaveCurrentAsync(CancellationToken.None);
+
+                storage.SuggestedFileName.Should().Be("image.png");
+                storage.Destination.Content.Take(8).Should().Equal(137, 80, 78, 71, 13, 10, 26, 10);
+            });
+    }
+
+    [Fact]
+    public async Task PrepareCurrentOpenWithFileAsync_WithMemoryImage_CreatesPngAndCleansUp()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(
+            typeof(ViewerImageCommandServiceTests), SessionLock, async () =>
+            {
+                string filePath;
+
+                using (ViewerImageCommandTestContext context =
+                    await ViewerImageCommandTestContext.CreateAsync(isFileBacked: false))
+                {
+                    context.Session.SelectMainImageModeCommand.Execute(null);
+
+                    await context.CommandService.PrepareCurrentOpenWithFileAsync(CancellationToken.None);
+
+                    context.CommandService.CanOpenCurrentImageWithApplication.Should().BeTrue();
+                    filePath = context.CommandService.PreparedOpenWithFilePath
+                        ?? throw new InvalidOperationException("The memory image file was not prepared.");
+                    File.ReadAllBytes(filePath).Take(8).Should().Equal(137, 80, 78, 71, 13, 10, 26, 10);
+                }
+
+                File.Exists(filePath).Should().BeFalse();
+            });
+    }
+
+    [Fact]
     public async Task DispatchCurrentAsync_WithSelectedChannel_DispatchesDerivedPng()
     {
         await HeadlessTestSessionDispatcher.DispatchAsync(

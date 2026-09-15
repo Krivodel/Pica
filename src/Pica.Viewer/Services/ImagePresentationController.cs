@@ -18,6 +18,7 @@ internal sealed class ImagePresentationController :
     public PicaImageItem? CurrentItem { get; private set; }
     public ImageDimensions SourceDimensions =>
         new(SourcePixelSize.Width, SourcePixelSize.Height);
+    public bool IsCurrentImageFileBacked => _isCurrentImageFileBacked;
 
     public event EventHandler? Changed;
 
@@ -95,6 +96,8 @@ internal sealed class ImagePresentationController :
     private Task? _disposalTask;
     private bool _disposed;
     private bool _isContentGroupTransitioning;
+    private bool _isCurrentImageFileBacked;
+    private bool? _currentImageHasAlpha;
 
     internal ImagePresentationController(
         ImageViewerSession session,
@@ -185,6 +188,29 @@ internal sealed class ImagePresentationController :
                 initialFrameBitmap.PixelSize));
     }
 
+    void IImageLoadPresentationSink.ApplyFullResolution(
+        PicaImageItem item,
+        IPicaImageBitmapLease bitmapLease,
+        bool isFileBacked,
+        bool hasAlpha)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(bitmapLease);
+
+        ReplaceFullResolutionBitmap(
+            item,
+            bitmapLease.Bitmap,
+            bitmapLease.Dispose,
+            isFileBacked,
+            hasAlpha);
+        OnLoadTransitioned(
+            new ImageLoadTransitionEventArgs(
+                ImageLoadTransitionKind.FullResolutionApplied,
+                false,
+                new PixelSize(),
+                bitmapLease.Bitmap.PixelSize));
+    }
+
     bool IImageFrameSource.IsFrameAvailable(int frameIndex)
     {
         return _decodedImage?.IsFrameAvailable(frameIndex)
@@ -233,30 +259,45 @@ internal sealed class ImagePresentationController :
 
     internal void ReplaceFullResolutionBitmap(
         PicaImageItem item,
-        Bitmap bitmap)
+        Bitmap bitmap,
+        Action? releaseBitmap = null,
+        bool isFileBacked = true,
+        bool? hasAlpha = null)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(bitmap);
         ThrowIfDisposed();
         ReplaceFullResolutionImage(
             item,
-            DecodedImage.CreateSingle(bitmap));
+            DecodedImage.CreateSingle(bitmap),
+            releaseBitmap,
+            isFileBacked,
+            hasAlpha);
     }
 
     internal void ReplaceFullResolutionImage(
         PicaImageItem item,
-        DecodedImage image)
+        DecodedImage image,
+        Action? releaseBitmap = null,
+        bool isFileBacked = true,
+        bool? hasAlpha = null)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(image);
         ReplaceFullResolutionContent(
             item,
-            DecodedImageContent.CreateSingle(image));
+            DecodedImageContent.CreateSingle(image),
+            releaseBitmap,
+            isFileBacked,
+            hasAlpha);
     }
 
     internal void ReplaceFullResolutionContent(
         PicaImageItem item,
-        DecodedImageContent content)
+        DecodedImageContent content,
+        Action? releaseBitmap = null,
+        bool isFileBacked = true,
+        bool? hasAlpha = null)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(content);
@@ -273,8 +314,18 @@ internal sealed class ImagePresentationController :
         Bitmap? previousSourceBitmap;
         DecodedImage? previousDecodedImage;
         DecodedImageContent? previousDecodedContent;
+        bool? alphaToApply = hasAlpha;
         image.SetStoredBitmapReleaseHandler(
-            DisposeBitmapWhenUnused);
+            bitmap =>
+            {
+                if (releaseBitmap is not null)
+                {
+                    releaseBitmap();
+                    return;
+                }
+
+                DisposeBitmapWhenUnused(bitmap);
+            });
         image.SetPlaybackFrameIndex(
             image.PreferredInitialFrameIndex);
         DecodedImageFrame initialFrame = GetRequiredFrame(
@@ -304,6 +355,13 @@ internal sealed class ImagePresentationController :
             CurrentItem = item;
             SourcePixelSize = initialFrame.Bitmap.PixelSize;
             IsFullResolutionReady = true;
+            _isCurrentImageFileBacked = isFileBacked;
+            _currentImageHasAlpha = hasAlpha;
+        }
+
+        if (alphaToApply is { } alpha)
+        {
+            _session.SetHasAlpha(alpha);
         }
 
         image.FrameDecoded += OnDecodedImageFrameDecoded;
@@ -612,9 +670,11 @@ internal sealed class ImagePresentationController :
         {
             if (!_session.IsChannelAvailabilityKnown)
             {
-                bool hasAlpha = await _channelBitmapLoader
-                    .ReadHasAlphaAsync(item.FilePath, ct)
-                    .ConfigureAwait(false);
+                bool hasAlpha = _isCurrentImageFileBacked
+                    ? await _channelBitmapLoader
+                        .ReadHasAlphaAsync(item.FilePath, ct)
+                        .ConfigureAwait(false)
+                    : _currentImageHasAlpha ?? false;
                 bool availabilityApplied = await _uiDispatcher.InvokeAsync(
                     () => ApplyChannelAvailability(
                         sourceBitmap,
@@ -821,6 +881,8 @@ internal sealed class ImagePresentationController :
             CurrentItem = item;
             SourcePixelSize = sourcePixelSize;
             IsFullResolutionReady = isFullResolutionReady;
+            _isCurrentImageFileBacked = true;
+            _currentImageHasAlpha = null;
         }
 
         DisposeBitmapWhenUnused(previousChannelBitmap);

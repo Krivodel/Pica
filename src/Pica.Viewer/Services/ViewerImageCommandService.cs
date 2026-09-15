@@ -11,6 +11,9 @@ internal sealed class ViewerImageCommandService :
 {
     public string? PreparedOpenWithFilePath { get; private set; }
 
+    public bool CanOpenCurrentImageWithApplication =>
+        _presentation.CurrentItem is not null;
+
     public event EventHandler? PreparedSelectionSaved;
 
     private readonly ImageViewerSession _session;
@@ -72,6 +75,18 @@ internal sealed class ViewerImageCommandService :
 
         if (channel is null)
         {
+            if (!_presentation.IsCurrentImageFileBacked)
+            {
+                PreparedClipboardImage memoryClipboardImage =
+                    await _clipboardImagePreparer.PrepareImageAsync(
+                        bitmapLease.Bitmap,
+                        ct).ConfigureAwait(false);
+                await _imageOperations.CopyPreparedImageAsync(
+                    memoryClipboardImage,
+                    ct).ConfigureAwait(false);
+                return;
+            }
+
             await _imageOperations.CopyFileAsync(
                 item,
                 bitmapLease.Bitmap,
@@ -232,6 +247,22 @@ internal sealed class ViewerImageCommandService :
 
         if (channel is null)
         {
+            if (!_presentation.IsCurrentImageFileBacked)
+            {
+                using ImagePresentationBitmapLease? saveBitmapLease =
+                    _presentation.AcquireDisplayedBitmap(null);
+
+                if (saveBitmapLease is not null)
+                {
+                    await _imageOperations.SaveBitmapAsync(
+                        saveBitmapLease.Bitmap,
+                        item.FileName,
+                        ct).ConfigureAwait(false);
+                }
+
+                return;
+            }
+
             await _imageOperations.SaveCurrentAsync(
                 item,
                 ct).ConfigureAwait(false);
@@ -265,10 +296,11 @@ internal sealed class ViewerImageCommandService :
         PicaImageItem item = _presentation.CurrentItem
             ?? throw new InvalidOperationException(
                 "An image must be selected before opening it with another application.");
+
         ImageChannel? channel = _session.SelectedChannel;
 
         return channel is null
-            ? item.FilePath
+            ? (_presentation.IsCurrentImageFileBacked ? item.FilePath : item.FileName)
             : ImageChannelFileName.Create(channel, item.FileName);
     }
 
@@ -276,21 +308,14 @@ internal sealed class ViewerImageCommandService :
     {
         ResetOpenWithPreparation();
 
-        if (_session.IsChannelModeActive)
-        {
-            await _presentationReadiness
-                .WaitAsync(ct)
-                .ConfigureAwait(false);
-        }
+        await _presentationReadiness.WaitAsync(ct).ConfigureAwait(false);
 
-        ImageChannel? channel = _session.SelectedChannel;
-
-        if ((channel is not null)
-            && !_presentationReadiness.IsReady)
+        if (!_presentationReadiness.IsReady)
         {
             return;
         }
 
+        ImageChannel? channel = _session.SelectedChannel;
         PicaImageItem? item = _presentation.CurrentItem;
 
         if (item is null)
@@ -298,7 +323,7 @@ internal sealed class ViewerImageCommandService :
             return;
         }
 
-        if (channel is null)
+        if ((channel is null) && _presentation.IsCurrentImageFileBacked)
         {
             PreparedOpenWithFilePath = item.FilePath;
             return;
@@ -318,8 +343,9 @@ internal sealed class ViewerImageCommandService :
                 ct)
                 .ConfigureAwait(false);
 
-        string filePath =
-            _temporaryImageFileStore.CreateChannelFilePath(channel);
+        string filePath = channel is null
+            ? _temporaryImageFileStore.CreateImageFilePath()
+            : _temporaryImageFileStore.CreateChannelFilePath(channel);
         await _temporaryImageFileStore.SaveAsync(
             filePath,
             image,

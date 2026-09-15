@@ -849,6 +849,62 @@ public sealed class ImageViewerViewTests
     }
 
     [Fact]
+    public async Task FloatingMenuDescendant_IsNotHandledAsViewerInput()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            Button menuButton = GetMenuButtons(view.ViewerContextMenu)[0];
+
+            ViewerPointerInputController.IsFloatingMenuInput(
+                    menuButton,
+                    view)
+                .Should()
+                .BeTrue();
+            ViewerPointerInputController.IsFloatingMenuInput(
+                    view.Image,
+                    view)
+                .Should()
+                .BeFalse();
+        });
+    }
+
+    [Fact]
+    public async Task ContextMenuButton_RaisedClick_RoutesToContextAction()
+    {
+        await DispatchAsync(() =>
+        {
+            bool wasClicked = false;
+            ImageViewerViewEvents events = CreateEvents(
+                contextCopyClicked: (_, _) => wasClicked = true);
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                events);
+
+            Button menuButton = GetMenuButtons(view.ViewerContextMenu)[0];
+            menuButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            wasClicked.Should().BeTrue();
+        });
+    }
+
+    [Fact]
     public async Task Constructor_WithToolMenuButton_KeepsThreeZoomButtonsCentered()
     {
         await DispatchAsync(() =>
@@ -1128,6 +1184,31 @@ public sealed class ImageViewerViewTests
     }
 
     [Fact]
+    public async Task SelectionToolbar_WithAfterSaveAction_PlacesItAfterSaveButton()
+    {
+        await DispatchAsync(() =>
+        {
+            PicaActionDefinition before = new("attach", "Attach", "M0,0", 0d, PicaActionTargets.Selection, 100);
+            PicaActionDefinition after = new("dlss", "DLSS", "M0,0", 0d, PicaActionTargets.Selection, 101)
+            {
+                SelectionPlacement = PicaSelectionActionPlacement.AfterSave
+            };
+            ImageViewerSessionViewModel session = CreateSession(false, new List<PicaActionDefinition> { before, after });
+            using ImageViewerView view = new(
+                session, CreateToolMenu(session, false), new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen, CreateEvents());
+
+            Button[] buttons = view.SelectionToolbar.Children.OfType<Button>().ToArray();
+
+            buttons.Should().HaveCount(6);
+            buttons[1].Tag.Should().BeSameAs(before);
+            buttons[2].Tag.Should().BeNull();
+            buttons[3].Tag.Should().BeSameAs(after);
+            ToolTip.GetTip(buttons[3]).Should().Be("DLSS");
+        });
+    }
+
+    [Fact]
     public async Task Layout_WhenSelectionToolbarIsHosted_PreservesExistingButtonAppearance()
     {
         await DispatchAsync(() =>
@@ -1345,7 +1426,8 @@ public sealed class ImageViewerViewTests
         actualRegion.Should().Equal(expectedRegion);
     }
 
-    private static ImageViewerViewEvents CreateEvents()
+    private static ImageViewerViewEvents CreateEvents(
+        EventHandler<RoutedEventArgs>? contextCopyClicked = null)
     {
         return new ImageViewerViewEvents
         {
@@ -1361,7 +1443,7 @@ public sealed class ImageViewerViewTests
             CloseClicked = IgnoreRoutedEvent,
             WindowModeClicked = IgnoreRoutedEvent,
             SettingsClicked = IgnoreRoutedEvent,
-            ContextCopyClicked = IgnoreRoutedEvent,
+            ContextCopyClicked = contextCopyClicked ?? IgnoreRoutedEvent,
             ContextExternalActionClicked = IgnoreRoutedEvent,
             ContextSaveAsClicked = IgnoreRoutedEvent,
             ContextRevealInFolderClicked = IgnoreRoutedEvent,

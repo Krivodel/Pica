@@ -9,4 +9,10 @@ public interface IImageViewerWindowFactory
         PicaViewerRequest request,
         IViewerActionDispatcher actionDispatcher,
         CancellationToken ct);
+
+    Task<ImageViewerWindow> CreateAsync(
+        PicaViewerRequest request,
+        IViewerActionDispatcher actionDispatcher,
+        IReadOnlyDictionary<Guid, IPicaImageBitmapSource>? bitmapSources,
+        CancellationToken ct);
 }
