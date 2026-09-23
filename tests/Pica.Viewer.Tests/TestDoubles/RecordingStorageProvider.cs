@@ -9,6 +9,8 @@ internal sealed class RecordingStorageProvider : IDisposable
 {
     internal IStorageProvider Provider { get; }
     internal string? SuggestedFileName { get; private set; }
+    internal FilePickerSaveOptions? SaveOptions { get; private set; }
+    internal string? SelectedFileName { get; set; }
     internal bool? SavePickerHasUiThreadAccess { get; private set; }
     internal RecordingStorageFile Destination { get; } = new();
     internal IStorageFile? SaveDestination { get; private set; }
@@ -33,6 +35,10 @@ internal sealed class RecordingStorageProvider : IDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         SuggestedFileName = options.SuggestedFileName;
+        SaveOptions = options;
+        Destination.Name = SelectedFileName
+            ?? options.SuggestedFileName
+            ?? Destination.Name;
         SavePickerHasUiThreadAccess =
             Dispatcher.UIThread.CheckAccess();
     }

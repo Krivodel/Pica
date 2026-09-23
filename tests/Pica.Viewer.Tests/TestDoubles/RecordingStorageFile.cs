@@ -9,6 +9,7 @@ internal sealed class RecordingStorageFile : IDisposable
     internal IStorageFile File { get; }
     internal byte[] Content => _content.ToArray();
     internal Stream ContentStream => _content;
+    internal string Name { get; set; } = "recorded.png";
 
     private readonly MemoryStream _content = new();
 

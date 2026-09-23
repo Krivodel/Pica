@@ -71,7 +71,8 @@ public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderRes
                 InitialFrameSelection:
                     ImageInitialFrameSelection.LargestArea,
                 FrameNumbering:
-                    ImageFrameNumbering.Reverse),
+                    ImageFrameNumbering.Reverse,
+                CanSave: false),
             [PicaImageFormats.AvifExtension] = new(
                 PicaImageFormats.AvifContentType,
                 MagickDecoder,
@@ -114,6 +115,26 @@ public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderRes
                 MagickDecoder,
                 ImageFramePresentationModes.ManualNavigation)
         };
+
+    private static readonly IReadOnlyList<string> WritableExtensions =
+        FormatsByExtension
+            .Where(format => format.Value.CanSave
+                && MagickFormatInfo.Create("image" + format.Key)
+                is { SupportsWriting: true })
+            .Select(format => format.Key)
+            .ToArray();
+
+    public IReadOnlyList<string> GetWritableExtensions()
+    {
+        return WritableExtensions;
+    }
+
+    public MagickFormat? GetMultiFrameReadFormat(string fileName)
+    {
+        string extension = Path.GetExtension(fileName);
+
+        return FormatsByExtension.GetValueOrDefault(extension)?.MultiFrameReadFormat;
+    }
 
     public bool IsSupportedFileName(string fileName)
     {
@@ -175,5 +196,6 @@ public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderRes
         ImageAnimationBufferingPolicy? AnimationBufferingPolicy =
             null,
         MagickAnimationDecodingPolicy? MagickDecodingPolicy =
-            null);
+            null,
+        bool CanSave = true);
 }

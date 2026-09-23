@@ -10,6 +10,15 @@ public sealed class ImageFormatRegistryTests
 {
     private readonly ImageFormatRegistry _registry = new();
 
+    [Fact]
+    public void GetWritableExtensions_WithCursorFormat_ExcludesUnsupportedCursorEncoding()
+    {
+        IReadOnlyList<string> extensions = _registry.GetWritableExtensions();
+
+        extensions.Should().Contain(PicaImageFormats.PngExtension);
+        extensions.Should().NotContain(".cur");
+    }
+
     [Theory]
     [InlineData("image.png")]
     [InlineData("image.apng")]

@@ -24,7 +24,7 @@ internal class StorageFileDispatchProxy : DispatchProxy
 
         return method.Name switch
         {
-            "get_Name" => "recorded.png",
+            "get_Name" => owner.Name,
             "get_Path" => new Uri("file:///recorded.png"),
             "get_CanBookmark" => false,
             "OpenWriteAsync" => Task.FromResult(owner.ContentStream),

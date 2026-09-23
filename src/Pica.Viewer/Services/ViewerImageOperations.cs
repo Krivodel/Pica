@@ -1,5 +1,6 @@
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using ImageMagick;
 
 using Pica.Protocol;
 using Pica.Viewer.Resources;
@@ -119,9 +120,9 @@ internal sealed class ViewerImageOperations
         ArgumentNullException.ThrowIfNull(item);
 
         await SaveImageAsync(
-            () => CreateCurrentImageSavePicker(item),
+            item.FileName,
+            GetFileExtension(item.FileName),
             currentCt => File.ReadAllBytesAsync(item.FilePath, currentCt),
-            SaveContentPreparationTiming.BeforeOpeningDestination,
             ct).ConfigureAwait(false);
     }
 
@@ -132,24 +133,16 @@ internal sealed class ViewerImageOperations
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentNullException.ThrowIfNull(saved);
-        (string suggestedFileName, FilePickerFileType fileType) =
-            CreatePngSavePicker(PicaImageFormats.SelectionFileName);
-        IStorageFile? destination = await ShowSaveFilePickerAsync(
-            suggestedFileName,
-            fileType,
-            ct).ConfigureAwait(false);
-
-        if (destination is null)
-        {
-            return;
-        }
-
-        await WriteImageAsync(
-            destination,
+        bool wasSaved = await SaveImageAsync(
+            PicaImageFormats.SelectionFileName,
+            PicaImageFormats.PngExtension,
             currentCt => Task.FromResult(image.PngContent),
-            image.PngContent,
             ct).ConfigureAwait(false);
-        saved();
+
+        if (wasSaved)
+        {
+            saved();
+        }
     }
 
     internal async Task SaveBitmapAsync(
@@ -161,22 +154,19 @@ internal sealed class ViewerImageOperations
         ArgumentException.ThrowIfNullOrWhiteSpace(suggestedFileName);
 
         await SaveImageAsync(
-            () => CreatePngSavePicker(suggestedFileName),
+            Path.ChangeExtension(suggestedFileName, PicaImageFormats.PngExtension),
+            PicaImageFormats.PngExtension,
             currentCt => _pngImageEncoder.EncodeAsync(bitmap, currentCt),
-            SaveContentPreparationTiming.AfterOpeningDestination,
             ct).ConfigureAwait(false);
     }
 
-    private static (string SuggestedFileName, FilePickerFileType FileType) CreatePngSavePicker(
-        string suggestedFileName)
+    private static string GetFileExtension(string fileName)
     {
-        FilePickerFileType fileType = new("PNG")
-        {
-            MimeTypes = [PicaImageFormats.PngContentType],
-            Patterns = ["*" + PicaImageFormats.PngExtension]
-        };
+        string extension = Path.GetExtension(fileName).ToLowerInvariant();
 
-        return (suggestedFileName, fileType);
+        return string.IsNullOrWhiteSpace(extension)
+            ? PicaImageFormats.PngExtension
+            : extension;
     }
 
     private static void ClearWritableStream(Stream stream)
@@ -189,64 +179,137 @@ internal sealed class ViewerImageOperations
 
     private static async Task WriteImageAsync(
         IStorageFile destination,
-        Func<CancellationToken, Task<byte[]>> createContent,
-        byte[]? preparedContent,
+        byte[] content,
         CancellationToken ct)
     {
         await using Stream target = await destination
             .OpenWriteAsync()
             .ConfigureAwait(false);
         ClearWritableStream(target);
-        byte[] content = preparedContent
-            ?? await createContent(ct).ConfigureAwait(false);
         await target.WriteAsync(content, ct).ConfigureAwait(false);
     }
 
-    private async Task SaveImageAsync(
-        Func<(string SuggestedFileName, FilePickerFileType FileType)> createPicker,
-        Func<CancellationToken, Task<byte[]>> createContent,
-        SaveContentPreparationTiming preparationTiming,
+    private static byte[] ConvertImage(
+        byte[] sourceContent,
+        MagickFormat? sourceReadFormat,
+        MagickFormat format,
+        bool supportsMultipleFrames,
         CancellationToken ct)
     {
-        (string suggestedFileName, FilePickerFileType fileType) = createPicker();
+        ct.ThrowIfCancellationRequested();
+        using MagickImageCollection images = new();
+        using MemoryStream source = new(sourceContent);
+        MagickReadSettings? readSettings = sourceReadFormat is MagickFormat readFormat
+            ? new MagickReadSettings { Format = readFormat }
+            : null;
+        MagickImageCollectionReader.Read(images, source, readSettings);
+        using MemoryStream output = new();
+
+        if (supportsMultipleFrames && (images.Count > 1))
+        {
+            images.Write(output, format);
+        }
+        else
+        {
+            images[0].Write(output, format);
+        }
+
+        ct.ThrowIfCancellationRequested();
+
+        return output.ToArray();
+    }
+
+    private async Task<byte[]> PrepareSaveContentAsync(
+        byte[] sourceContent,
+        string sourceExtension,
+        IStorageFile destination,
+        CancellationToken ct)
+    {
+        string destinationExtension = GetFileExtension(destination.Name);
+
+        if (string.Equals(
+                sourceExtension,
+                destinationExtension,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return sourceContent;
+        }
+
+        if (!_formatRegistry.GetWritableExtensions().Contains(destinationExtension))
+        {
+            throw new NotSupportedException(
+                $"The image format '{destinationExtension}' is not available for saving.");
+        }
+
+        IMagickFormatInfo? destinationFormat = MagickFormatInfo.Create(destination.Name);
+
+        if (destinationFormat is not { SupportsWriting: true })
+        {
+            throw new NotSupportedException(
+                $"The image format '{destinationExtension}' cannot be written.");
+        }
+
+        return await Task.Run(() => ConvertImage(
+            sourceContent,
+            _formatRegistry.GetMultiFrameReadFormat("image" + sourceExtension),
+            destinationFormat.Format,
+            destinationFormat.SupportsMultipleFrames,
+            ct), ct).ConfigureAwait(false);
+    }
+
+    private async Task<bool> SaveImageAsync(
+        string suggestedFileName,
+        string sourceExtension,
+        Func<CancellationToken, Task<byte[]>> createContent,
+        CancellationToken ct)
+    {
         IStorageFile? destination = await ShowSaveFilePickerAsync(
             suggestedFileName,
-            fileType,
+            sourceExtension,
             ct).ConfigureAwait(false);
 
         if (destination is null)
         {
-            return;
+            return false;
         }
 
-        byte[]? preparedContent = preparationTiming
-            == SaveContentPreparationTiming.BeforeOpeningDestination
-            ? await createContent(ct).ConfigureAwait(false)
-            : null;
-        await WriteImageAsync(
+        byte[] sourceContent = await createContent(ct).ConfigureAwait(false);
+        byte[] content = await PrepareSaveContentAsync(
+            sourceContent,
+            sourceExtension,
             destination,
-            createContent,
-            preparedContent,
             ct).ConfigureAwait(false);
-    }
+        await WriteImageAsync(destination, content, ct).ConfigureAwait(false);
 
-    private (string SuggestedFileName, FilePickerFileType FileType) CreateCurrentImageSavePicker(
-        PicaImageItem item)
-    {
-        string fileName = item.FileName;
-        string extension = Path.GetExtension(fileName);
-
-        return (fileName, CreateImageFilePickerFileType(extension, fileName));
+        return true;
     }
 
     private async Task<IStorageFile?> ShowSaveFilePickerAsync(
         string suggestedFileName,
-        FilePickerFileType fileType,
+        string defaultExtension,
         CancellationToken ct)
     {
+        IReadOnlyList<string> extensions = _formatRegistry.GetWritableExtensions();
+        List<FilePickerFileType> fileTypes = new(extensions.Count + 1)
+        {
+            CreateImageFilePickerFileType(defaultExtension)
+        };
+
+        foreach (string extension in extensions)
+        {
+            if (!string.Equals(
+                    extension,
+                    defaultExtension,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                fileTypes.Add(CreateImageFilePickerFileType(extension));
+            }
+        }
+
         FilePickerSaveOptions options = new()
         {
-            FileTypeChoices = [fileType],
+            FileTypeChoices = fileTypes,
+            SuggestedFileType = fileTypes[0],
             SuggestedFileName = suggestedFileName,
             Title = ViewerUiStrings.SaveAs
         };
@@ -256,34 +319,21 @@ internal sealed class ViewerImageOperations
             .ConfigureAwait(false);
     }
 
-    private FilePickerFileType CreateImageFilePickerFileType(
-        string extension,
-        string fallbackFileName)
+    private FilePickerFileType CreateImageFilePickerFileType(string extension)
     {
-        if (string.IsNullOrWhiteSpace(extension))
-        {
-            extension = _formatRegistry.GetExtension(fallbackFileName);
-        }
-
-        if (string.IsNullOrWhiteSpace(extension))
-        {
-            extension = PicaImageFormats.PngExtension;
-        }
-
         string normalizedExtension = extension.StartsWith('.')
             ? extension
             : "." + extension;
         string label = normalizedExtension.TrimStart('.').ToUpperInvariant();
+        string fileName = "image" + normalizedExtension;
+        string[]? mimeTypes = _formatRegistry.IsSupportedFileName(fileName)
+            ? [_formatRegistry.GetContentType(fileName)]
+            : null;
 
         return new FilePickerFileType(label)
         {
+            MimeTypes = mimeTypes,
             Patterns = ["*" + normalizedExtension]
         };
-    }
-
-    private enum SaveContentPreparationTiming
-    {
-        BeforeOpeningDestination,
-        AfterOpeningDestination
     }
 }
