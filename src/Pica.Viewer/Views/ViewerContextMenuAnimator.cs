@@ -57,16 +57,24 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
         bool fromBottom = menuPosition.Y + menuSize.Height
             <= pointerPosition.Y;
 
-        if (fromRight)
-        {
-            return fromBottom
-                ? ViewerContextMenuRevealOrigin.BottomRight
-                : ViewerContextMenuRevealOrigin.TopRight;
-        }
+        return CreateOrigin(fromRight, fromBottom);
+    }
 
-        return fromBottom
-            ? ViewerContextMenuRevealOrigin.BottomLeft
-            : ViewerContextMenuRevealOrigin.TopLeft;
+    internal static ViewerContextMenuRevealOrigin ResolveNearestOrigin(
+        Point anchorPosition,
+        Size anchorSize,
+        Point menuPosition,
+        Size menuSize)
+    {
+        Point anchorCenter = new(
+            anchorPosition.X + (anchorSize.Width / 2d),
+            anchorPosition.Y + (anchorSize.Height / 2d));
+        bool fromRight = anchorCenter.X
+            >= menuPosition.X + (menuSize.Width / 2d);
+        bool fromBottom = anchorCenter.Y
+            >= menuPosition.Y + (menuSize.Height / 2d);
+
+        return CreateOrigin(fromRight, fromBottom);
     }
 
     internal static Rect CalculateRevealBounds(
@@ -94,12 +102,19 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
         Point menuPosition,
         Size menuSize)
     {
+        Open(ResolveOrigin(pointerPosition, menuPosition, menuSize), menuSize);
+    }
+
+    internal void Open(
+        ViewerContextMenuRevealOrigin origin,
+        Size menuSize)
+    {
         ObjectDisposedException.ThrowIf(_isDisposed, this);
 
         _animationId++;
         _isClosing = false;
         _menuSize = menuSize;
-        _origin = ResolveOrigin(pointerPosition, menuPosition, menuSize);
+        _origin = origin;
         _menu.IsHitTestVisible = true;
         ApplyOpeningProgress(0d);
 
@@ -137,6 +152,22 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
         double distanceToEnd = 1d - normalizedProgress;
 
         return Math.Sqrt(1d - (distanceToEnd * distanceToEnd));
+    }
+
+    private static ViewerContextMenuRevealOrigin CreateOrigin(
+        bool fromRight,
+        bool fromBottom)
+    {
+        if (fromRight)
+        {
+            return fromBottom
+                ? ViewerContextMenuRevealOrigin.BottomRight
+                : ViewerContextMenuRevealOrigin.TopRight;
+        }
+
+        return fromBottom
+            ? ViewerContextMenuRevealOrigin.BottomLeft
+            : ViewerContextMenuRevealOrigin.TopLeft;
     }
 
     private static double InterpolateRevealRatio(

@@ -482,10 +482,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             events.ContextOpenWithClicked);
         panel.Children.Add(openWithButton);
 
-        Border menu = CreateFloatingMenu(panel);
-        menu.Transitions = new Transitions();
-
-        return menu;
+        return CreateAnimatedFloatingMenu(panel);
     }
 
     private static Border CreateOpenWithMenu(out StackPanel items)
@@ -493,7 +490,15 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         items = new StackPanel();
         items.Classes.Add("viewer-menu-items");
 
-        return CreateFloatingMenu(items);
+        return CreateAnimatedFloatingMenu(items);
+    }
+
+    private static Border CreateAnimatedFloatingMenu(StackPanel content)
+    {
+        Border menu = CreateFloatingMenu(content);
+        menu.Transitions = new Transitions();
+
+        return menu;
     }
 
     private static Canvas CreateClippedMenuLayer()

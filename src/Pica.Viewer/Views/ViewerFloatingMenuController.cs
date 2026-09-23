@@ -30,6 +30,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     private readonly ImageViewportController _viewport;
     private readonly ImageSelectionController _selection;
     private readonly ViewerContextMenuAnimator _contextMenuAnimator;
+    private readonly ViewerContextMenuAnimator _openWithMenuAnimator;
     private readonly EventHandler<RoutedEventArgs>
         _openWithApplicationClicked;
     private readonly EventHandler<RoutedEventArgs>
@@ -63,6 +64,11 @@ internal sealed class ViewerFloatingMenuController : IDisposable
             animationRunner,
             _view.VisibleControlsOpacity,
             _view.HiddenControlsOpacity);
+        _openWithMenuAnimator = new ViewerContextMenuAnimator(
+            _view.OpenWithMenu,
+            animationRunner,
+            _view.VisibleControlsOpacity,
+            _view.HiddenControlsOpacity);
         _openWithApplicationClicked = openWithApplicationClicked
             ?? throw new ArgumentNullException(
                 nameof(openWithApplicationClicked));
@@ -80,6 +86,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     public void Dispose()
     {
         _contextMenuAnimator.Dispose();
+        _openWithMenuAnimator.Dispose();
         _submenuHideTimer.Stop();
         _submenuHideTimer.Tick -= OnSubmenuHideTimerTick;
     }
@@ -341,7 +348,17 @@ internal sealed class ViewerFloatingMenuController : IDisposable
         ArgumentNullException.ThrowIfNull(submenuLayer);
         ArgumentNullException.ThrowIfNull(anchor);
 
-        HideActiveSubmenu();
+        bool isAlreadyOpen = object.ReferenceEquals(submenu, _view.OpenWithMenu)
+            && object.ReferenceEquals(_activeSubmenu, submenu)
+            && object.ReferenceEquals(_submenuAnchor, anchor)
+            && submenu.IsVisible
+            && submenu.IsHitTestVisible;
+
+        if (!isAlreadyOpen)
+        {
+            HideActiveSubmenu();
+        }
+
         _activeSubmenu = submenu;
         _submenuAnchor = anchor;
 
@@ -376,11 +393,29 @@ internal sealed class ViewerFloatingMenuController : IDisposable
             Math.Max(0d, viewport.Width - submenuSize.Width);
         double maxY =
             Math.Max(0d, viewport.Height - submenuSize.Height);
-        Canvas.SetLeft(submenu, Math.Clamp(x, 0d, maxX));
-        Canvas.SetTop(
-            submenu,
+        Point menuPosition = new(
+            Math.Clamp(x, 0d, maxX),
             Math.Clamp(anchorPosition.Y, 0d, maxY));
-        submenu.Opacity = _view.VisibleControlsOpacity;
+        Canvas.SetLeft(submenu, menuPosition.X);
+        Canvas.SetTop(submenu, menuPosition.Y);
+
+        if (object.ReferenceEquals(submenu, _view.OpenWithMenu))
+        {
+            if (!isAlreadyOpen)
+            {
+                ViewerContextMenuRevealOrigin origin =
+                    ViewerContextMenuAnimator.ResolveNearestOrigin(
+                        anchorPosition,
+                        anchor.Bounds.Size,
+                        menuPosition,
+                        submenuSize);
+                _openWithMenuAnimator.Open(origin, submenuSize);
+            }
+        }
+        else
+        {
+            submenu.Opacity = _view.VisibleControlsOpacity;
+        }
     }
 
     private void HideOpenWithSubmenu()
@@ -407,8 +442,15 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     {
         ArgumentNullException.ThrowIfNull(submenu);
 
-        submenu.Opacity = _view.HiddenControlsOpacity;
-        submenu.IsVisible = false;
+        if (object.ReferenceEquals(submenu, _view.OpenWithMenu))
+        {
+            _openWithMenuAnimator.Close();
+        }
+        else
+        {
+            submenu.Opacity = _view.HiddenControlsOpacity;
+            submenu.IsVisible = false;
+        }
 
         if (object.ReferenceEquals(_activeSubmenu, submenu))
         {

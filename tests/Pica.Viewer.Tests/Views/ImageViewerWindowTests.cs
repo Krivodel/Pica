@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Chrome;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -223,6 +224,73 @@ public sealed class ImageViewerWindowTests
                 await Task.Delay(
                     ViewerContextMenuAnimator.ClosingDurationMilliseconds + 50);
                 view.ViewerContextMenu.IsVisible.Should().BeFalse();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task OpenWithSubmenu_WhenOpenedFromContextMenu_RevealsAndFadesOnDismiss()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            PicaImageItem item = new(ItemId, imagePath, "image.png");
+            PicaViewerRequest request = new(
+                new List<PicaImageItem> { item },
+                ItemId);
+            RecordingPlatformFileActions fileActions = new();
+            ImageViewerWindow window = CreateWindow(
+                request,
+                new ImageViewerState(),
+                new RecordingImageChannelBitmapLoader(),
+                fileActions);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+            TaskCompletionSource imageLoaded = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            view.Image.PropertyChanged += (_, e) =>
+            {
+                if ((e.Property == Image.SourceProperty)
+                    && (view.Image.Source is Bitmap))
+                {
+                    imageLoaded.TrySetResult();
+                }
+            };
+
+            try
+            {
+                window.Show();
+                await imageLoaded.Task.WaitAsync(
+                    TimeSpan.FromSeconds(TestTimeoutSeconds));
+                window.MouseDown(
+                    new Point(100d, 100d),
+                    MouseButton.Right,
+                    RawInputModifiers.None);
+                view.ContextOpenWithButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+
+                view.OpenWithMenu.IsVisible.Should().BeTrue();
+                view.OpenWithMenu.IsHitTestVisible.Should().BeTrue();
+                view.OpenWithMenu.Clip.Should().NotBeNull();
+                fileActions.LoadApplicationsCount.Should().Be(1);
+
+                window.MouseDown(
+                    new Point(400d, 400d),
+                    MouseButton.Left,
+                    RawInputModifiers.None);
+
+                view.OpenWithMenu.IsHitTestVisible.Should().BeFalse();
+                view.OpenWithMenu.IsVisible.Should().BeTrue();
+                await Task.Delay(
+                    ViewerContextMenuAnimator.ClosingDurationMilliseconds + 50);
+                view.OpenWithMenu.IsVisible.Should().BeFalse();
             }
             finally
             {
@@ -1012,7 +1080,8 @@ public sealed class ImageViewerWindowTests
     private static ImageViewerWindow CreateWindow(
         PicaViewerRequest request,
         ImageViewerState state,
-        IImageChannelBitmapLoader channelBitmapLoader)
+        IImageChannelBitmapLoader channelBitmapLoader,
+        IPlatformFileActions? platformFileActions = null)
     {
         ImageFormatRegistry formatRegistry = new();
 
@@ -1025,7 +1094,8 @@ public sealed class ImageViewerWindowTests
                 NullLogger<ImagePreviewLoader>.Instance),
             new FullResolutionImageLoader(
                 formatRegistry,
-                MultiFrameImageDecoderTestFactory.Create()));
+                MultiFrameImageDecoderTestFactory.Create()),
+            platformFileActions);
     }
 
     private static ImageViewerWindow CreateWindow(
@@ -1033,7 +1103,8 @@ public sealed class ImageViewerWindowTests
         ImageViewerState state,
         IImageChannelBitmapLoader channelBitmapLoader,
         IImagePreviewLoader previewLoader,
-        IFullResolutionImageLoader fullResolutionLoader)
+        IFullResolutionImageLoader fullResolutionLoader,
+        IPlatformFileActions? platformFileActions = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(state);
@@ -1047,7 +1118,8 @@ public sealed class ImageViewerWindowTests
             uiDispatcher,
             channelBitmapLoader,
             previewLoader,
-            fullResolutionLoader);
+            fullResolutionLoader,
+            platformFileActions);
 
         return composer.Create(
             request,
@@ -1081,7 +1153,8 @@ public sealed class ImageViewerWindowTests
         IViewerUiDispatcher uiDispatcher,
         IImageChannelBitmapLoader channelBitmapLoader,
         IImagePreviewLoader? previewLoader = null,
-        IFullResolutionImageLoader? fullResolutionLoader = null)
+        IFullResolutionImageLoader? fullResolutionLoader = null,
+        IPlatformFileActions? platformFileActions = null)
     {
         ArgumentNullException.ThrowIfNull(stateService);
         ArgumentNullException.ThrowIfNull(uiDispatcher);
@@ -1123,7 +1196,7 @@ public sealed class ImageViewerWindowTests
             uiDispatcher,
             new PngImageEncoder(),
             clipboardImagePreparer,
-            new NullPlatformFileActions(),
+            platformFileActions ?? new NullPlatformFileActions(),
             errorHandler,
             NullLogger<ImageViewerActionsViewModel>.Instance,
             NullLogger<ImageViewerOpenWithViewModel>.Instance,

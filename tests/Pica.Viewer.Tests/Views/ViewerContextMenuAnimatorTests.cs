@@ -63,6 +63,31 @@ public sealed class ViewerContextMenuAnimatorTests
     }
 
     [Theory]
+    [InlineData(40d, 40d, (int)ViewerContextMenuRevealOrigin.TopLeft)]
+    [InlineData(260d, 40d, (int)ViewerContextMenuRevealOrigin.TopRight)]
+    [InlineData(40d, 160d, (int)ViewerContextMenuRevealOrigin.BottomLeft)]
+    [InlineData(260d, 160d, (int)ViewerContextMenuRevealOrigin.BottomRight)]
+    public void ResolveNearestOrigin_WhenSubmenuOpensAroundAnchor_UsesClosestCorner(
+        double anchorX,
+        double anchorY,
+        int expectedOriginValue)
+    {
+        Point anchorPosition = new(anchorX, anchorY);
+        Size anchorSize = new(20d, 20d);
+        Point menuPosition = new(100d, 50d);
+        Size menuSize = new(100d, 100d);
+
+        ViewerContextMenuRevealOrigin origin =
+            ViewerContextMenuAnimator.ResolveNearestOrigin(
+                anchorPosition,
+                anchorSize,
+                menuPosition,
+                menuSize);
+
+        origin.Should().Be((ViewerContextMenuRevealOrigin)expectedOriginValue);
+    }
+
+    [Theory]
     [InlineData((int)ViewerContextMenuRevealOrigin.TopLeft, 0d, 0d)]
     [InlineData((int)ViewerContextMenuRevealOrigin.TopRight, 100d, 0d)]
     [InlineData((int)ViewerContextMenuRevealOrigin.BottomLeft, 0d, 70d)]

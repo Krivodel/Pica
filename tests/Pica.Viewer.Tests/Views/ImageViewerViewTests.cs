@@ -1111,6 +1111,7 @@ public sealed class ImageViewerViewTests
 
                 view.ViewerContextMenu.Padding.Should().Be(new Thickness(6d));
                 view.ViewerContextMenu.Transitions.Should().BeEmpty();
+                view.OpenWithMenu.Transitions.Should().BeEmpty();
                 view.ViewerContextMenu.CornerRadius.Should().Be(new CornerRadius(8d));
                 menuBackground.Color.Should().Be(Color.FromArgb(232, 24, 24, 24));
                 opacityTransition.Duration.Should().Be(TimeSpan.FromSeconds(0.16d));
