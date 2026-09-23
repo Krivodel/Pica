@@ -79,6 +79,7 @@ public static class DependencyInjection
         services.AddSingleton<IClipboardImageWriter>(provider =>
             provider.GetRequiredService<ClipboardFlushCoordinator>());
         services.AddSingleton<ViewerClipboardFactory>();
+        services.AddSingleton<IClipboardImageCopier, ClipboardImageCopier>();
         services.AddSingleton<ImageViewerPresentationFactory>();
         services.AddSingleton<ImageViewerSettingsFactory>();
         services.AddSingleton<ImageViewerInteractionFactory>();

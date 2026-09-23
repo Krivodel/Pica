@@ -13,6 +13,7 @@ internal sealed class ViewerImageOperations
     private readonly IImageFormatRegistry _formatRegistry;
     private readonly PngImageEncoder _pngImageEncoder;
     private readonly IViewerActionDispatcher _actionDispatcher;
+    private readonly ViewerClipboardFileCopy _clipboardFileCopy;
 
     internal ViewerImageOperations(
         IViewerClipboardWriter clipboardImageWriter,
@@ -30,6 +31,9 @@ internal sealed class ViewerImageOperations
             ?? throw new ArgumentNullException(nameof(pngImageEncoder));
         _actionDispatcher = actionDispatcher
             ?? throw new ArgumentNullException(nameof(actionDispatcher));
+        _clipboardFileCopy = new ViewerClipboardFileCopy(
+            _filePickerService,
+            _clipboardImageWriter);
     }
 
     internal async Task CopyPreparedImageAsync(
@@ -50,25 +54,8 @@ internal sealed class ViewerImageOperations
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        IStorageFile? file = await _filePickerService
-            .GetFileFromPathAsync(item.FilePath, ct)
-            .ConfigureAwait(false);
-
-        if (file is null)
-        {
-            return;
-        }
-
-        if (bitmap is null)
-        {
-            await _clipboardImageWriter
-                .SetFileAsync(file, ct)
-                .ConfigureAwait(false);
-            return;
-        }
-
-        await _clipboardImageWriter
-            .SetFileWithImageAsync(file, bitmap, ct)
+        await _clipboardFileCopy
+            .CopyAsync(item.FilePath, bitmap, ct)
             .ConfigureAwait(false);
     }
 
