@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Pica.Viewer.ViewModels"
              x:Class="Pica.Viewer.Controls.ImageContentNavigationControl"
-             x:DataType="vm:ImageViewerSessionViewModel">
+             x:DataType="vm:ImageViewerSessionViewModel"
+             ClipToBounds="False">
     <StackPanel HorizontalAlignment="Center"
                 Spacing="6">
         <Border x:Name="ContentNavigationInformation"

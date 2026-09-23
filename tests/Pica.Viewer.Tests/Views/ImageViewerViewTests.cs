@@ -944,9 +944,21 @@ public sealed class ImageViewerViewTests
     {
         await DispatchAsync(() =>
         {
-            ImageViewerSessionViewModel session = CreateSession(
+            ImageViewerSession sessionState = CreateSessionState(
                 false,
                 new List<PicaActionDefinition>());
+            using ImageViewerSessionViewModel session = new(sessionState);
+            sessionState.SetContentGroups(
+                new List<ImageContentGroupDefinition>
+                {
+                    new(ImageContentGroupKind.Animation, 4)
+                }.AsReadOnly(),
+                0);
+            sessionState.SetFramePresentation(
+                4,
+                ImageFramePresentationModes.AutomaticPlayback,
+                0,
+                animationTimeline: CreateAnimationTimeline(4));
             using ImageViewerView view = new(
                 session,
                 CreateToolMenu(session, false),
@@ -971,6 +983,15 @@ public sealed class ImageViewerViewTests
                 view.ImageInformationPanel.IsVisible = true;
                 view.ImageInformationPanel.Opacity = 1d;
                 view.ImageInformationText.Text = "image.png";
+                view.ContentNavigationPanel.Transitions = null;
+                view.ContentNavigationPanel.IsVisible = true;
+                view.ContentNavigationPanel.Opacity = 1d;
+                StackPanel animationNavigation = GetRequiredControl<StackPanel>(
+                    view.ContentNavigationPanel,
+                    "AnimationNavigationPanel");
+                Border animationInformation = GetRequiredControl<Border>(
+                    view.ContentNavigationPanel,
+                    "ContentNavigationInformation");
 
                 window.Show();
 
@@ -990,10 +1011,14 @@ public sealed class ImageViewerViewTests
                 Control[] shadowedControls =
                 [
                     ..buttons,
+                    ..animationNavigation.Children.OfType<Button>(),
+                    animationInformation,
                     view.ImageInformationPanel
                 ];
 
                 buttons.Should().HaveCount(4);
+                animationNavigation.Children.Should().HaveCount(5);
+                animationNavigation.IsVisible.Should().BeTrue();
 
                 foreach (Control control in shadowedControls)
                 {
