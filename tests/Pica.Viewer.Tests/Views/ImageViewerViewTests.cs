@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 
 using Avalonia;
-using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -1095,14 +1094,6 @@ public sealed class ImageViewerViewTests
                 window.Show();
                 Button contextMenuButton =
                     GetMenuButtons(view.ViewerContextMenu)[0];
-                DoubleTransition opacityTransition = view.ToolMenu
-                    .Transitions
-                    .Should()
-                    .ContainSingle()
-                    .Which
-                    .Should()
-                    .BeOfType<DoubleTransition>()
-                    .Subject;
                 SolidColorBrush menuBackground = view.ViewerContextMenu
                     .Background
                     .Should()
@@ -1112,9 +1103,10 @@ public sealed class ImageViewerViewTests
                 view.ViewerContextMenu.Padding.Should().Be(new Thickness(6d));
                 view.ViewerContextMenu.Transitions.Should().BeEmpty();
                 view.OpenWithMenu.Transitions.Should().BeEmpty();
+                view.ToolMenu.Transitions.Should().BeEmpty();
+                view.ModeMenu.Transitions.Should().BeEmpty();
                 view.ViewerContextMenu.CornerRadius.Should().Be(new CornerRadius(8d));
                 menuBackground.Color.Should().Be(Color.FromArgb(232, 24, 24, 24));
-                opacityTransition.Duration.Should().Be(TimeSpan.FromSeconds(0.16d));
                 view.ToolMenu.Padding.Should().Be(view.ViewerContextMenu.Padding);
                 view.ToolMenu.CornerRadius.Should().Be(
                     view.ViewerContextMenu.CornerRadius);

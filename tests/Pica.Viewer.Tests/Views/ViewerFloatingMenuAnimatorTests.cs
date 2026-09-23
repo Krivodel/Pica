@@ -8,7 +8,7 @@ using Pica.Viewer.Views;
 
 namespace Pica.Viewer.Tests.Views;
 
-public sealed class ViewerContextMenuAnimatorTests
+public sealed class ViewerFloatingMenuAnimatorTests
 {
     [Fact]
     public void Open_WhenClosingIsPending_KeepsReopenedMenuInteractive()
@@ -19,7 +19,7 @@ public sealed class ViewerContextMenuAnimatorTests
         {
             IsVisible = true
         };
-        using ViewerContextMenuAnimator animator = new(
+        using ViewerFloatingMenuAnimator animator = new(
             menu,
             animationRunner,
             1d,
@@ -40,10 +40,10 @@ public sealed class ViewerContextMenuAnimatorTests
     }
 
     [Theory]
-    [InlineData(108d, 108d, (int)ViewerContextMenuRevealOrigin.TopLeft)]
-    [InlineData(52d, 108d, (int)ViewerContextMenuRevealOrigin.TopRight)]
-    [InlineData(108d, 62d, (int)ViewerContextMenuRevealOrigin.BottomLeft)]
-    [InlineData(52d, 62d, (int)ViewerContextMenuRevealOrigin.BottomRight)]
+    [InlineData(108d, 108d, (int)ViewerFloatingMenuRevealOrigin.TopLeft)]
+    [InlineData(52d, 108d, (int)ViewerFloatingMenuRevealOrigin.TopRight)]
+    [InlineData(108d, 62d, (int)ViewerFloatingMenuRevealOrigin.BottomLeft)]
+    [InlineData(52d, 62d, (int)ViewerFloatingMenuRevealOrigin.BottomRight)]
     public void ResolveOrigin_WhenMenuPlacedAroundPointer_UsesNearestCorner(
         double menuX,
         double menuY,
@@ -53,20 +53,20 @@ public sealed class ViewerContextMenuAnimatorTests
         Point menuPosition = new(menuX, menuY);
         Size menuSize = new(40d, 30d);
 
-        ViewerContextMenuRevealOrigin origin =
-            ViewerContextMenuAnimator.ResolveOrigin(
+        ViewerFloatingMenuRevealOrigin origin =
+            ViewerFloatingMenuAnimator.ResolveOrigin(
                 pointerPosition,
                 menuPosition,
                 menuSize);
 
-        origin.Should().Be((ViewerContextMenuRevealOrigin)expectedOriginValue);
+        origin.Should().Be((ViewerFloatingMenuRevealOrigin)expectedOriginValue);
     }
 
     [Theory]
-    [InlineData(40d, 40d, (int)ViewerContextMenuRevealOrigin.TopLeft)]
-    [InlineData(260d, 40d, (int)ViewerContextMenuRevealOrigin.TopRight)]
-    [InlineData(40d, 160d, (int)ViewerContextMenuRevealOrigin.BottomLeft)]
-    [InlineData(260d, 160d, (int)ViewerContextMenuRevealOrigin.BottomRight)]
+    [InlineData(40d, 40d, (int)ViewerFloatingMenuRevealOrigin.TopLeft)]
+    [InlineData(260d, 40d, (int)ViewerFloatingMenuRevealOrigin.TopRight)]
+    [InlineData(40d, 160d, (int)ViewerFloatingMenuRevealOrigin.BottomLeft)]
+    [InlineData(260d, 160d, (int)ViewerFloatingMenuRevealOrigin.BottomRight)]
     public void ResolveNearestOrigin_WhenSubmenuOpensAroundAnchor_UsesClosestCorner(
         double anchorX,
         double anchorY,
@@ -77,21 +77,21 @@ public sealed class ViewerContextMenuAnimatorTests
         Point menuPosition = new(100d, 50d);
         Size menuSize = new(100d, 100d);
 
-        ViewerContextMenuRevealOrigin origin =
-            ViewerContextMenuAnimator.ResolveNearestOrigin(
+        ViewerFloatingMenuRevealOrigin origin =
+            ViewerFloatingMenuAnimator.ResolveNearestOrigin(
                 anchorPosition,
                 anchorSize,
                 menuPosition,
                 menuSize);
 
-        origin.Should().Be((ViewerContextMenuRevealOrigin)expectedOriginValue);
+        origin.Should().Be((ViewerFloatingMenuRevealOrigin)expectedOriginValue);
     }
 
     [Theory]
-    [InlineData((int)ViewerContextMenuRevealOrigin.TopLeft, 0d, 0d)]
-    [InlineData((int)ViewerContextMenuRevealOrigin.TopRight, 100d, 0d)]
-    [InlineData((int)ViewerContextMenuRevealOrigin.BottomLeft, 0d, 70d)]
-    [InlineData((int)ViewerContextMenuRevealOrigin.BottomRight, 100d, 70d)]
+    [InlineData((int)ViewerFloatingMenuRevealOrigin.TopLeft, 0d, 0d)]
+    [InlineData((int)ViewerFloatingMenuRevealOrigin.TopRight, 100d, 0d)]
+    [InlineData((int)ViewerFloatingMenuRevealOrigin.BottomLeft, 0d, 70d)]
+    [InlineData((int)ViewerFloatingMenuRevealOrigin.BottomRight, 100d, 70d)]
     public void CalculateRevealBounds_AtStart_AnchorsToOrigin(
         int originValue,
         double expectedX,
@@ -99,11 +99,11 @@ public sealed class ViewerContextMenuAnimatorTests
     {
         Size menuSize = new(200d, 100d);
 
-        Rect bounds = ViewerContextMenuAnimator.CalculateRevealBounds(
+        Rect bounds = ViewerFloatingMenuAnimator.CalculateRevealBounds(
             menuSize,
-            ViewerContextMenuAnimator.InitialWidthRatio,
-            ViewerContextMenuAnimator.InitialHeightRatio,
-            (ViewerContextMenuRevealOrigin)originValue);
+            ViewerFloatingMenuAnimator.InitialWidthRatio,
+            ViewerFloatingMenuAnimator.InitialHeightRatio,
+            (ViewerFloatingMenuRevealOrigin)originValue);
 
         bounds.Should().Be(new Rect(expectedX, expectedY, 100d, 30d));
     }

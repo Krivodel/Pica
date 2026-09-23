@@ -29,8 +29,10 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     private readonly ImagePresentationController _imagePresentation;
     private readonly ImageViewportController _viewport;
     private readonly ImageSelectionController _selection;
-    private readonly ViewerContextMenuAnimator _contextMenuAnimator;
-    private readonly ViewerContextMenuAnimator _openWithMenuAnimator;
+    private readonly ViewerFloatingMenuAnimator _contextMenuAnimator;
+    private readonly ViewerFloatingMenuAnimator _openWithMenuAnimator;
+    private readonly ViewerFloatingMenuAnimator _toolMenuAnimator;
+    private readonly ViewerFloatingMenuAnimator _modeMenuAnimator;
     private readonly EventHandler<RoutedEventArgs>
         _openWithApplicationClicked;
     private readonly EventHandler<RoutedEventArgs>
@@ -59,13 +61,23 @@ internal sealed class ViewerFloatingMenuController : IDisposable
             ?? throw new ArgumentNullException(nameof(viewport));
         _selection = selection
             ?? throw new ArgumentNullException(nameof(selection));
-        _contextMenuAnimator = new ViewerContextMenuAnimator(
+        _contextMenuAnimator = new ViewerFloatingMenuAnimator(
             _view.ViewerContextMenu,
             animationRunner,
             _view.VisibleControlsOpacity,
             _view.HiddenControlsOpacity);
-        _openWithMenuAnimator = new ViewerContextMenuAnimator(
+        _openWithMenuAnimator = new ViewerFloatingMenuAnimator(
             _view.OpenWithMenu,
+            animationRunner,
+            _view.VisibleControlsOpacity,
+            _view.HiddenControlsOpacity);
+        _toolMenuAnimator = new ViewerFloatingMenuAnimator(
+            _view.ToolMenu,
+            animationRunner,
+            _view.VisibleControlsOpacity,
+            _view.HiddenControlsOpacity);
+        _modeMenuAnimator = new ViewerFloatingMenuAnimator(
+            _view.ModeMenu,
             animationRunner,
             _view.VisibleControlsOpacity,
             _view.HiddenControlsOpacity);
@@ -87,6 +99,8 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     {
         _contextMenuAnimator.Dispose();
         _openWithMenuAnimator.Dispose();
+        _toolMenuAnimator.Dispose();
+        _modeMenuAnimator.Dispose();
         _submenuHideTimer.Stop();
         _submenuHideTimer.Tick -= OnSubmenuHideTimerTick;
     }
@@ -147,7 +161,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
 
     internal void ToggleTool()
     {
-        if (_view.ToolMenu.IsVisible)
+        if (_view.ToolMenu.IsVisible && !_toolMenuAnimator.IsClosing)
         {
             HideTool();
             return;
@@ -159,8 +173,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     internal void HideTool()
     {
         HideModeSubmenu();
-        _view.ToolMenu.Opacity = _view.HiddenControlsOpacity;
-        _view.ToolMenu.IsVisible = false;
+        _toolMenuAnimator.Close();
     }
 
     internal void HideAll()
@@ -306,7 +319,13 @@ internal sealed class ViewerFloatingMenuController : IDisposable
                 MenuGap);
         Canvas.SetLeft(_view.ToolMenu, menuPosition.X);
         Canvas.SetTop(_view.ToolMenu, menuPosition.Y);
-        _view.ToolMenu.Opacity = _view.VisibleControlsOpacity;
+        ViewerFloatingMenuRevealOrigin origin =
+            ViewerFloatingMenuAnimator.ResolveNearestOrigin(
+                anchorPosition,
+                _view.ToolMenuButton.Bounds.Size,
+                menuPosition,
+                menuSize);
+        _toolMenuAnimator.Open(origin, menuSize);
     }
 
     private void ShowOpenWithSubmenu(Control anchor)
@@ -348,8 +367,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
         ArgumentNullException.ThrowIfNull(submenuLayer);
         ArgumentNullException.ThrowIfNull(anchor);
 
-        bool isAlreadyOpen = object.ReferenceEquals(submenu, _view.OpenWithMenu)
-            && object.ReferenceEquals(_activeSubmenu, submenu)
+        bool isAlreadyOpen = object.ReferenceEquals(_activeSubmenu, submenu)
             && object.ReferenceEquals(_submenuAnchor, anchor)
             && submenu.IsVisible
             && submenu.IsHitTestVisible;
@@ -399,22 +417,15 @@ internal sealed class ViewerFloatingMenuController : IDisposable
         Canvas.SetLeft(submenu, menuPosition.X);
         Canvas.SetTop(submenu, menuPosition.Y);
 
-        if (object.ReferenceEquals(submenu, _view.OpenWithMenu))
+        if (!isAlreadyOpen)
         {
-            if (!isAlreadyOpen)
-            {
-                ViewerContextMenuRevealOrigin origin =
-                    ViewerContextMenuAnimator.ResolveNearestOrigin(
-                        anchorPosition,
-                        anchor.Bounds.Size,
-                        menuPosition,
-                        submenuSize);
-                _openWithMenuAnimator.Open(origin, submenuSize);
-            }
-        }
-        else
-        {
-            submenu.Opacity = _view.VisibleControlsOpacity;
+            ViewerFloatingMenuRevealOrigin origin =
+                ViewerFloatingMenuAnimator.ResolveNearestOrigin(
+                    anchorPosition,
+                    anchor.Bounds.Size,
+                    menuPosition,
+                    submenuSize);
+            GetSubmenuAnimator(submenu).Open(origin, submenuSize);
         }
     }
 
@@ -442,15 +453,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     {
         ArgumentNullException.ThrowIfNull(submenu);
 
-        if (object.ReferenceEquals(submenu, _view.OpenWithMenu))
-        {
-            _openWithMenuAnimator.Close();
-        }
-        else
-        {
-            submenu.Opacity = _view.HiddenControlsOpacity;
-            submenu.IsVisible = false;
-        }
+        GetSubmenuAnimator(submenu).Close();
 
         if (object.ReferenceEquals(_activeSubmenu, submenu))
         {
@@ -458,6 +461,21 @@ internal sealed class ViewerFloatingMenuController : IDisposable
             _activeSubmenu = null;
             _submenuAnchor = null;
         }
+    }
+
+    private ViewerFloatingMenuAnimator GetSubmenuAnimator(Border submenu)
+    {
+        if (object.ReferenceEquals(submenu, _view.OpenWithMenu))
+        {
+            return _openWithMenuAnimator;
+        }
+
+        if (object.ReferenceEquals(submenu, _view.ModeMenu))
+        {
+            return _modeMenuAnimator;
+        }
+
+        throw new InvalidOperationException("Unknown viewer submenu.");
     }
 
     private void ScheduleSubmenuHide()

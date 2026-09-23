@@ -196,7 +196,7 @@ public sealed class ImageViewerWindowTests
                 view.ViewerContextMenu.IsHitTestVisible.Should().BeTrue();
                 view.ViewerContextMenu.Clip.Should().NotBeNull();
                 await Task.Delay(
-                    ViewerContextMenuAnimator.OpacityRevealDurationMilliseconds + 20);
+                    ViewerFloatingMenuAnimator.OpacityRevealDurationMilliseconds + 20);
                 view.ViewerContextMenu.Clip.Should().NotBeNull();
                 Button menuButton = view.ViewerContextMenu
                     .GetVisualDescendants()
@@ -222,8 +222,91 @@ public sealed class ImageViewerWindowTests
                 view.ViewerContextMenu.IsHitTestVisible.Should().BeFalse();
                 view.ViewerContextMenu.IsVisible.Should().BeTrue();
                 await Task.Delay(
-                    ViewerContextMenuAnimator.ClosingDurationMilliseconds + 50);
+                    ViewerFloatingMenuAnimator.ClosingDurationMilliseconds + 50);
                 view.ViewerContextMenu.IsVisible.Should().BeFalse();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task BottomMenus_WhenOpened_RevealAndFadeOnDismiss()
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                new ImageViewerState(),
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+
+            try
+            {
+                window.Show();
+                view.ToolMenuButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+
+                view.ToolMenu.IsVisible.Should().BeTrue();
+                view.ToolMenu.IsHitTestVisible.Should().BeTrue();
+                view.ToolMenu.Clip.Should().NotBeNull();
+                window.CaptureRenderedFrame();
+
+                view.ModeMenuButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+
+                view.ModeMenu.IsVisible.Should().BeTrue();
+                view.ModeMenu.IsHitTestVisible.Should().BeTrue();
+                view.ModeMenu.Clip.Should().NotBeNull();
+
+                view.ToolMenuButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+
+                view.ToolMenu.IsHitTestVisible.Should().BeFalse();
+                view.ModeMenu.IsHitTestVisible.Should().BeFalse();
+                await Task.Delay(
+                    ViewerFloatingMenuAnimator.ClosingDurationMilliseconds + 50);
+                view.ToolMenu.IsVisible.Should().BeFalse();
+                view.ModeMenu.IsVisible.Should().BeFalse();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ToolMenu_WhenReopenedDuringClose_RemainsInteractive()
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                new ImageViewerState(),
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+
+            try
+            {
+                window.Show();
+                view.ToolMenuButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+                view.ToolMenuButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+                view.ToolMenuButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+                await Task.Delay(
+                    ViewerFloatingMenuAnimator.ClosingDurationMilliseconds + 50);
+
+                view.ToolMenu.IsVisible.Should().BeTrue();
+                view.ToolMenu.IsHitTestVisible.Should().BeTrue();
             }
             finally
             {
@@ -289,7 +372,7 @@ public sealed class ImageViewerWindowTests
                 view.OpenWithMenu.IsHitTestVisible.Should().BeFalse();
                 view.OpenWithMenu.IsVisible.Should().BeTrue();
                 await Task.Delay(
-                    ViewerContextMenuAnimator.ClosingDurationMilliseconds + 50);
+                    ViewerFloatingMenuAnimator.ClosingDurationMilliseconds + 50);
                 view.OpenWithMenu.IsVisible.Should().BeFalse();
             }
             finally

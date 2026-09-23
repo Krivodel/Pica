@@ -4,7 +4,7 @@ using Avalonia.Media;
 
 namespace Pica.Viewer.Views;
 
-internal sealed class ViewerContextMenuAnimator : IDisposable
+internal sealed class ViewerFloatingMenuAnimator : IDisposable
 {
     internal const int OpeningDurationMilliseconds = 200;
     internal const int WidthRevealDurationMilliseconds = 120;
@@ -14,17 +14,19 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
     internal const double InitialWidthRatio = 0.5d;
     internal const double InitialHeightRatio = 0.3d;
 
+    internal bool IsClosing => _isClosing;
+
     private readonly Border _menu;
     private readonly ViewerFrameAnimationRunner _animationRunner;
     private readonly double _visibleOpacity;
     private readonly double _hiddenOpacity;
     private Size _menuSize;
-    private ViewerContextMenuRevealOrigin _origin;
+    private ViewerFloatingMenuRevealOrigin _origin;
     private long _animationId;
     private bool _isClosing;
     private bool _isDisposed;
 
-    internal ViewerContextMenuAnimator(
+    internal ViewerFloatingMenuAnimator(
         Border menu,
         ViewerFrameAnimationRunner animationRunner,
         double visibleOpacity,
@@ -47,7 +49,7 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
         _menu.Opacity = _hiddenOpacity;
     }
 
-    internal static ViewerContextMenuRevealOrigin ResolveOrigin(
+    internal static ViewerFloatingMenuRevealOrigin ResolveOrigin(
         Point pointerPosition,
         Point menuPosition,
         Size menuSize)
@@ -60,7 +62,7 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
         return CreateOrigin(fromRight, fromBottom);
     }
 
-    internal static ViewerContextMenuRevealOrigin ResolveNearestOrigin(
+    internal static ViewerFloatingMenuRevealOrigin ResolveNearestOrigin(
         Point anchorPosition,
         Size anchorSize,
         Point menuPosition,
@@ -81,14 +83,14 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
         Size menuSize,
         double widthRatio,
         double heightRatio,
-        ViewerContextMenuRevealOrigin origin)
+        ViewerFloatingMenuRevealOrigin origin)
     {
         double width = menuSize.Width * Math.Clamp(widthRatio, 0d, 1d);
         double height = menuSize.Height * Math.Clamp(heightRatio, 0d, 1d);
-        bool fromRight = origin is ViewerContextMenuRevealOrigin.TopRight
-            or ViewerContextMenuRevealOrigin.BottomRight;
-        bool fromBottom = origin is ViewerContextMenuRevealOrigin.BottomLeft
-            or ViewerContextMenuRevealOrigin.BottomRight;
+        bool fromRight = origin is ViewerFloatingMenuRevealOrigin.TopRight
+            or ViewerFloatingMenuRevealOrigin.BottomRight;
+        bool fromBottom = origin is ViewerFloatingMenuRevealOrigin.BottomLeft
+            or ViewerFloatingMenuRevealOrigin.BottomRight;
 
         return new Rect(
             fromRight ? menuSize.Width - width : 0d,
@@ -106,7 +108,7 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
     }
 
     internal void Open(
-        ViewerContextMenuRevealOrigin origin,
+        ViewerFloatingMenuRevealOrigin origin,
         Size menuSize)
     {
         ObjectDisposedException.ThrowIf(_isDisposed, this);
@@ -154,20 +156,20 @@ internal sealed class ViewerContextMenuAnimator : IDisposable
         return Math.Sqrt(1d - (distanceToEnd * distanceToEnd));
     }
 
-    private static ViewerContextMenuRevealOrigin CreateOrigin(
+    private static ViewerFloatingMenuRevealOrigin CreateOrigin(
         bool fromRight,
         bool fromBottom)
     {
         if (fromRight)
         {
             return fromBottom
-                ? ViewerContextMenuRevealOrigin.BottomRight
-                : ViewerContextMenuRevealOrigin.TopRight;
+                ? ViewerFloatingMenuRevealOrigin.BottomRight
+                : ViewerFloatingMenuRevealOrigin.TopRight;
         }
 
         return fromBottom
-            ? ViewerContextMenuRevealOrigin.BottomLeft
-            : ViewerContextMenuRevealOrigin.TopLeft;
+            ? ViewerFloatingMenuRevealOrigin.BottomLeft
+            : ViewerFloatingMenuRevealOrigin.TopLeft;
     }
 
     private static double InterpolateRevealRatio(

@@ -1,6 +1,6 @@
 namespace Pica.Viewer.Views;
 
-internal enum ViewerContextMenuRevealOrigin
+internal enum ViewerFloatingMenuRevealOrigin
 {
     TopLeft,
     TopRight,

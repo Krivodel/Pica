@@ -1,3 +1,4 @@
+using Avalonia.Animation;
 using Avalonia.Controls;
 
 using Pica.Viewer.Resources;
@@ -53,6 +54,8 @@ internal sealed partial class ImageViewerToolMenuControl : UserControl
         InitializeComponent();
         DataContext = viewModel;
         ModeSubmenuIconControl.Data = ViewerIconGeometries.Submenu;
+        ToolMenuControl.Transitions = new Transitions();
+        ModeMenuControl.Transitions = new Transitions();
     }
 
     private Button GetRequiredButton(string name)
