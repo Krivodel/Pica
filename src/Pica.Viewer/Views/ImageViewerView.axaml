@@ -140,7 +140,8 @@
                         IsHitTestVisible="False"
                         IsVisible="False"
                         Opacity="{StaticResource ViewerHiddenControlsOpacity}"
-                        Background="{StaticResource ViewerInformationPanelBrush}"
+                        Background="{StaticResource ViewerFloatingMenuBrush}"
+                        BoxShadow="{StaticResource ViewerFloatingControlBoxShadow}"
                         CornerRadius="8">
                     <Border.Transitions>
                         <Transitions>

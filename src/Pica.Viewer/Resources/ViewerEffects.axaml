@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <BoxShadows x:Key="ViewerFloatingControlBoxShadow">0 1 6 0 #B3000000</BoxShadows>
     <DropShadowEffect x:Key="ViewerFloatingControlShadowEffect"
                       BlurRadius="6"
                       Color="{StaticResource ViewerBackgroundColor}"

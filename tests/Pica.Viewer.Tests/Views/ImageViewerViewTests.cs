@@ -38,7 +38,11 @@ public sealed class ImageViewerViewTests
     {
         return AppBuilder
             .Configure<ViewerTestApplication>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
+            .UseSkia()
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions
+            {
+                UseHeadlessDrawing = false
+            });
     }
 
     [Fact]
@@ -932,6 +936,90 @@ public sealed class ImageViewerViewTests
             view.ToolMenuButton.Bounds.Left
                 .Should()
                 .Be(centeredControls.Bounds.Right + 8d);
+        });
+    }
+
+    [Fact]
+    public async Task FloatingControls_WithShadow_RenderBeyondEveryControl()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+            Window window = new()
+            {
+                Width = 300d,
+                Height = 200d,
+                Content = view
+            };
+
+            try
+            {
+                view.Root.Background = Brushes.White;
+                view.ViewerArea.Background = Brushes.White;
+                view.FadeOverlay.IsVisible = false;
+                view.BottomControls.Transitions = null;
+                view.BottomControls.Opacity = 1d;
+                view.ImageInformationPanel.Transitions = null;
+                view.ImageInformationPanel.IsVisible = true;
+                view.ImageInformationPanel.Opacity = 1d;
+                view.ImageInformationText.Text = "image.png";
+
+                window.Show();
+
+                using AvaloniaBitmap frame =
+                    window.CaptureRenderedFrame()
+                    ?? throw new InvalidOperationException("No rendered frame.");
+                using MemoryStream stream = new();
+                frame.Save(stream);
+                stream.Position = 0;
+                using SKBitmap pixels = SKBitmap.Decode(stream)
+                    ?? throw new InvalidOperationException(
+                        "The floating controls frame could not be decoded.");
+                Button[] buttons = view.BottomControls
+                    .GetVisualDescendants()
+                    .OfType<Button>()
+                    .ToArray();
+                Control[] shadowedControls =
+                [
+                    ..buttons,
+                    view.ImageInformationPanel
+                ];
+
+                buttons.Should().HaveCount(4);
+
+                foreach (Control control in shadowedControls)
+                {
+                    Point bottomCenter = control.TranslatePoint(
+                        new Point(control.Bounds.Width / 2d, control.Bounds.Height),
+                        window)
+                        ?? throw new InvalidOperationException(
+                            "A floating control is not attached to the test window.");
+                    SKColor nearShadow = pixels.GetPixel(
+                        (int)bottomCenter.X,
+                        (int)bottomCenter.Y + 1);
+                    SKColor farShadow = pixels.GetPixel(
+                        (int)bottomCenter.X,
+                        (int)bottomCenter.Y + 3);
+
+                    nearShadow.Red.Should().BeLessThan(245);
+                    farShadow.Red.Should().BeGreaterThan(nearShadow.Red);
+                    farShadow.Red.Should().BeLessThan(255);
+                }
+            }
+            finally
+            {
+                window.Close();
+            }
+
+            return Task.CompletedTask;
         });
     }
 

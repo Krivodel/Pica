@@ -28,6 +28,8 @@
                 Value="{StaticResource ViewerFloatingMenuBrush}" />
         <Setter Property="CornerRadius"
                 Value="8" />
+        <Setter Property="Effect"
+                Value="{StaticResource ViewerFloatingControlShadowEffect}" />
         <Setter Property="HorizontalAlignment"
                 Value="Left" />
         <Setter Property="Opacity"
