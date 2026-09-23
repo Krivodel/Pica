@@ -10,7 +10,6 @@ internal sealed class ImageSelectionGeometry
 {
     private const double SelectionToolbarGap = 10d;
     private const double SelectionHandleSize = 8d;
-    private const double MinimumSelectionSize = 12d;
 
     private Bitmap? CurrentBitmap => _viewport.CurrentBitmap;
     private double RenderScaling => _topLevel.RenderScaling;
@@ -36,6 +35,63 @@ internal sealed class ImageSelectionGeometry
         double bottom = Math.Max(rect.Top, rect.Bottom);
 
         return new Rect(
+            left,
+            top,
+            right - left,
+            bottom - top);
+    }
+
+    internal static PixelRect ResizePixelRect(
+        PixelRect initialRect,
+        SelectionResizeModes resizeMode,
+        PixelPoint pointerBoundary,
+        PixelSize imageSize)
+    {
+        int left = initialRect.X;
+        int top = initialRect.Y;
+        int right = initialRect.X + initialRect.Width;
+        int bottom = initialRect.Y + initialRect.Height;
+
+        bool isLeftEdgeDragged = resizeMode.HasFlag(
+            SelectionResizeModes.Left);
+        bool isRightEdgeDragged = resizeMode.HasFlag(
+            SelectionResizeModes.Right);
+        bool isTopEdgeDragged = resizeMode.HasFlag(
+            SelectionResizeModes.Top);
+        bool isBottomEdgeDragged = resizeMode.HasFlag(
+            SelectionResizeModes.Bottom);
+
+        if (isLeftEdgeDragged || isRightEdgeDragged)
+        {
+            int anchor = isLeftEdgeDragged
+                ? right
+                : left;
+            int originalMovingBoundary = isLeftEdgeDragged
+                ? left
+                : right;
+            (left, right) = GetResizedAxisBounds(
+                anchor,
+                originalMovingBoundary,
+                pointerBoundary.X,
+                imageSize.Width);
+        }
+
+        if (isTopEdgeDragged || isBottomEdgeDragged)
+        {
+            int anchor = isTopEdgeDragged
+                ? bottom
+                : top;
+            int originalMovingBoundary = isTopEdgeDragged
+                ? top
+                : bottom;
+            (top, bottom) = GetResizedAxisBounds(
+                anchor,
+                originalMovingBoundary,
+                pointerBoundary.Y,
+                imageSize.Height);
+        }
+
+        return new PixelRect(
             left,
             top,
             right - left,
@@ -394,14 +450,35 @@ internal sealed class ImageSelectionGeometry
             CurrentBitmap.PixelSize.Height);
     }
 
-    internal int GetMinimumPixelSize()
+    private static (int Start, int End) GetResizedAxisBounds(
+        int anchor,
+        int originalMovingBoundary,
+        int pointerBoundary,
+        int maximumBoundary)
     {
-        return Math.Max(
-            1,
-            (int)Math.Ceiling(
-                MinimumSelectionSize
-                    * RenderScaling
-                    / _viewport.Scale));
+        int fixedBoundary = Math.Clamp(anchor, 0, maximumBoundary);
+        int movingBoundary = Math.Clamp(
+            pointerBoundary,
+            0,
+            maximumBoundary);
+        int start = Math.Min(fixedBoundary, movingBoundary);
+        int end = Math.Max(fixedBoundary, movingBoundary);
+
+        if (start == end)
+        {
+            if (((originalMovingBoundary < fixedBoundary)
+                    && (fixedBoundary > 0))
+                || (fixedBoundary == maximumBoundary))
+            {
+                start--;
+            }
+            else
+            {
+                end++;
+            }
+        }
+
+        return (start, end);
     }
 
     private static SelectionResizeModes GetResizeMode(

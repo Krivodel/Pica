@@ -323,55 +323,23 @@ internal sealed class ImageSelectionController : IDisposable
 
     internal void Resize(Point position)
     {
-        if (CurrentBitmap is null)
+        Bitmap? currentBitmap = CurrentBitmap;
+
+        if (currentBitmap is null)
         {
             return;
         }
 
-        int left = _selectionStartPixelRect.X;
-        int top = _selectionStartPixelRect.Y;
-        int right = _selectionStartPixelRect.X + _selectionStartPixelRect.Width;
-        int bottom = _selectionStartPixelRect.Y + _selectionStartPixelRect.Height;
-        int minimumPixelSize =
-            _geometry.GetMinimumPixelSize();
+        PixelPoint pointerBoundary = new(
+            _geometry.ScreenXToPixelBoundary(position.X),
+            _geometry.ScreenYToPixelBoundary(position.Y));
+        PixelRect resizedRect = ImageSelectionGeometry.ResizePixelRect(
+            _selectionStartPixelRect,
+            _selectionResizeMode,
+            pointerBoundary,
+            currentBitmap.PixelSize);
 
-        if (_selectionResizeMode.HasFlag(SelectionResizeModes.Left))
-        {
-            left = Math.Clamp(
-                _geometry.ScreenXToPixelBoundary(position.X),
-                0,
-                right - minimumPixelSize);
-        }
-
-        if (_selectionResizeMode.HasFlag(SelectionResizeModes.Right))
-        {
-            right = Math.Clamp(
-                _geometry.ScreenXToPixelBoundary(position.X),
-                left + minimumPixelSize,
-                CurrentBitmap.PixelSize.Width);
-        }
-
-        if (_selectionResizeMode.HasFlag(SelectionResizeModes.Top))
-        {
-            top = Math.Clamp(
-                _geometry.ScreenYToPixelBoundary(position.Y),
-                0,
-                bottom - minimumPixelSize);
-        }
-
-        if (_selectionResizeMode.HasFlag(SelectionResizeModes.Bottom))
-        {
-            bottom = Math.Clamp(
-                _geometry.ScreenYToPixelBoundary(position.Y),
-                top + minimumPixelSize,
-                CurrentBitmap.PixelSize.Height);
-        }
-
-        SetPixelRect(new PixelRect(
-            left,
-            top,
-            right - left,
-            bottom - top));
+        SetPixelRect(resizedRect);
         UpdateOverlay();
     }
 
