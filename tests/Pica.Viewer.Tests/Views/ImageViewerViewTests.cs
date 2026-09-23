@@ -1095,7 +1095,7 @@ public sealed class ImageViewerViewTests
                 window.Show();
                 Button contextMenuButton =
                     GetMenuButtons(view.ViewerContextMenu)[0];
-                DoubleTransition opacityTransition = view.ViewerContextMenu
+                DoubleTransition opacityTransition = view.ToolMenu
                     .Transitions
                     .Should()
                     .ContainSingle()
@@ -1110,6 +1110,7 @@ public sealed class ImageViewerViewTests
                     .Subject;
 
                 view.ViewerContextMenu.Padding.Should().Be(new Thickness(6d));
+                view.ViewerContextMenu.Transitions.Should().BeEmpty();
                 view.ViewerContextMenu.CornerRadius.Should().Be(new CornerRadius(8d));
                 menuBackground.Color.Should().Be(Color.FromArgb(232, 24, 24, 24));
                 opacityTransition.Duration.Should().Be(TimeSpan.FromSeconds(0.16d));

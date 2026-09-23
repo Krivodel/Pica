@@ -173,7 +173,7 @@ public sealed class ImageViewerWindowTests
     [Fact]
     public async Task ContextMenuButton_Click_HidesContextMenu()
     {
-        await DispatchAsync(() =>
+        await DispatchAsync(async () =>
         {
             ImageViewerWindow window = CreateWindow(
                 CreateEmptyRequest(),
@@ -192,6 +192,11 @@ public sealed class ImageViewerWindowTests
                     RawInputModifiers.None);
 
                 view.ViewerContextMenu.IsVisible.Should().BeTrue();
+                view.ViewerContextMenu.IsHitTestVisible.Should().BeTrue();
+                view.ViewerContextMenu.Clip.Should().NotBeNull();
+                await Task.Delay(
+                    ViewerContextMenuAnimator.OpacityRevealDurationMilliseconds + 20);
+                view.ViewerContextMenu.Clip.Should().NotBeNull();
                 Button menuButton = view.ViewerContextMenu
                     .GetVisualDescendants()
                     .OfType<Button>()
@@ -213,6 +218,10 @@ public sealed class ImageViewerWindowTests
                     MouseButton.Left,
                     RawInputModifiers.None);
 
+                view.ViewerContextMenu.IsHitTestVisible.Should().BeFalse();
+                view.ViewerContextMenu.IsVisible.Should().BeTrue();
+                await Task.Delay(
+                    ViewerContextMenuAnimator.ClosingDurationMilliseconds + 50);
                 view.ViewerContextMenu.IsVisible.Should().BeFalse();
             }
             finally

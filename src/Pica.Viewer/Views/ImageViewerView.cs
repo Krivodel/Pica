@@ -482,7 +482,10 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             events.ContextOpenWithClicked);
         panel.Children.Add(openWithButton);
 
-        return CreateFloatingMenu(panel);
+        Border menu = CreateFloatingMenu(panel);
+        menu.Transitions = new Transitions();
+
+        return menu;
     }
 
     private static Border CreateOpenWithMenu(out StackPanel items)

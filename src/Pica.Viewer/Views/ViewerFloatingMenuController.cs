@@ -29,6 +29,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     private readonly ImagePresentationController _imagePresentation;
     private readonly ImageViewportController _viewport;
     private readonly ImageSelectionController _selection;
+    private readonly ViewerContextMenuAnimator _contextMenuAnimator;
     private readonly EventHandler<RoutedEventArgs>
         _openWithApplicationClicked;
     private readonly EventHandler<RoutedEventArgs>
@@ -44,6 +45,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
         ImagePresentationController imagePresentation,
         ImageViewportController viewport,
         ImageSelectionController selection,
+        ViewerFrameAnimationRunner animationRunner,
         EventHandler<RoutedEventArgs> openWithApplicationClicked,
         EventHandler<RoutedEventArgs> chooseApplicationClicked)
     {
@@ -56,6 +58,11 @@ internal sealed class ViewerFloatingMenuController : IDisposable
             ?? throw new ArgumentNullException(nameof(viewport));
         _selection = selection
             ?? throw new ArgumentNullException(nameof(selection));
+        _contextMenuAnimator = new ViewerContextMenuAnimator(
+            _view.ViewerContextMenu,
+            animationRunner,
+            _view.VisibleControlsOpacity,
+            _view.HiddenControlsOpacity);
         _openWithApplicationClicked = openWithApplicationClicked
             ?? throw new ArgumentNullException(
                 nameof(openWithApplicationClicked));
@@ -72,6 +79,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
 
     public void Dispose()
     {
+        _contextMenuAnimator.Dispose();
         _submenuHideTimer.Stop();
         _submenuHideTimer.Tick -= OnSubmenuHideTimerTick;
     }
@@ -101,15 +109,12 @@ internal sealed class ViewerFloatingMenuController : IDisposable
                 MenuGap);
         Canvas.SetLeft(_view.ViewerContextMenu, menuPosition.X);
         Canvas.SetTop(_view.ViewerContextMenu, menuPosition.Y);
-        _view.ViewerContextMenu.Opacity =
-            _view.VisibleControlsOpacity;
+        _contextMenuAnimator.Open(position, menuPosition, menuSize);
     }
 
     internal void HideContext()
     {
-        _view.ViewerContextMenu.Opacity =
-            _view.HiddenControlsOpacity;
-        _view.ViewerContextMenu.IsVisible = false;
+        _contextMenuAnimator.Close();
         HideOpenWithSubmenu();
     }
 

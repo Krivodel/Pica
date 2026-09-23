@@ -136,6 +136,7 @@ internal sealed class ImageViewerWindowInteractionComposition :
             imagePresentation,
             viewport,
             selection,
+            animationRunner,
             openWithApplicationClicked,
             chooseApplicationClicked);
         ViewerChromeVisibilityController chromeVisibility = new(
