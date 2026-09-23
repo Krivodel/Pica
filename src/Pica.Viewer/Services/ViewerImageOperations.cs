@@ -9,6 +9,8 @@ namespace Pica.Viewer.Services;
 
 internal sealed class ViewerImageOperations
 {
+    internal event EventHandler? SaveWritingStarted;
+
     private readonly IViewerClipboardWriter _clipboardImageWriter;
     private readonly IViewerFilePickerService _filePickerService;
     private readonly IImageFormatRegistry _formatRegistry;
@@ -273,6 +275,7 @@ internal sealed class ViewerImageOperations
             return false;
         }
 
+        SaveWritingStarted?.Invoke(this, EventArgs.Empty);
         byte[] sourceContent = await createContent(ct).ConfigureAwait(false);
         byte[] content = await PrepareSaveContentAsync(
             sourceContent,

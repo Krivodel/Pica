@@ -8,6 +8,7 @@
              x:DataType="vm:ImageViewerSessionViewModel">
     <UserControl.Resources>
         <ResourceDictionary>
+            <x:String x:Key="ViewerSavingStatusText">Долгое сохранение…</x:String>
             <ResourceDictionary.MergedDictionaries>
                 <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerColors.axaml" />
                 <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerBrushes.axaml" />
@@ -232,5 +233,34 @@
                     Background="{StaticResource ViewerTransparentBrush}"
                     Tag="{x:Static services:WindowSizingEdges.BottomRight}" />
         </Grid>
+
+        <Border x:Name="SaveStatusControl"
+                x:DataType="vm:ImageViewerActionsViewModel"
+                IsHitTestVisible="False"
+                IsVisible="False"
+                Opacity="{StaticResource ViewerHiddenControlsOpacity}"
+                Background="{StaticResource ViewerSaveDimBrush}"
+                ZIndex="1">
+            <Border x:Name="SaveStatusPanelControl"
+                    MinWidth="244"
+                    Padding="26,20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource ViewerFloatingMenuBrush}"
+                    BorderBrush="{StaticResource ViewerSavePanelBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Effect="{StaticResource ViewerFloatingControlShadowEffect}">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="14">
+                    <suki:Loading Width="36"
+                                  Height="36" />
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="16"
+                               Foreground="{StaticResource ViewerMenuForegroundBrush}"
+                               Text="{StaticResource ViewerSavingStatusText}" />
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </UserControl>

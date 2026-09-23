@@ -9,6 +9,7 @@ internal interface IViewerImageCommandService
     bool CanOpenCurrentImageWithApplication { get; }
 
     event EventHandler? PreparedSelectionSaved;
+    event EventHandler? SaveWritingStarted;
 
     Task CopyCurrentAsync(CancellationToken ct);
 

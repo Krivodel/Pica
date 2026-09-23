@@ -15,6 +15,11 @@ internal sealed class ViewerImageCommandService :
         _presentation.CurrentItem is not null;
 
     public event EventHandler? PreparedSelectionSaved;
+    public event EventHandler? SaveWritingStarted
+    {
+        add => _imageOperations.SaveWritingStarted += value;
+        remove => _imageOperations.SaveWritingStarted -= value;
+    }
 
     private readonly ImageViewerSession _session;
     private readonly ImagePresentationController _presentation;

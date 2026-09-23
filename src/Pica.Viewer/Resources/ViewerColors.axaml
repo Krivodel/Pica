@@ -8,6 +8,8 @@
     <Color x:Key="ViewerInformationPanelColor">#C0181818</Color>
     <Color x:Key="ViewerAnimationTimelineTrackColor">#CC646464</Color>
     <Color x:Key="ViewerMenuForegroundColor">#FFFFFFFF</Color>
+    <Color x:Key="ViewerSaveDimColor">#40000000</Color>
+    <Color x:Key="ViewerSavePanelBorderColor">#40FFFFFF</Color>
     <Color x:Key="ViewerToolButtonColor">#96101010</Color>
     <Color x:Key="ViewerTransparentColor">#00FFFFFF</Color>
 </ResourceDictionary>

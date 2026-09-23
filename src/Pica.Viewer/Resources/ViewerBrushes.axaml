@@ -12,6 +12,10 @@
                      Color="{StaticResource ViewerAnimationTimelineTrackColor}" />
     <SolidColorBrush x:Key="ViewerMenuForegroundBrush"
                      Color="{StaticResource ViewerMenuForegroundColor}" />
+    <SolidColorBrush x:Key="ViewerSaveDimBrush"
+                     Color="{StaticResource ViewerSaveDimColor}" />
+    <SolidColorBrush x:Key="ViewerSavePanelBorderBrush"
+                     Color="{StaticResource ViewerSavePanelBorderColor}" />
     <SolidColorBrush x:Key="ViewerToolButtonBrush"
                      Color="{StaticResource ViewerToolButtonColor}" />
     <SolidColorBrush x:Key="ViewerTransparentBrush"

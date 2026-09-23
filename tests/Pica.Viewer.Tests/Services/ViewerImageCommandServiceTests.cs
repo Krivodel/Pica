@@ -49,9 +49,13 @@ public sealed class ViewerImageCommandServiceTests
                 using ViewerImageCommandTestContext context =
                     await ViewerImageCommandTestContext.CreateAsync(storage.Provider, isFileBacked: false);
                 context.Session.SelectMainImageModeCommand.Execute(null);
+                int saveWritingStartedCount = 0;
+                context.CommandService.SaveWritingStarted += (_, _) =>
+                    saveWritingStartedCount++;
 
                 await context.CommandService.SaveCurrentAsync(CancellationToken.None);
 
+                saveWritingStartedCount.Should().Be(1);
                 storage.SuggestedFileName.Should().Be("image.png");
                 storage.Destination.Content.Take(8).Should().Equal(137, 80, 78, 71, 13, 10, 26, 10);
             });

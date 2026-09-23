@@ -8,7 +8,9 @@ using Avalonia.Controls.Chrome;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.LogicalTree;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.VisualTree;
@@ -224,6 +226,251 @@ public sealed class ImageViewerWindowTests
                 await Task.Delay(
                     ViewerFloatingMenuAnimator.ClosingDurationMilliseconds + 50);
                 view.ViewerContextMenu.IsVisible.Should().BeFalse();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SetSavingInteractionState_WhileSaving_BlocksCloseAndImageControls(
+        bool isWindowed)
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerState state = isWindowed
+                ? CreateWindowedState()
+                : new ImageViewerState();
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                state,
+                new RecordingImageChannelBitmapLoader());
+            bool wasClosed = false;
+            window.Closed += (_, _) => wasClosed = true;
+
+            try
+            {
+                window.Show();
+                ImageViewerView view = window.Content as ImageViewerView
+                    ?? throw new InvalidOperationException(
+                        "The viewer content must be created.");
+                Button titleBarClose = window.GetVisualDescendants()
+                    .OfType<Button>()
+                    .Single(button => button.Name == "PART_CloseButton");
+                Button titleBarMinimize = window.GetVisualDescendants()
+                    .OfType<Button>()
+                    .Single(button => button.Name == "PART_MinimizeButton");
+                Button titleBarPin = window.GetVisualDescendants()
+                    .OfType<Button>()
+                    .Single(button => button.Name == "PART_PinButton");
+                Button titleBarFullScreen = window.GetVisualDescendants()
+                    .OfType<Button>()
+                    .Single(button => button.Name == "PART_FullScreenButton");
+
+                window.SetSavingInteractionState(true);
+                window.Close();
+
+                window.IsSaving.Should().BeTrue();
+                wasClosed.Should().BeFalse();
+                window.Content.Should().BeSameAs(view);
+                view.CloseButton.IsEnabled.Should().BeFalse();
+                titleBarClose.IsEnabled.Should().BeFalse();
+                titleBarMinimize.IsEnabled.Should().BeFalse();
+                titleBarPin.IsEnabled.Should().BeFalse();
+                titleBarFullScreen.IsEnabled.Should().BeTrue();
+                view.BottomControls.IsEnabled.Should().BeFalse();
+                view.ContentNavigationPanel.IsEnabled.Should().BeFalse();
+                view.SelectionToolbar.IsEnabled.Should().BeFalse();
+                view.LeftNavigationArea.IsEnabled.Should().BeFalse();
+                view.RightNavigationArea.IsEnabled.Should().BeFalse();
+                view.WindowModeButton.IsEnabled.Should().BeTrue();
+                view.FullscreenSettingsButton.IsEnabled.Should().BeTrue();
+                view.TitleBarSettingsControls.Should()
+                    .OnlyContain(control => control.IsEnabled);
+
+                window.SetSavingInteractionState(false);
+
+                window.IsSaving.Should().BeFalse();
+                view.CloseButton.IsEnabled.Should().BeTrue();
+                titleBarClose.IsEnabled.Should().BeTrue();
+                titleBarMinimize.IsEnabled.Should().BeTrue();
+                titleBarPin.IsEnabled.Should().BeTrue();
+                titleBarFullScreen.IsEnabled.Should().BeTrue();
+                view.BottomControls.IsEnabled.Should().BeTrue();
+                view.ContentNavigationPanel.IsEnabled.Should().BeTrue();
+                view.SelectionToolbar.IsEnabled.Should().BeTrue();
+                view.LeftNavigationArea.IsEnabled.Should().BeTrue();
+                view.RightNavigationArea.IsEnabled.Should().BeTrue();
+            }
+            finally
+            {
+                window.SetSavingInteractionState(false);
+                window.Close();
+            }
+
+            wasClosed.Should().BeTrue();
+        });
+    }
+
+    [Fact]
+    public async Task SetSavingInteractionState_WhileSaving_AllowsSettingsAndWindowMode()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow();
+
+            try
+            {
+                window.Show();
+                ImageViewerView view = window.Content as ImageViewerView
+                    ?? throw new InvalidOperationException(
+                        "The viewer content must be created.");
+                window.SetSavingInteractionState(true);
+
+                view.FullscreenSettingsButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+                view.SettingsPanel.IsVisible.Should().BeTrue();
+
+                view.WindowModeButton.RaiseEvent(
+                    new RoutedEventArgs(Button.ClickEvent));
+
+                window.CurrentWindowMode.Should().Be(
+                    ViewerWindowMode.Windowed);
+                window.IsSaving.Should().BeTrue();
+                view.CloseButton.IsEnabled.Should().BeFalse();
+            }
+            finally
+            {
+                window.SetSavingInteractionState(false);
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Constructor_WithSaveStatus_FadesInAndOutWithSaveState()
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+
+            try
+            {
+                window.Show();
+                ImageViewerView view = window.Content as ImageViewerView
+                    ?? throw new InvalidOperationException(
+                        "The viewer content must be created.");
+                ImageViewerActionsViewModel actions = view.SaveStatus.DataContext
+                    .Should().BeOfType<ImageViewerActionsViewModel>().Subject;
+
+                view.SaveStatus.IsVisible.Should().BeFalse();
+                view.SaveStatus.IsHitTestVisible.Should().BeFalse();
+                view.SaveStatusPanelTransform.Y.Should().BeGreaterThan(0d);
+
+                actions.IsSaveTakingLong = true;
+
+                view.SaveStatus.IsVisible.Should().BeTrue();
+                view.SaveStatus.Opacity.Should().Be(0d);
+                await Task.Delay(270);
+                view.SaveStatus.Opacity.Should().BeApproximately(1d, 0.01d);
+                view.SaveStatusPanelTransform.Y.Should().BeApproximately(0d, 0.1d);
+
+                actions.IsSaveTakingLong = false;
+
+                view.SaveStatus.IsVisible.Should().BeTrue();
+                await Task.Delay(270);
+                view.SaveStatus.IsVisible.Should().BeFalse();
+                view.SaveStatus.Opacity.Should().BeApproximately(0d, 0.01d);
+                view.SaveStatusPanelTransform.Y.Should().BeGreaterThan(0d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Constructor_WhenSaveRestartsDuringFade_KeepsStatusVisible()
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+
+            try
+            {
+                window.Show();
+                ImageViewerView view = window.Content as ImageViewerView
+                    ?? throw new InvalidOperationException(
+                        "The viewer content must be created.");
+                ImageViewerActionsViewModel actions = view.SaveStatus.DataContext
+                    .Should().BeOfType<ImageViewerActionsViewModel>().Subject;
+
+                actions.IsSaveTakingLong = true;
+                await Task.Delay(80);
+                actions.IsSaveTakingLong = false;
+                actions.IsSaveTakingLong = true;
+                await Task.Delay(270);
+
+                view.SaveStatus.IsVisible.Should().BeTrue();
+                view.SaveStatus.Opacity.Should().BeApproximately(1d, 0.01d);
+                view.SaveStatusPanelTransform.Y.Should().BeApproximately(0d, 0.1d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Constructor_WithSaveStatus_DimsContentAndCentersLargerPanel()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(),
+                CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+
+            try
+            {
+                window.Show();
+                ImageViewerView view = window.Content as ImageViewerView
+                    ?? throw new InvalidOperationException(
+                        "The viewer content must be created.");
+                ImageViewerActionsViewModel actions = view.SaveStatus.DataContext
+                    .Should().BeOfType<ImageViewerActionsViewModel>().Subject;
+
+                actions.IsSaveTakingLong = true;
+                view.UpdateLayout();
+
+                Border panel = view.SaveStatus.Child
+                    .Should().BeOfType<Border>().Subject;
+                StackPanel content = panel.Child
+                    .Should().BeOfType<StackPanel>().Subject;
+                SolidColorBrush dimBrush = view.SaveStatus.Background
+                    .Should().BeOfType<SolidColorBrush>().Subject;
+
+                view.Root.Children.Should().Contain(view.SaveStatus);
+                view.SaveStatus.ZIndex.Should().BeGreaterThan(
+                    view.SettingsPanel.ZIndex);
+                view.SaveStatus.Bounds.Size.Should().Be(view.Root.Bounds.Size);
+                dimBrush.Color.Should().Be(Color.Parse("#40000000"));
+                panel.HorizontalAlignment.Should().Be(HorizontalAlignment.Center);
+                panel.VerticalAlignment.Should().Be(VerticalAlignment.Center);
+                panel.MinWidth.Should().BeGreaterThan(200d);
+                content.Children[0].Width.Should().BeGreaterThan(18d);
             }
             finally
             {

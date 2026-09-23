@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 using Avalonia.Controls;
 
 using Pica.Protocol;
@@ -6,9 +8,10 @@ using Pica.Viewer.ViewModels;
 
 namespace Pica.Viewer.Views;
 
-internal sealed class ImageViewerActionController
+internal sealed class ImageViewerActionController : IDisposable
 {
-    internal bool IsRunning => _isRunning;
+    internal bool IsRunning => _actionGate.IsRunning;
+    internal bool IsSaving => _owner.IsSaving;
 
     private const double CopyFeedbackOpacity = 0.44d;
     private const double CopyFeedbackFadeInDurationSeconds = 0.1d;
@@ -18,8 +21,11 @@ internal sealed class ImageViewerActionController
         TimeSpan.FromSeconds(CopyFeedbackFadeInDurationSeconds);
     private static readonly TimeSpan CopyFeedbackFadeOutDuration =
         TimeSpan.FromSeconds(CopyFeedbackFadeOutDurationSeconds);
+    private static readonly TimeSpan SaveStatusFadeDuration =
+        TimeSpan.FromMilliseconds(220d);
 
-    private readonly Control _interactionRoot;
+    private readonly ViewerActionGate _actionGate;
+    private readonly ImageViewerWindow _owner;
     private readonly ImageViewerView _view;
     private readonly ImageViewerActionsViewModel _actions;
     private readonly ImageViewerOpenWithViewModel _openWith;
@@ -29,11 +35,12 @@ internal sealed class ImageViewerActionController
     private readonly ViewerFrameAnimationRunner _animationRunner;
     private readonly Action _cancelSelection;
     private readonly Action<OpenWithTarget> _hideOpenWithAfterAction;
-    private bool _isRunning;
     private long _copyFeedbackAnimationId;
+    private long _saveStatusAnimationId;
+    private bool _isDisposed;
 
     internal ImageViewerActionController(
-        Control interactionRoot,
+        ImageViewerWindow owner,
         ImageViewerView view,
         ImageViewerActionsViewModel actions,
         ImageViewerOpenWithViewModel openWith,
@@ -44,8 +51,8 @@ internal sealed class ImageViewerActionController
         Action cancelSelection,
         Action<OpenWithTarget> hideOpenWithAfterAction)
     {
-        _interactionRoot = interactionRoot
-            ?? throw new ArgumentNullException(nameof(interactionRoot));
+        _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+        _actionGate = new ViewerActionGate(owner);
         _view = view ?? throw new ArgumentNullException(nameof(view));
         _actions = actions ?? throw new ArgumentNullException(nameof(actions));
         _openWith = openWith
@@ -62,11 +69,25 @@ internal sealed class ImageViewerActionController
             ?? throw new ArgumentNullException(nameof(cancelSelection));
         _hideOpenWithAfterAction = hideOpenWithAfterAction
             ?? throw new ArgumentNullException(nameof(hideOpenWithAfterAction));
+        _actions.PropertyChanged += OnActionsPropertyChanged;
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
+        _actions.PropertyChanged -= OnActionsPropertyChanged;
+        _copyFeedbackAnimationId++;
+        _saveStatusAnimationId++;
     }
 
     internal async Task CopyCurrentAsync(CancellationToken ct)
     {
-        await RunExclusiveAsync(CopyCurrentCoreAsync, ct);
+        await _actionGate.RunAsync(CopyCurrentCoreAsync, ct);
     }
 
     internal async Task CopyCurrentWithFeedbackAsync(CancellationToken ct)
@@ -86,7 +107,7 @@ internal sealed class ImageViewerActionController
 
     internal async Task SaveCurrentAsAsync(CancellationToken ct)
     {
-        await RunExclusiveAsync(SaveCurrentCoreAsync, ct);
+        await RunSaveAsync(SaveCurrentCoreAsync, ct);
     }
 
     internal async Task RevealInFolderAsync(
@@ -105,7 +126,7 @@ internal sealed class ImageViewerActionController
 
     internal async Task CopySelectionAndCloseAsync(CancellationToken ct)
     {
-        await RunExclusiveAsync(
+        await _actionGate.RunAsync(
             async operationCt =>
             {
                 await CopySelectionAsync(operationCt);
@@ -145,7 +166,7 @@ internal sealed class ImageViewerActionController
 
     internal async Task SaveSelectionAsAndCloseAsync(CancellationToken ct)
     {
-        await RunExclusiveAsync(SaveSelectionAsCoreAsync, ct);
+        await RunSaveAsync(SaveSelectionAsCoreAsync, ct);
     }
 
     internal async Task OpenWithApplicationAsync(
@@ -155,7 +176,7 @@ internal sealed class ImageViewerActionController
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        await RunExclusiveAsync(
+        await _actionGate.RunAsync(
             async operationCt =>
             {
                 await PrepareOpenWithFileAsync(target, operationCt);
@@ -176,7 +197,7 @@ internal sealed class ImageViewerActionController
         OpenWithTarget target,
         CancellationToken ct)
     {
-        await RunExclusiveAsync(
+        await _actionGate.RunAsync(
             async operationCt =>
             {
                 await PrepareOpenWithFileAsync(target, operationCt);
@@ -190,6 +211,27 @@ internal sealed class ImageViewerActionController
                 await _openWith.ChooseApplicationCommand.ExecuteAsync(null);
             },
             ct);
+    }
+
+    private async Task RunSaveAsync(
+        Func<CancellationToken, Task> operation,
+        CancellationToken ct)
+    {
+        await _actionGate.RunAsync(
+            async operationCt =>
+            {
+                try
+                {
+                    _owner.SetSavingInteractionState(true);
+                    await operation(operationCt);
+                }
+                finally
+                {
+                    _owner.SetSavingInteractionState(false);
+                }
+            },
+            ct,
+            blockWindowInteraction: false);
     }
 
     private async Task CopyCurrentCoreAsync(CancellationToken ct)
@@ -296,6 +338,56 @@ internal sealed class ImageViewerActionController
             CopyFeedbackFadeOutDuration);
     }
 
+    private void OnActionsPropertyChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ImageViewerActionsViewModel.IsSaveTakingLong))
+        {
+            AnimateSaveStatus();
+        }
+    }
+
+    private void AnimateSaveStatus()
+    {
+        Border status = _view.SaveStatus;
+        bool show = _actions.IsSaveTakingLong;
+        double startingOpacity = status.Opacity;
+        double startingOffset = _view.SaveStatusPanelTransform.Y;
+        double targetOpacity = show
+            ? _view.VisibleControlsOpacity
+            : _view.HiddenControlsOpacity;
+        double targetOffset = show
+            ? 0d
+            : ImageViewerVisualMetrics.SaveStatusHiddenOffset;
+        long animationId = ++_saveStatusAnimationId;
+
+        if (show)
+        {
+            status.IsVisible = true;
+        }
+
+        _animationRunner.Start(
+            SaveStatusFadeDuration,
+            () => !_isDisposed && animationId == _saveStatusAnimationId,
+            progress =>
+            {
+                double easedProgress =
+                    ViewerFrameAnimationRunner.EaseOutCubic(progress);
+                status.Opacity = startingOpacity
+                    + ((targetOpacity - startingOpacity) * easedProgress);
+                _view.SaveStatusPanelTransform.Y = startingOffset
+                    + ((targetOffset - startingOffset) * easedProgress);
+            },
+            completed: () =>
+            {
+                if (!show)
+                {
+                    status.IsVisible = false;
+                }
+            });
+    }
+
     private Task AnimateCopyFeedbackOpacityAsync(
         long animationId,
         double from,
@@ -315,30 +407,5 @@ internal sealed class ImageViewerActionController
             () => completion.TrySetResult());
 
         return completion.Task;
-    }
-
-    private async Task RunExclusiveAsync(
-        Func<CancellationToken, Task> operation,
-        CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(operation);
-
-        if (_isRunning)
-        {
-            return;
-        }
-
-        _isRunning = true;
-        _interactionRoot.IsHitTestVisible = false;
-
-        try
-        {
-            await operation(ct);
-        }
-        finally
-        {
-            _interactionRoot.IsHitTestVisible = true;
-            _isRunning = false;
-        }
     }
 }

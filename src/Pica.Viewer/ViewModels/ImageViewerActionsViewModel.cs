@@ -15,6 +15,9 @@ internal sealed partial class ImageViewerActionsViewModel :
     public bool WasSelectionSaved { get; private set; }
     public bool HasErrorMessage => !string.IsNullOrWhiteSpace(ErrorMessage);
 
+    private static readonly TimeSpan SaveIndicatorDelay =
+        TimeSpan.FromMilliseconds(700d);
+
     private readonly IViewerImageCommandService _imageCommands;
     private readonly IImagePresentationInfo _presentation;
     private readonly ImageViewerSession _session;
@@ -30,6 +33,8 @@ internal sealed partial class ImageViewerActionsViewModel :
     [NotifyCanExecuteChangedFor(nameof(SaveSelectionCommand))]
     [NotifyCanExecuteChangedFor(nameof(RevealInFolderCommand))]
     private bool _isLoading;
+    [ObservableProperty]
+    private bool _isSaveTakingLong;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasErrorMessage))]
     private string? _errorMessage;
@@ -197,7 +202,7 @@ internal sealed partial class ImageViewerActionsViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteAction))]
     private async Task SaveCurrentAsync(CancellationToken ct)
     {
-        await ExecuteActionAsync(
+        await ExecuteSaveActionAsync(
             async operationCt =>
             {
                 await _imageCommands.SaveCurrentAsync(operationCt);
@@ -224,7 +229,7 @@ internal sealed partial class ImageViewerActionsViewModel :
         Interlocked.Exchange(ref _selectionSaveNotification, 0);
         WasSelectionSaved = false;
         OnPropertyChanged(nameof(WasSelectionSaved));
-        await ExecuteActionAsync(
+        await ExecuteSaveActionAsync(
             async operationCt =>
             {
                 await _imageCommands.SavePreparedSelectionAsync(
@@ -292,6 +297,52 @@ internal sealed partial class ImageViewerActionsViewModel :
     private bool CanExecuteAction()
     {
         return !IsLoading;
+    }
+
+    private async Task ExecuteSaveActionAsync(
+        Func<CancellationToken, Task> action,
+        string operationName,
+        CancellationToken ct)
+    {
+        TaskCompletionSource saveWritingStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler saveWritingStartedHandler = (_, _) =>
+            saveWritingStarted.TrySetResult();
+        using CancellationTokenSource indicatorCancellation = new();
+        IsSaveTakingLong = false;
+        _imageCommands.SaveWritingStarted += saveWritingStartedHandler;
+        Task indicatorTask = ShowDelayedSaveActivityAsync(
+            saveWritingStarted.Task,
+            indicatorCancellation.Token);
+
+        try
+        {
+            await ExecuteActionAsync(action, operationName, ct);
+        }
+        finally
+        {
+            indicatorCancellation.Cancel();
+            await indicatorTask;
+            IsSaveTakingLong = false;
+            _imageCommands.SaveWritingStarted -= saveWritingStartedHandler;
+        }
+    }
+
+    private async Task ShowDelayedSaveActivityAsync(
+        Task saveWritingStarted,
+        CancellationToken ct)
+    {
+        try
+        {
+            await saveWritingStarted.WaitAsync(ct);
+            await Task.Delay(SaveIndicatorDelay, ct);
+            ct.ThrowIfCancellationRequested();
+            IsSaveTakingLong = true;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return;
+        }
     }
 
     private async Task ExecuteActionAsync(

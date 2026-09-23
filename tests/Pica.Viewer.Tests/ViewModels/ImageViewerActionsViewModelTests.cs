@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 using FluentAssertions;
@@ -25,6 +27,7 @@ public sealed class ImageViewerActionsViewModelTests
             out _);
 
         viewModel.IsLoading.Should().BeFalse();
+        viewModel.IsSaveTakingLong.Should().BeFalse();
         viewModel.ErrorMessage.Should().BeNull();
         viewModel.HasErrorMessage.Should().BeFalse();
     }
@@ -73,6 +76,99 @@ public sealed class ImageViewerActionsViewModelTests
         await viewModel.SaveCurrentCommand.ExecuteAsync(null);
 
         imageCommands.SaveCurrentCount.Should().Be(1);
+        viewModel.IsSaveTakingLong.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveCommand_WhenWritingTakesLong_ShowsAndClearsStatus(
+        bool saveSelection)
+    {
+        RecordingViewerImageCommandService imageCommands = new()
+        {
+            BlockSaveCurrent = !saveSelection,
+            BlockSaveSelection = saveSelection
+        };
+        using ImageViewerActionsViewModel viewModel = CreateViewModel(
+            imageCommands,
+            new RecordingPlatformFileActions(),
+            out _);
+        PreparedClipboardImage image = CreatePreparedImage();
+
+        Task saveTask = saveSelection
+            ? viewModel.SaveSelectionCommand.ExecuteAsync(image)
+            : viewModel.SaveCurrentCommand.ExecuteAsync(null);
+        await (saveSelection
+            ? imageCommands.SaveSelectionStarted
+            : imageCommands.SaveCurrentStarted);
+
+        viewModel.IsSaveTakingLong.Should().BeFalse();
+        await WaitForSaveIndicatorAsync(viewModel);
+        viewModel.IsSaveTakingLong.Should().BeTrue();
+
+        if (saveSelection)
+        {
+            imageCommands.CompleteSaveSelection();
+        }
+        else
+        {
+            imageCommands.CompleteSaveCurrent();
+        }
+
+        await saveTask;
+
+        viewModel.IsSaveTakingLong.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveCurrentCommand_WhenInterrupted_HidesSaveIndicator(
+        bool cancel)
+    {
+        RecordingViewerImageCommandService imageCommands = new()
+        {
+            BlockSaveCurrent = true
+        };
+        using ImageViewerActionsViewModel viewModel = CreateViewModel(
+            imageCommands,
+            new RecordingPlatformFileActions(),
+            out _);
+
+        Task saveTask = viewModel.SaveCurrentCommand.ExecuteAsync(null);
+        await imageCommands.SaveCurrentStarted;
+        await WaitForSaveIndicatorAsync(viewModel);
+
+        if (cancel)
+        {
+            viewModel.SaveCurrentCommand.Cancel();
+        }
+        else
+        {
+            imageCommands.FailSaveCurrent(new IOException("Save failed."));
+        }
+
+        await saveTask;
+
+        viewModel.IsSaveTakingLong.Should().BeFalse();
+        viewModel.ErrorMessage.Should().Be(
+            cancel ? null : RecordingViewModelErrorHandler.SafeMessage);
+    }
+
+    [Fact]
+    public async Task SaveCurrentCommand_WhenWritingFinishesQuickly_NeverShowsStatus()
+    {
+        RecordingViewerImageCommandService imageCommands = new();
+        using ImageViewerActionsViewModel viewModel = CreateViewModel(
+            imageCommands,
+            new RecordingPlatformFileActions(),
+            out _);
+
+        await viewModel.SaveCurrentCommand.ExecuteAsync(null);
+        await Task.Delay(TimeSpan.FromMilliseconds(1100d));
+
+        viewModel.IsSaveTakingLong.Should().BeFalse();
     }
 
     [Fact]
@@ -234,6 +330,37 @@ public sealed class ImageViewerActionsViewModelTests
 
         viewModel.IsLoading.Should().BeFalse();
         viewModel.CopyCurrentCommand.CanExecute(null).Should().BeTrue();
+    }
+
+    private static async Task WaitForSaveIndicatorAsync(
+        ImageViewerActionsViewModel viewModel)
+    {
+        if (!viewModel.IsSaveTakingLong)
+        {
+            TaskCompletionSource indicatorShown =
+                new(TaskCreationOptions.RunContinuationsAsynchronously);
+            PropertyChangedEventHandler handler = (_, eventArgs) =>
+            {
+                if ((eventArgs.PropertyName == nameof(viewModel.IsSaveTakingLong))
+                    && viewModel.IsSaveTakingLong)
+                {
+                    indicatorShown.TrySetResult();
+                }
+            };
+            viewModel.PropertyChanged += handler;
+
+            try
+            {
+                if (!viewModel.IsSaveTakingLong)
+                {
+                    await indicatorShown.Task.WaitAsync(TimeSpan.FromSeconds(3d));
+                }
+            }
+            finally
+            {
+                viewModel.PropertyChanged -= handler;
+            }
+        }
     }
 
     private static PicaActionDefinition CreateAction()

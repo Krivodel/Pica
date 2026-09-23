@@ -22,6 +22,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _closeCleanupCompletionSource.Task;
 
     internal ViewerWindowMode CurrentWindowMode => _windowMode.Mode;
+    internal bool IsSaving => _isSaving;
 
     internal event EventHandler? ReadyForLoading;
 
@@ -79,6 +80,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private ImageViewerView? _view;
     private ILogger<ImageViewerWindow>? _logger;
     private Exception? _closeVisualCleanupException;
+    private bool _isSaving;
 
     private ImageViewerWindow()
     {
@@ -121,6 +123,39 @@ public sealed partial class ImageViewerWindow : SukiWindow
         return _closeVisualCleanupException;
     }
 
+    internal void SetSavingInteractionState(bool isSaving)
+    {
+        _isSaving = isSaving;
+
+        if (isSaving)
+        {
+            _floatingMenus.HideAll();
+        }
+
+        bool isEnabled = !isSaving;
+        View.CloseButton.IsEnabled = isEnabled;
+        View.BottomControls.IsEnabled = isEnabled;
+        View.ContentNavigationPanel.IsEnabled = isEnabled;
+        View.SelectionToolbar.IsEnabled = isEnabled;
+        View.LeftNavigationArea.IsEnabled = isEnabled;
+        View.RightNavigationArea.IsEnabled = isEnabled;
+
+        if (_titleBarCloseButton is not null)
+        {
+            _titleBarCloseButton.IsEnabled = isEnabled;
+        }
+
+        if (_titleBarMinimizeButton is not null)
+        {
+            _titleBarMinimizeButton.IsEnabled = isEnabled;
+        }
+
+        if (_titleBarPinButton is not null)
+        {
+            _titleBarPinButton.IsEnabled = isEnabled;
+        }
+    }
+
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
@@ -133,6 +168,13 @@ public sealed partial class ImageViewerWindow : SukiWindow
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
         base.OnClosing(e);
+
+        if (_isSaving)
+        {
+            e.Cancel = true;
+            return;
+        }
+
         await Interaction.Close.HandleClosingAsync(e);
     }
 
@@ -327,6 +369,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 settingControls,
                 initialWindowMode,
                 viewEvents);
+            view.SaveStatus.DataContext = interactionServices.Actions;
             interaction =
                 ImageViewerWindowInteractionComposition.Create(
                     this,

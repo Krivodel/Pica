@@ -4,6 +4,7 @@ internal static class ImageViewerVisualMetrics
 {
     internal const double InformationRevealHeight = 96d;
     internal const double InformationRevealWidth = 560d;
+    internal const double SaveStatusHiddenOffset = 12d;
     internal const double SettingsPanelHiddenOffset = -10d;
     internal const double SelectionToolbarHeight = 44d;
 

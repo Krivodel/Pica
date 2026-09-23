@@ -29,6 +29,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     internal Border CheckerboardPattern { get; }
     internal Image Image { get; }
     internal Control AnimationLoadingIndicator { get; }
+    internal Border SaveStatus { get; }
+    internal TranslateTransform SaveStatusPanelTransform { get; }
     internal Border LeftNavigationArea { get; }
     internal Border RightNavigationArea { get; }
     internal Grid BottomControls { get; }
@@ -156,6 +158,18 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
                 "AnimationLoadingIndicatorControl")
             ?? throw new InvalidOperationException(
                 "The image viewer is missing its animation loading indicator.");
+        SaveStatus = this.FindControl<Border>("SaveStatusControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its save status.");
+        SaveStatus.DataContext = null;
+        Border saveStatusPanel =
+            this.FindControl<Border>("SaveStatusPanelControl")
+            ?? throw new InvalidOperationException(
+                "The image viewer is missing its save status panel.");
+        SaveStatusPanelTransform = new TranslateTransform(
+            0d,
+            ImageViewerVisualMetrics.SaveStatusHiddenOffset);
+        saveStatusPanel.RenderTransform = SaveStatusPanelTransform;
         _viewerDynamicLayer = this.FindControl<Grid>("ViewerDynamicLayerControl")
             ?? throw new InvalidOperationException(
                 "The image viewer is missing its dynamic layer.");
@@ -264,6 +278,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     public void Dispose()
     {
         DisposeOpenWithIcons();
+        SaveStatus.DataContext = null;
         CheckerboardPattern.Background = null;
         _checkerboardBitmap.Dispose();
     }

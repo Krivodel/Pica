@@ -135,6 +135,10 @@ public sealed class ViewerImageOperationsTests
             ViewerImageOperations operations = CreateOperations(
                 storageProvider.Provider);
             using Bitmap bitmap = BgraBitmapTestData.CreateBitmap();
+            bool startedAfterPicker = false;
+            operations.SaveWritingStarted += (_, _) =>
+                startedAfterPicker = storageProvider.SaveOptions is not null
+                    && storageProvider.Destination.Content.Length == 0;
 
             await operations.SaveBitmapAsync(
                 bitmap,
@@ -142,6 +146,7 @@ public sealed class ViewerImageOperationsTests
                 CancellationToken.None);
 
             storageProvider.SuggestedFileName.Should().Be("source-R.png");
+            startedAfterPicker.Should().BeTrue();
             AssertPngContent(storageProvider.Destination.Content);
         });
     }
@@ -277,6 +282,9 @@ public sealed class ViewerImageOperationsTests
                     bitmap,
                     CancellationToken.None);
             bool wasSaved = false;
+            int saveWritingStartedCount = 0;
+            operations.SaveWritingStarted += (_, _) =>
+                saveWritingStartedCount++;
 
             await operations.SavePreparedSelectionAsync(
                 image,
@@ -285,6 +293,7 @@ public sealed class ViewerImageOperationsTests
             Dispatcher.UIThread.VerifyAccess();
 
             wasSaved.Should().BeTrue();
+            saveWritingStartedCount.Should().Be(1);
             storageProvider.SuggestedFileName.Should().Be("selection.png");
             AssertPngContent(storageProvider.Destination.Content);
         });
@@ -417,6 +426,9 @@ public sealed class ViewerImageOperationsTests
                     bitmap,
                     CancellationToken.None);
             bool wasSaved = false;
+            int saveWritingStartedCount = 0;
+            operations.SaveWritingStarted += (_, _) =>
+                saveWritingStartedCount++;
 
             await operations.SavePreparedSelectionAsync(
                 image,
@@ -424,6 +436,7 @@ public sealed class ViewerImageOperationsTests
                 CancellationToken.None);
 
             wasSaved.Should().BeFalse();
+            saveWritingStartedCount.Should().Be(0);
             storageProvider.Destination.Content.Should().BeEmpty();
         });
     }

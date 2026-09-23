@@ -17,6 +17,9 @@ public sealed partial class ImageViewerWindow : SukiWindow
         new();
     private readonly List<Visual> _titleBarRoleVisuals = [];
     private Control? _titleBarControl;
+    private Button? _titleBarCloseButton;
+    private Button? _titleBarMinimizeButton;
+    private Button? _titleBarPinButton;
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
@@ -27,6 +30,19 @@ public sealed partial class ImageViewerWindow : SukiWindow
             e.NameScope.Find<Control>("PART_TitleBar")
             ?? throw new InvalidOperationException(
                 "The Suki window title bar template part is missing.");
+        _titleBarCloseButton = e.NameScope.Find<Button>("PART_CloseButton")
+            ?? throw new InvalidOperationException(
+                "The Suki window close button template part is missing.");
+        _titleBarMinimizeButton =
+            e.NameScope.Find<Button>("PART_MinimizeButton")
+            ?? throw new InvalidOperationException(
+                "The Suki window minimize button template part is missing.");
+        _titleBarPinButton = e.NameScope.Find<Button>("PART_PinButton")
+            ?? throw new InvalidOperationException(
+                "The Suki window pin button template part is missing.");
+        _titleBarCloseButton.IsEnabled = !_isSaving;
+        _titleBarMinimizeButton.IsEnabled = !_isSaving;
+        _titleBarPinButton.IsEnabled = !_isSaving;
         DisableNativeTitleBarRoles(_titleBarControl);
         AddHandler(
             PointerPressedEvent,
@@ -44,6 +60,10 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 OnTitleBarPointerPressed);
             _titleBarControl = null;
         }
+
+        _titleBarCloseButton = null;
+        _titleBarMinimizeButton = null;
+        _titleBarPinButton = null;
 
         foreach (Visual visual in _titleBarRoleVisuals)
         {

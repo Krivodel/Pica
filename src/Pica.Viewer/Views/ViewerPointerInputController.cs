@@ -24,6 +24,7 @@ internal sealed class ViewerPointerInputController
     private readonly ViewerChromeVisibilityController _chromeVisibility;
     private readonly ViewerCursorController _cursor;
     private readonly ViewerWindowModeController _windowMode;
+    private readonly ImageViewerActionController _actions;
     private readonly ImageDoubleClickTracker _doubleClickTracker;
     private bool _isPointerPressed;
     private bool _isImageClickCandidate;
@@ -40,7 +41,8 @@ internal sealed class ViewerPointerInputController
         ViewerFloatingMenuController floatingMenus,
         ViewerChromeVisibilityController chromeVisibility,
         ViewerCursorController cursor,
-        ViewerWindowModeController windowMode)
+        ViewerWindowModeController windowMode,
+        ImageViewerActionController actions)
     {
         _view = view ?? throw new ArgumentNullException(nameof(view));
         _settings = settings
@@ -60,6 +62,7 @@ internal sealed class ViewerPointerInputController
             ?? throw new ArgumentNullException(nameof(cursor));
         _windowMode = windowMode
             ?? throw new ArgumentNullException(nameof(windowMode));
+        _actions = actions ?? throw new ArgumentNullException(nameof(actions));
         _doubleClickTracker = new ImageDoubleClickTracker();
     }
 
@@ -73,6 +76,12 @@ internal sealed class ViewerPointerInputController
         PointerPressedEventArgs e)
     {
         _ = sender;
+
+        if (_actions.IsSaving)
+        {
+            e.Handled = true;
+            return;
+        }
 
         if (IsFloatingMenuInput(e.Source, _view))
         {
@@ -180,9 +189,18 @@ internal sealed class ViewerPointerInputController
         {
             _cursor.Show();
             _chromeVisibility.Update(position);
-            _selectionInteraction.UpdatePointer(
-                position,
-                _isPointerPressed);
+
+            if (!_actions.IsSaving)
+            {
+                _selectionInteraction.UpdatePointer(
+                    position,
+                    _isPointerPressed);
+            }
+        }
+
+        if (_actions.IsSaving)
+        {
+            return;
         }
 
         if (_isImageClickCandidate
@@ -219,6 +237,17 @@ internal sealed class ViewerPointerInputController
         PointerReleasedEventArgs e)
     {
         _ = sender;
+
+        if (_actions.IsSaving)
+        {
+            _isPointerPressed = false;
+            _isImageClickCandidate = false;
+            _selection.EndManipulation();
+            _viewport.ReleasePanMotion();
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
 
         if (IsFloatingMenuInput(e.Source, _view))
         {
@@ -268,6 +297,12 @@ internal sealed class ViewerPointerInputController
         PointerWheelEventArgs e)
     {
         _ = sender;
+
+        if (_actions.IsSaving)
+        {
+            e.Handled = true;
+            return;
+        }
 
         int multiplier = GetEffectiveZoomSpeed(
             e.KeyModifiers);

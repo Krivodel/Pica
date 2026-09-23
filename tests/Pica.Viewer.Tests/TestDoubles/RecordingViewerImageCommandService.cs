@@ -11,6 +11,7 @@ internal sealed class RecordingViewerImageCommandService :
     public bool CanOpenCurrentImageWithApplication { get; set; } = true;
 
     public event EventHandler? PreparedSelectionSaved;
+    public event EventHandler? SaveWritingStarted;
 
     internal int CopyCurrentCount { get; private set; }
     internal int CopySelectionCount { get; private set; }
@@ -26,11 +27,23 @@ internal sealed class RecordingViewerImageCommandService :
     internal Exception? PrepareSelectionException { get; set; }
     internal bool CompleteSelectionSave { get; set; } = true;
     internal bool BlockCopyCurrent { get; set; }
+    internal bool BlockSaveCurrent { get; set; }
+    internal bool BlockSaveSelection { get; set; }
     internal Task CopyCurrentStarted => _copyCurrentStarted.Task;
+    internal Task SaveCurrentStarted => _saveCurrentStarted.Task;
+    internal Task SaveSelectionStarted => _saveSelectionStarted.Task;
 
     private readonly TaskCompletionSource _copyCurrentStarted =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _copyCurrentCompletion =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _saveCurrentStarted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _saveCurrentCompletion =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _saveSelectionStarted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _saveSelectionCompletion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public Task CopyCurrentAsync(CancellationToken ct)
@@ -110,11 +123,19 @@ internal sealed class RecordingViewerImageCommandService :
     {
         ct.ThrowIfCancellationRequested();
         SaveCurrentCount++;
+        SaveWritingStarted?.Invoke(this, EventArgs.Empty);
 
-        return Task.CompletedTask;
+        if (!BlockSaveCurrent)
+        {
+            return Task.CompletedTask;
+        }
+
+        _saveCurrentStarted.TrySetResult();
+
+        return _saveCurrentCompletion.Task.WaitAsync(ct);
     }
 
-    public Task SavePreparedSelectionAsync(
+    public async Task SavePreparedSelectionAsync(
         PreparedClipboardImage image,
         CancellationToken ct)
     {
@@ -122,13 +143,18 @@ internal sealed class RecordingViewerImageCommandService :
             ?? throw new ArgumentNullException(nameof(image));
         ct.ThrowIfCancellationRequested();
         SaveSelectionCount++;
+        SaveWritingStarted?.Invoke(this, EventArgs.Empty);
+
+        if (BlockSaveSelection)
+        {
+            _saveSelectionStarted.TrySetResult();
+            await _saveSelectionCompletion.Task.WaitAsync(ct);
+        }
 
         if (CompleteSelectionSave)
         {
             PreparedSelectionSaved?.Invoke(this, EventArgs.Empty);
         }
-
-        return Task.CompletedTask;
     }
 
     public string GetCurrentOpenWithAssociationFilePath()
@@ -161,5 +187,21 @@ internal sealed class RecordingViewerImageCommandService :
     internal void CompleteCopyCurrent()
     {
         _copyCurrentCompletion.TrySetResult();
+    }
+
+    internal void CompleteSaveCurrent()
+    {
+        _saveCurrentCompletion.TrySetResult();
+    }
+
+    internal void FailSaveCurrent(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        _saveCurrentCompletion.TrySetException(exception);
+    }
+
+    internal void CompleteSaveSelection()
+    {
+        _saveSelectionCompletion.TrySetResult();
     }
 }

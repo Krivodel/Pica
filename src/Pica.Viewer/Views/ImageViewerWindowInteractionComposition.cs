@@ -70,6 +70,7 @@ internal sealed class ImageViewerWindowInteractionComposition :
     public void Dispose()
     {
         Presentation.Dispose();
+        Actions.Dispose();
         _settingsChanges.Dispose();
         Cursor.Dispose();
         FloatingMenus.Dispose();
@@ -197,7 +198,8 @@ internal sealed class ImageViewerWindowInteractionComposition :
             floatingMenus,
             chromeVisibility,
             cursor,
-            windowMode);
+            windowMode,
+            actionController);
         ViewerKeyboardInputController keyboardInput = new(
             view,
             session,
