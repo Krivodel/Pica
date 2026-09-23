@@ -1204,7 +1204,8 @@ public sealed class ImageViewerViewTests
             buttons[1].Tag.Should().BeSameAs(before);
             buttons[2].Tag.Should().BeNull();
             buttons[3].Tag.Should().BeSameAs(after);
-            ToolTip.GetTip(buttons[3]).Should().Be("DLSS");
+            ToolTip.GetTip(buttons[1]).Should().BeNull();
+            ToolTip.GetTip(buttons[3]).Should().BeNull();
         });
     }
 

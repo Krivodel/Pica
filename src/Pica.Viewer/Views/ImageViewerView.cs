@@ -770,7 +770,6 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
                 action.IconRotationDegrees,
                 foreground);
             button.Tag = action;
-            ToolTip.SetTip(button, action.DisplayName);
             toolbar.Children.Add(button);
         }
     }
