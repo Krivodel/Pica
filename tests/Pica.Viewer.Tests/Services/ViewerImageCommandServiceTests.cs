@@ -96,6 +96,7 @@ public sealed class ViewerImageCommandServiceTests
             {
                 using ViewerImageCommandTestContext context =
                     await ViewerImageCommandTestContext.CreateAsync();
+                context.ActionDispatcher.AcceptBitmapWithoutEncoding = true;
                 PicaActionDefinition action = new(
                     "external-action",
                     "Внешнее действие",
@@ -109,9 +110,45 @@ public sealed class ViewerImageCommandServiceTests
                     CancellationToken.None);
 
                 context.ActionDispatcher.DerivedImageDispatchCount.Should().Be(1);
+                context.ActionDispatcher.BitmapDispatchCount.Should().Be(0);
                 context.ActionDispatcher.LastFileName.Should().Be("image-R.png");
                 context.ActionDispatcher.LastPngContent.Should().NotBeEmpty();
                 context.Readiness.WaitCount.Should().Be(1);
+            });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DispatchCurrentAsync_WithMemoryMainImage_UsesDirectBitmapOnlyWhenAccepted(
+        bool acceptBitmapWithoutEncoding)
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(
+            typeof(ViewerImageCommandServiceTests),
+            SessionLock,
+            async () =>
+            {
+                using ViewerImageCommandTestContext context =
+                    await ViewerImageCommandTestContext.CreateAsync(isFileBacked: false);
+                context.Session.SelectMainImageModeCommand.Execute(null);
+                context.ActionDispatcher.AcceptBitmapWithoutEncoding = acceptBitmapWithoutEncoding;
+                PicaActionDefinition action = new(
+                    "external-action",
+                    "Внешнее действие",
+                    "M0,0",
+                    0d,
+                    PicaActionTargets.CurrentImage,
+                    0);
+
+                await context.CommandService.DispatchCurrentAsync(
+                    action,
+                    CancellationToken.None);
+
+                context.ActionDispatcher.BitmapDispatchCount.Should().Be(
+                    acceptBitmapWithoutEncoding ? 1 : 0);
+                context.ActionDispatcher.DerivedImageDispatchCount.Should().Be(
+                    acceptBitmapWithoutEncoding ? 0 : 1);
+                context.ActionDispatcher.LastFileName.Should().Be("image.png");
             });
     }
 

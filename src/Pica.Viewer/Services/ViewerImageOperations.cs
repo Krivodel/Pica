@@ -94,6 +94,7 @@ internal sealed class ViewerImageOperations
         PicaImageItem item,
         Bitmap bitmap,
         string fileName,
+        bool allowDirectDispatch,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -101,15 +102,28 @@ internal sealed class ViewerImageOperations
         ArgumentNullException.ThrowIfNull(bitmap);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        byte[] pngContent = await _pngImageEncoder
-            .EncodeAsync(bitmap, ct)
-            .ConfigureAwait(false);
-        await _actionDispatcher.DispatchDerivedImageAsync(
-            action,
-            item,
-            fileName,
-            pngContent,
-            ct).ConfigureAwait(false);
+        if (allowDirectDispatch
+            && _actionDispatcher.CanDispatchBitmapWithoutEncoding(action, item))
+        {
+            await _actionDispatcher.DispatchBitmapAsync(
+                action,
+                item,
+                bitmap,
+                fileName,
+                ct).ConfigureAwait(false);
+        }
+        else
+        {
+            byte[] pngContent = await _pngImageEncoder
+                .EncodeAsync(bitmap, ct)
+                .ConfigureAwait(false);
+            await _actionDispatcher.DispatchDerivedImageAsync(
+                action,
+                item,
+                fileName,
+                pngContent,
+                ct).ConfigureAwait(false);
+        }
     }
 
     internal async Task SaveCurrentAsync(

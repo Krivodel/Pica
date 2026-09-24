@@ -1,9 +1,38 @@
+using Avalonia.Media.Imaging;
+
 using Pica.Protocol;
 
 namespace Pica.Viewer.Services;
 
 public interface IViewerActionDispatcher
 {
+    bool CanDispatchBitmapWithoutEncoding(
+        PicaActionDefinition action,
+        PicaImageItem item)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(item);
+
+        return false;
+    }
+
+    Task DispatchBitmapAsync(
+        PicaActionDefinition action,
+        PicaImageItem item,
+        Bitmap bitmap,
+        string fileName,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ct.ThrowIfCancellationRequested();
+
+        throw new NotSupportedException(
+            "The viewer action dispatcher does not support direct bitmap dispatch.");
+    }
+
     Task DispatchCurrentImageAsync(
         PicaActionDefinition action,
         PicaImageItem item,

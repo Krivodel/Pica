@@ -1,3 +1,5 @@
+using Avalonia.Media.Imaging;
+
 using Pica.Protocol;
 using Pica.Viewer.Services;
 
@@ -8,8 +10,31 @@ internal sealed class RecordingViewerActionDispatcher : IViewerActionDispatcher
     internal int CurrentImageDispatchCount { get; private set; }
     internal int SelectionDispatchCount { get; private set; }
     internal int DerivedImageDispatchCount { get; private set; }
+    internal int BitmapDispatchCount { get; private set; }
+    internal bool AcceptBitmapWithoutEncoding { get; set; }
     internal string? LastFileName { get; private set; }
     internal byte[]? LastPngContent { get; private set; }
+
+    public bool CanDispatchBitmapWithoutEncoding(
+        PicaActionDefinition action,
+        PicaImageItem item)
+    {
+        return AcceptBitmapWithoutEncoding;
+    }
+
+    public Task DispatchBitmapAsync(
+        PicaActionDefinition action,
+        PicaImageItem item,
+        Bitmap bitmap,
+        string fileName,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        BitmapDispatchCount++;
+        LastFileName = fileName;
+
+        return Task.CompletedTask;
+    }
 
     public Task DispatchCurrentImageAsync(
         PicaActionDefinition action,

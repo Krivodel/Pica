@@ -211,6 +211,7 @@ internal sealed class ViewerImageCommandService :
             channel is null
                 ? Path.ChangeExtension(item.FileName, PicaImageFormats.PngExtension)
                 : ImageChannelFileName.Create(channel, item.FileName),
+            channel is null,
             ct).ConfigureAwait(false);
     }
 
