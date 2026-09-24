@@ -79,7 +79,7 @@ internal sealed class ImagePresentationController :
     private readonly object _disposalSync = new();
     private readonly Dictionary<Bitmap, int> _bitmapUseCounts =
         new(ReferenceEqualityComparer.Instance);
-    private readonly HashSet<Bitmap> _pendingBitmapDisposals =
+    private readonly Dictionary<Bitmap, Action> _pendingBitmapReleases =
         new(ReferenceEqualityComparer.Instance);
     private Bitmap? _channelBitmap;
     private DecodedImageContent? _decodedContent;
@@ -320,7 +320,7 @@ internal sealed class ImagePresentationController :
             {
                 if (releaseBitmap is not null)
                 {
-                    releaseBitmap();
+                    ReleaseBitmapWhenUnused(bitmap, releaseBitmap);
                     return;
                 }
 
@@ -1393,16 +1393,21 @@ internal sealed class ImagePresentationController :
             return;
         }
 
+        ReleaseBitmapWhenUnused(bitmap, bitmap.Dispose);
+    }
+
+    private void ReleaseBitmapWhenUnused(Bitmap bitmap, Action release)
+    {
         lock (_bitmapOwnershipSync)
         {
             if (_bitmapUseCounts.ContainsKey(bitmap))
             {
-                _pendingBitmapDisposals.Add(bitmap);
+                _pendingBitmapReleases.TryAdd(bitmap, release);
                 return;
             }
         }
 
-        bitmap.Dispose();
+        release();
     }
 
     private ImagePresentationBitmapLease? AcquireDisplayedBitmapCore()
@@ -1426,7 +1431,7 @@ internal sealed class ImagePresentationController :
 
     private void ReleaseBitmap(Bitmap bitmap)
     {
-        bool shouldDispose = false;
+        Action? release = null;
         TaskCompletionSource? leaseReleaseCompletion = null;
 
         lock (_bitmapOwnershipSync)
@@ -1445,8 +1450,7 @@ internal sealed class ImagePresentationController :
             }
 
             _bitmapUseCounts.Remove(bitmap);
-            shouldDispose =
-                _pendingBitmapDisposals.Remove(bitmap);
+            _pendingBitmapReleases.Remove(bitmap, out release);
 
             if (_bitmapUseCounts.Count == 0)
             {
@@ -1458,10 +1462,7 @@ internal sealed class ImagePresentationController :
 
         try
         {
-            if (shouldDispose)
-            {
-                bitmap.Dispose();
-            }
+            release?.Invoke();
         }
         finally
         {

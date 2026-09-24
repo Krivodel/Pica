@@ -805,9 +805,9 @@ public sealed class ImageViewerViewTests
     {
         await DispatchAsync(() =>
         {
-            PicaActionDefinition attachAction = new(
-                "attach",
-                "Прикрепить",
+            PicaActionDefinition firstAction = new(
+                "first-action",
+                "Первое действие",
                 "M0,0 L1,1",
                 0d,
                 PicaActionTargets.CurrentImage,
@@ -822,7 +822,7 @@ public sealed class ImageViewerViewTests
             List<PicaActionDefinition> actions =
             [
                 showInGalleryAction,
-                attachAction
+                firstAction
             ];
             ImageViewerSessionViewModel session = CreateSession(
                 false,
@@ -1443,8 +1443,8 @@ public sealed class ImageViewerViewTests
     {
         await DispatchAsync(() =>
         {
-            PicaActionDefinition before = new("attach", "Attach", "M0,0", 0d, PicaActionTargets.Selection, 100);
-            PicaActionDefinition after = new("dlss", "DLSS", "M0,0", 0d, PicaActionTargets.Selection, 101)
+            PicaActionDefinition before = new("before", "Before", "M0,0", 0d, PicaActionTargets.Selection, 100);
+            PicaActionDefinition after = new("after", "After", "M0,0", 0d, PicaActionTargets.Selection, 101)
             {
                 SelectionPlacement = PicaSelectionActionPlacement.AfterSave
             };

@@ -66,9 +66,7 @@ internal sealed partial class ImageViewerActionsViewModel :
     {
         _imageCommands.PreparedSelectionSaved -= OnPreparedSelectionSaved;
         CopyCurrentCommand.Cancel();
-        DispatchCurrentCommand.Cancel();
         CopySelectionCommand.Cancel();
-        DispatchSelectionCommand.Cancel();
         SaveCurrentCommand.Cancel();
         SaveSelectionCommand.Cancel();
         RevealInFolderCommand.Cancel();

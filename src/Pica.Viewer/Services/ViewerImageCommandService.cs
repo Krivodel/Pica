@@ -188,7 +188,7 @@ internal sealed class ViewerImageCommandService :
             return;
         }
 
-        if (channel is null)
+        if ((channel is null) && _presentation.IsCurrentImageFileBacked)
         {
             await _imageOperations
                 .DispatchCurrentAsync(action, item, ct)
@@ -208,7 +208,9 @@ internal sealed class ViewerImageCommandService :
             action,
             item,
             bitmapLease.Bitmap,
-            ImageChannelFileName.Create(channel, item.FileName),
+            channel is null
+                ? Path.ChangeExtension(item.FileName, PicaImageFormats.PngExtension)
+                : ImageChannelFileName.Create(channel, item.FileName),
             ct).ConfigureAwait(false);
     }
 

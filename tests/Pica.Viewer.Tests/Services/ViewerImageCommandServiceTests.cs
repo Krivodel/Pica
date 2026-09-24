@@ -97,8 +97,8 @@ public sealed class ViewerImageCommandServiceTests
                 using ViewerImageCommandTestContext context =
                     await ViewerImageCommandTestContext.CreateAsync();
                 PicaActionDefinition action = new(
-                    "attach",
-                    "Прикрепить",
+                    "external-action",
+                    "Внешнее действие",
                     "M0,0",
                     0d,
                     PicaActionTargets.CurrentImage,
