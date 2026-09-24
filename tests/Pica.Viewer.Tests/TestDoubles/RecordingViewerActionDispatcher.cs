@@ -12,8 +12,21 @@ internal sealed class RecordingViewerActionDispatcher : IViewerActionDispatcher
     internal int DerivedImageDispatchCount { get; private set; }
     internal int BitmapDispatchCount { get; private set; }
     internal bool AcceptBitmapWithoutEncoding { get; set; }
+    internal Func<PicaActionDefinition, PicaImageItem, string>?
+        DisplayNameResolver { get; set; }
     internal string? LastFileName { get; private set; }
     internal byte[]? LastPngContent { get; private set; }
+
+    public string GetCurrentImageActionDisplayName(
+        PicaActionDefinition action,
+        PicaImageItem item)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(item);
+
+        return DisplayNameResolver?.Invoke(action, item)
+            ?? action.DisplayName;
+    }
 
     public bool CanDispatchBitmapWithoutEncoding(
         PicaActionDefinition action,

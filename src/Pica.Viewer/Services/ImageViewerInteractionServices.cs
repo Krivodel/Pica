@@ -6,6 +6,7 @@ internal sealed class ImageViewerInteractionServices
 {
     internal ImageViewerActionsViewModel Actions { get; }
     internal ImageViewerOpenWithViewModel OpenWith { get; }
+    internal IViewerActionDispatcher ActionDispatcher { get; }
 
     private readonly ViewerImageCommandService _commandService;
     private readonly ViewerClipboardServices _clipboardServices;
@@ -15,11 +16,14 @@ internal sealed class ImageViewerInteractionServices
     internal ImageViewerInteractionServices(
         ImageViewerActionsViewModel actions,
         ImageViewerOpenWithViewModel openWith,
+        IViewerActionDispatcher actionDispatcher,
         ViewerImageCommandService commandService,
         ViewerClipboardServices clipboardServices)
     {
         Actions = actions ?? throw new ArgumentNullException(nameof(actions));
         OpenWith = openWith ?? throw new ArgumentNullException(nameof(openWith));
+        ActionDispatcher = actionDispatcher
+            ?? throw new ArgumentNullException(nameof(actionDispatcher));
         _commandService = commandService
             ?? throw new ArgumentNullException(nameof(commandService));
         _clipboardServices = clipboardServices

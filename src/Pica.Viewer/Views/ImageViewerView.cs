@@ -89,6 +89,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     private const double SelectionButtonSpacing = 6d;
     private const double SelectionToolbarPadding = 8d;
     private readonly OpenWithApplicationIconStore _openWithIcons = new();
+    private readonly Dictionary<TextBlock, PicaActionDefinition>
+        _currentImageActionsByLabel;
     private readonly WriteableBitmap _checkerboardBitmap;
     private readonly ImageViewerToolMenuControl _toolMenuControl;
     private readonly Grid _viewerDynamicLayer;
@@ -237,7 +239,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         ViewerContextMenu = CreateContextMenu(
             session.Actions,
             events,
-            out Button contextOpenWithButton);
+            out Button contextOpenWithButton,
+            out _currentImageActionsByLabel);
         ContextOpenWithButton = contextOpenWithButton;
         OpenWithMenuLayer = CreateClippedMenuLayer();
         OpenWithMenu = CreateOpenWithMenu(out StackPanel openWithMenuItems);
@@ -277,6 +280,17 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         SaveStatus.DataContext = null;
         CheckerboardPattern.Background = null;
         _checkerboardBitmap.Dispose();
+    }
+
+    internal void UpdateCurrentImageActionLabels(
+        Func<PicaActionDefinition, string> getDisplayName)
+    {
+        ArgumentNullException.ThrowIfNull(getDisplayName);
+
+        foreach (KeyValuePair<TextBlock, PicaActionDefinition> actionLabel in _currentImageActionsByLabel)
+        {
+            actionLabel.Key.Text = getDisplayName(actionLabel.Value);
+        }
     }
 
     internal void UpdateSettingsPanelPlacement(ViewerWindowMode windowMode)
@@ -445,9 +459,11 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     private static Border CreateContextMenu(
         IReadOnlyList<PicaActionDefinition> actions,
         ImageViewerViewEvents events,
-        out Button openWithButton)
+        out Button openWithButton,
+        out Dictionary<TextBlock, PicaActionDefinition> actionLabels)
     {
         StackPanel panel = new();
+        actionLabels = new Dictionary<TextBlock, PicaActionDefinition>();
         panel.Classes.Add("viewer-menu-items");
         panel.Children.Add(CreateOutlineMenuButton(
             "Копировать",
@@ -468,9 +484,11 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         {
             Button button = CreateExternalActionMenuButton(
                 action,
-                events.ContextExternalActionClicked);
+                events.ContextExternalActionClicked,
+                out TextBlock label);
             button.Tag = action;
             panel.Children.Add(button);
+            actionLabels.Add(label, action);
         }
 
         panel.Children.Add(CreateOutlineMenuButton(
@@ -609,7 +627,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
 
     private static Button CreateExternalActionMenuButton(
         PicaActionDefinition action,
-        EventHandler<RoutedEventArgs> clickHandler)
+        EventHandler<RoutedEventArgs> clickHandler,
+        out TextBlock label)
     {
         StackPanel content = action.UseOutlineIcon
             ? CreateOutlineMenuButtonContent(
@@ -620,6 +639,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
                 action.DisplayName,
                 action.IconGeometry,
                 action.IconRotationDegrees);
+        label = content.Children.OfType<TextBlock>().Single();
 
         return CreateMenuButton(content, clickHandler);
     }

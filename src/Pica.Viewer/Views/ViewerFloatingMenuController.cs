@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 
+using Pica.Protocol;
 using Pica.Viewer.Services;
 using Pica.Viewer.ViewModels;
 
@@ -26,6 +27,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
 
     private readonly ImageViewerView _view;
     private readonly ImageViewerOpenWithViewModel _openWith;
+    private readonly IViewerActionDispatcher _actionDispatcher;
     private readonly ImagePresentationController _imagePresentation;
     private readonly ImageViewportController _viewport;
     private readonly ImageSelectionController _selection;
@@ -45,6 +47,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
     internal ViewerFloatingMenuController(
         ImageViewerView view,
         ImageViewerOpenWithViewModel openWith,
+        IViewerActionDispatcher actionDispatcher,
         ImagePresentationController imagePresentation,
         ImageViewportController viewport,
         ImageSelectionController selection,
@@ -55,6 +58,8 @@ internal sealed class ViewerFloatingMenuController : IDisposable
         _view = view ?? throw new ArgumentNullException(nameof(view));
         _openWith = openWith
             ?? throw new ArgumentNullException(nameof(openWith));
+        _actionDispatcher = actionDispatcher
+            ?? throw new ArgumentNullException(nameof(actionDispatcher));
         _imagePresentation = imagePresentation
             ?? throw new ArgumentNullException(nameof(imagePresentation));
         _viewport = viewport
@@ -114,6 +119,14 @@ internal sealed class ViewerFloatingMenuController : IDisposable
 
         HideTool();
         HideOpenWithSubmenu();
+
+        PicaImageItem? currentItem = _imagePresentation.CurrentItem;
+        _view.UpdateCurrentImageActionLabels(action => currentItem is null
+            ? action.DisplayName
+            : _actionDispatcher.GetCurrentImageActionDisplayName(
+                action,
+                currentItem));
+
         _view.ViewerContextMenu.IsVisible = true;
         _view.ViewerContextMenu.Measure(
             new Size(double.PositiveInfinity, double.PositiveInfinity));

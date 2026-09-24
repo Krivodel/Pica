@@ -163,6 +163,8 @@ ImageViewerWindow window = await windowFactory.CreateAsync(request, actionDispat
 
 `actions` — список `PicaActionDefinition`, а `actionDispatcher` — реализация `IViewerActionDispatcher`.
 
+Если подпись действия для текущего изображения зависит от выбранной картинки или состояния приложения, реализуй в диспетчере `GetCurrentImageActionDisplayName(PicaActionDefinition action, PicaImageItem item)`. Pica вызывает этот метод при каждом открытии контекстного меню изображения. Реализация по умолчанию возвращает `action.DisplayName`. Это относится только к подписям в контекстном меню изображения.
+
 Pica вызывает `DispatchCurrentImageAsync` для исходного изображения, `DispatchSelectionAsync` для выделенного фрагмента и `DispatchDerivedImageAsync` для выбранного канала.
 
 Пример реализации `IViewerActionDispatcher`:

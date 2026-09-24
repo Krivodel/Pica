@@ -382,6 +382,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
                     logger,
                     interactionServices.Actions,
                     interactionServices.OpenWith,
+                    interactionServices.ActionDispatcher,
                     presentationServices.Presentation,
                     presentationServices.Readiness,
                     frameScheduler,

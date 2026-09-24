@@ -106,6 +106,7 @@ internal sealed class ImageViewerInteractionFactory
             return new ImageViewerInteractionServices(
                 actions,
                 openWith,
+                actionDispatcher,
                 commandService,
                 clipboardServices);
         }

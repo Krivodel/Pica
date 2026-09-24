@@ -163,6 +163,8 @@ ImageViewerWindow window = await windowFactory.CreateAsync(request, actionDispat
 
 `actions` is a list of `PicaActionDefinition`, and `actionDispatcher` is an implementation of `IViewerActionDispatcher`.
 
+For a current-image action whose label depends on the selected image or application state, implement `GetCurrentImageActionDisplayName(PicaActionDefinition action, PicaImageItem item)` in the dispatcher. Pica calls it each time the image context menu opens. The default implementation returns `action.DisplayName`. This affects only labels in the image context menu.
+
 Pica calls `DispatchCurrentImageAsync` for the original image, `DispatchSelectionAsync` for the selected fragment, and `DispatchDerivedImageAsync` for the selected channel.
 
 Example implementation of `IViewerActionDispatcher`:

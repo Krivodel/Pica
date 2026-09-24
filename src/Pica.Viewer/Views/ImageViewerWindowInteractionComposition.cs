@@ -89,6 +89,7 @@ internal sealed class ImageViewerWindowInteractionComposition :
         ILogger<ImageViewerWindow> logger,
         ImageViewerActionsViewModel actions,
         ImageViewerOpenWithViewModel openWith,
+        IViewerActionDispatcher actionDispatcher,
         ImagePresentationController imagePresentation,
         IImagePresentationReadiness presentationReadiness,
         IUiFrameScheduler animationFrameScheduler,
@@ -105,6 +106,7 @@ internal sealed class ImageViewerWindowInteractionComposition :
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(actions);
         ArgumentNullException.ThrowIfNull(openWith);
+        ArgumentNullException.ThrowIfNull(actionDispatcher);
         ArgumentNullException.ThrowIfNull(imagePresentation);
         ArgumentNullException.ThrowIfNull(presentationReadiness);
         ArgumentNullException.ThrowIfNull(animationFrameScheduler);
@@ -134,6 +136,7 @@ internal sealed class ImageViewerWindowInteractionComposition :
         ViewerFloatingMenuController floatingMenus = new(
             view,
             openWith,
+            actionDispatcher,
             imagePresentation,
             viewport,
             selection,

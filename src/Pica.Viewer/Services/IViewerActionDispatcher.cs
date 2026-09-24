@@ -6,6 +6,16 @@ namespace Pica.Viewer.Services;
 
 public interface IViewerActionDispatcher
 {
+    string GetCurrentImageActionDisplayName(
+        PicaActionDefinition action,
+        PicaImageItem item)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(item);
+
+        return action.DisplayName;
+    }
+
     bool CanDispatchBitmapWithoutEncoding(
         PicaActionDefinition action,
         PicaImageItem item)

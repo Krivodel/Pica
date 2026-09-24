@@ -20,6 +20,7 @@ using Xunit;
 
 using Pica.Protocol;
 using Pica.Tests.Common;
+using Pica.Viewer.Resources;
 using Pica.Viewer.Services;
 using Pica.Viewer.Tests;
 using Pica.Viewer.Tests.TestDoubles;
@@ -165,6 +166,91 @@ public sealed class ImageViewerWindowTests
                     .Should()
                     .Be(ViewerWindowMode.Windowed);
                 window.WindowState.Should().Be(WindowState.Normal);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ContextMenu_WhenActionStateChanges_RefreshesExternalActionLabel()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string imagePath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            PicaImageItem item = new(ItemId, imagePath, "image.png");
+            PicaActionDefinition action = new(
+                "test.favorite",
+                "Favorite",
+                ViewerActionIconGeometry.Star,
+                0d,
+                PicaActionTargets.CurrentImage,
+                0);
+            PicaViewerRequest request = new(
+                new List<PicaImageItem> { item },
+                ItemId,
+                new List<PicaActionDefinition> { action });
+            bool isFavorite = true;
+            RecordingViewerActionDispatcher actionDispatcher = new()
+            {
+                DisplayNameResolver = (_, currentItem) =>
+                {
+                    currentItem.Id.Should().Be(ItemId);
+                    return isFavorite ? "Remove favorite" : "Favorite";
+                }
+            };
+            ImageViewerWindow window = CreateWindow(
+                request,
+                new ImageViewerState(),
+                new RecordingImageChannelBitmapLoader(),
+                actionDispatcher: actionDispatcher);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+            TaskCompletionSource imageLoaded = new(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            view.Image.PropertyChanged += (_, e) =>
+            {
+                if ((e.Property == Image.SourceProperty)
+                    && (view.Image.Source is Bitmap))
+                {
+                    imageLoaded.TrySetResult();
+                }
+            };
+
+            try
+            {
+                window.Show();
+                await imageLoaded.Task.WaitAsync(
+                    TimeSpan.FromSeconds(TestTimeoutSeconds));
+                Button button = view.ViewerContextMenu
+                    .GetVisualDescendants()
+                    .OfType<Button>()
+                    .Single(candidate => ReferenceEquals(candidate.Tag, action));
+                StackPanel content = button.Content.Should()
+                    .BeOfType<StackPanel>().Subject;
+                TextBlock label = content.Children
+                    .OfType<TextBlock>()
+                    .Single();
+
+                window.MouseDown(
+                    new Point(100d, 100d),
+                    MouseButton.Right,
+                    RawInputModifiers.None);
+
+                label.Text.Should().Be("Remove favorite");
+
+                isFavorite = false;
+                window.MouseDown(
+                    new Point(100d, 100d),
+                    MouseButton.Right,
+                    RawInputModifiers.None);
+
+                label.Text.Should().Be("Favorite");
             }
             finally
             {
@@ -1411,7 +1497,8 @@ public sealed class ImageViewerWindowTests
         PicaViewerRequest request,
         ImageViewerState state,
         IImageChannelBitmapLoader channelBitmapLoader,
-        IPlatformFileActions? platformFileActions = null)
+        IPlatformFileActions? platformFileActions = null,
+        RecordingViewerActionDispatcher? actionDispatcher = null)
     {
         ImageFormatRegistry formatRegistry = new();
 
@@ -1425,7 +1512,8 @@ public sealed class ImageViewerWindowTests
             new FullResolutionImageLoader(
                 formatRegistry,
                 MultiFrameImageDecoderTestFactory.Create()),
-            platformFileActions);
+            platformFileActions,
+            actionDispatcher);
     }
 
     private static ImageViewerWindow CreateWindow(
@@ -1434,7 +1522,8 @@ public sealed class ImageViewerWindowTests
         IImageChannelBitmapLoader channelBitmapLoader,
         IImagePreviewLoader previewLoader,
         IFullResolutionImageLoader fullResolutionLoader,
-        IPlatformFileActions? platformFileActions = null)
+        IPlatformFileActions? platformFileActions = null,
+        RecordingViewerActionDispatcher? actionDispatcher = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(state);
@@ -1453,7 +1542,7 @@ public sealed class ImageViewerWindowTests
 
         return composer.Create(
             request,
-            new RecordingViewerActionDispatcher(),
+            actionDispatcher ?? new RecordingViewerActionDispatcher(),
             state,
             Array.Empty<ViewerSettingContribution>());
     }
