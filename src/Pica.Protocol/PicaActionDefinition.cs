@@ -9,4 +9,5 @@ public sealed record PicaActionDefinition(
     int Order)
 {
     public PicaSelectionActionPlacement SelectionPlacement { get; init; }
+    public bool UseOutlineIcon { get; init; }
 }

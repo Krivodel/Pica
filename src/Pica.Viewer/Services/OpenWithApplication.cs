@@ -1,6 +1,6 @@
 namespace Pica.Viewer.Services;
 
-internal sealed record OpenWithApplication(
+public sealed record OpenWithApplication(
     string Identifier,
     string DisplayName,
     byte[]? IconPngContent);

@@ -82,6 +82,17 @@
                 Value="{StaticResource ViewerMenuForegroundBrush}" />
     </Style>
 
+    <Style Selector="Path.viewer-menu-outline-icon">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerMenuIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerMenuIconSize}" />
+        <Setter Property="Stroke"
+                Value="{StaticResource ViewerMenuForegroundBrush}" />
+        <Setter Property="StrokeThickness"
+                Value="{StaticResource ViewerOutlineIconStrokeThickness}" />
+    </Style>
+
     <Style Selector="PathIcon.viewer-submenu-indicator">
         <Setter Property="Margin"
                 Value="10,0,2,0" />

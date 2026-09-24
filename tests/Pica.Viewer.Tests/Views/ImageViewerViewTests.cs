@@ -17,6 +17,7 @@ using Xunit;
 using Pica.Protocol;
 using Pica.Tests.Common;
 using Pica.Viewer.Controls;
+using Pica.Viewer.Resources;
 using Pica.Viewer.Services;
 using Pica.Viewer.Tests;
 using Pica.Viewer.Tests.TestDoubles;
@@ -24,6 +25,7 @@ using Pica.Viewer.ViewModels;
 using Pica.Viewer.Views;
 
 using AvaloniaBitmap = Avalonia.Media.Imaging.Bitmap;
+using ShapePath = Avalonia.Controls.Shapes.Path;
 
 namespace Pica.Viewer.Tests.Views;
 
@@ -852,6 +854,69 @@ public sealed class ImageViewerViewTests
     }
 
     [Fact]
+    public async Task ContextMenuIcons_WithOutlineAction_UseSharedStarAndFolderGeometries()
+    {
+        await DispatchAsync(() =>
+        {
+            PicaActionDefinition outlineAction = new(
+                "imba",
+                "ИМБА",
+                ViewerActionIconGeometry.Star,
+                0d,
+                PicaActionTargets.CurrentImage | PicaActionTargets.Selection,
+                100)
+            {
+                UseOutlineIcon = true
+            };
+            PicaActionDefinition filledAction = new(
+                "filled",
+                "Filled",
+                "M0,0 L1,1",
+                0d,
+                PicaActionTargets.CurrentImage,
+                101);
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition> { outlineAction, filledAction });
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            List<Button> buttons = GetMenuButtons(view.ViewerContextMenu);
+            Button outlineButton = buttons.Single(button => ReferenceEquals(button.Tag, outlineAction));
+            Button filledButton = buttons.Single(button => ReferenceEquals(button.Tag, filledAction));
+            Button folderButton = buttons.Single(button =>
+                string.Equals(
+                    GetMenuButtonText(button),
+                    "Показать в папке",
+                    StringComparison.Ordinal));
+            ShapePath starIcon = outlineButton.Content.Should()
+                .BeOfType<StackPanel>().Subject.Children.OfType<ShapePath>().Single();
+            ShapePath folderIcon = folderButton.Content.Should()
+                .BeOfType<StackPanel>().Subject.Children.OfType<ShapePath>().Single();
+            Button selectionButton = view.SelectionToolbar.Children
+                .OfType<Button>()
+                .Single(button => ReferenceEquals(button.Tag, outlineAction));
+            ShapePath selectionIcon = selectionButton.Content.Should()
+                .BeOfType<ShapePath>().Subject;
+
+            starIcon.Fill.Should().BeNull();
+            starIcon.Data?.ToString().Should().Be(
+                StreamGeometry.Parse(ViewerActionIconGeometry.Star).ToString());
+            folderIcon.Fill.Should().BeNull();
+            folderIcon.Data?.ToString().Should().Be(
+                StreamGeometry.Parse(ViewerActionIconGeometry.ShowInFolder).ToString());
+            selectionIcon.Fill.Should().BeNull();
+            selectionIcon.Data?.ToString().Should().Be(starIcon.Data?.ToString());
+            filledButton.Content.Should().BeOfType<StackPanel>()
+                .Subject.Children.OfType<PathIcon>().Should().ContainSingle();
+        });
+    }
+
+    [Fact]
     public async Task FloatingMenuDescendant_IsNotHandledAsViewerInput()
     {
         await DispatchAsync(() =>
@@ -1287,6 +1352,89 @@ public sealed class ImageViewerViewTests
                 window.Close();
                 view.Dispose();
             }
+        });
+    }
+
+    [Fact]
+    public async Task OpenWithButtons_WhenCreated_UseSharedOutlineGeometry()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            Grid contextContent = view.ContextOpenWithButton.Content
+                .Should()
+                .BeOfType<Grid>()
+                .Subject;
+            StackPanel contextLabel = contextContent.Children
+                .OfType<StackPanel>()
+                .Single();
+            ShapePath contextIcon = contextLabel.Children
+                .OfType<ShapePath>()
+                .Single();
+            ShapePath selectionIcon = view.SelectionOpenWithButton.Content
+                .Should()
+                .BeOfType<ShapePath>()
+                .Subject;
+
+            contextIcon.Fill.Should().BeNull();
+            selectionIcon.Fill.Should().BeNull();
+            contextIcon.Data.Should().NotBeNull();
+            contextIcon.Data?.ToString().Should().Be(selectionIcon.Data?.ToString());
+        });
+    }
+
+    [Fact]
+    public async Task UpdateOpenWithApplications_WithApplicationIcon_DisplaysItInSubmenu()
+    {
+        await DispatchAsync(() =>
+        {
+            using SKBitmap pixels = new(16, 16);
+            pixels.Erase(SKColors.CornflowerBlue);
+            using SKImage image = SKImage.FromBitmap(pixels);
+            using SKData png = image.Encode(SKEncodedImageFormat.Png, 100);
+            OpenWithApplication application = new(
+                "image-editor",
+                "Image Editor",
+                png.ToArray());
+            ImageViewerSessionViewModel session = CreateSession(
+                false,
+                new List<PicaActionDefinition>());
+            using ImageViewerView view = new(
+                session,
+                CreateToolMenu(session, false),
+                new List<ViewerSettingControl>(),
+                ViewerWindowMode.FullScreen,
+                CreateEvents());
+
+            view.UpdateOpenWithApplications(
+                new List<OpenWithApplication> { application },
+                IgnoreRoutedEvent,
+                IgnoreRoutedEvent);
+
+            Button button = view.OpenWithMenuItems.Children[0]
+                .Should()
+                .BeOfType<Button>()
+                .Subject;
+            StackPanel content = button.Content
+                .Should()
+                .BeOfType<StackPanel>()
+                .Subject;
+            Image icon = content.Children[0]
+                .Should()
+                .BeOfType<Image>()
+                .Subject;
+            icon.Classes.Should().Contain("viewer-menu-application-icon");
+            icon.Source.Should().BeOfType<AvaloniaBitmap>()
+                .Which.Size.Should().Be(new PixelSize(16, 16));
         });
     }
 

@@ -64,10 +64,6 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     internal double WindowButtonSize { get; }
     internal double WindowControlsWidth => WindowButtonSize * 3d;
 
-    private const string CopyIconGeometry = "M8,7 L17,7 L17,19 L8,19 Z M6,5 L15,5 L15,3 L4,3 L4,15 L6,15 Z";
-    private const string SaveIconGeometry = "M5,3 L16,3 L21,8 L21,19 L19,21 L5,21 L3,19 L3,5 Z M7,6 L7,10 L11,10 L11,8 L13,8 L13,10 L16,10 L16,6 Z M7,19 L17,19 L17,14 L7,14 Z";
-    private const string FolderIconGeometry = "M3,6 L10,6 L12,8 L21,8 L21,19 L3,19 Z";
-    private const string OpenWithIconGeometry = "M13,3 L20,3 L20,10 L18,10 L18,6.4 L9.4,15 L8,13.6 L16.6,5 L13,5 Z M4,5 L10,5 L10,7 L6,7 L6,17 L16,17 L16,13 L18,13 L18,19 L4,19 Z";
     private const string MenuForegroundBrushResourceKey = "ViewerMenuForegroundBrush";
     private const string DestructiveIconBrushResourceKey = "ViewerDestructiveIconBrush";
     private const string FloatingControlShadowEffectResourceKey =
@@ -92,7 +88,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     private const double SelectionButtonSize = 42d;
     private const double SelectionButtonSpacing = 6d;
     private const double SelectionToolbarPadding = 8d;
-    private readonly List<Bitmap> _openWithIcons = [];
+    private readonly OpenWithApplicationIconStore _openWithIcons = new();
     private readonly WriteableBitmap _checkerboardBitmap;
     private readonly ImageViewerToolMenuControl _toolMenuControl;
     private readonly Grid _viewerDynamicLayer;
@@ -277,7 +273,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
 
     public void Dispose()
     {
-        DisposeOpenWithIcons();
+        _openWithIcons.Dispose();
         SaveStatus.DataContext = null;
         CheckerboardPattern.Background = null;
         _checkerboardBitmap.Dispose();
@@ -328,17 +324,12 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         ArgumentNullException.ThrowIfNull(applications);
         ArgumentNullException.ThrowIfNull(applicationClickHandler);
         ArgumentNullException.ThrowIfNull(chooseApplicationClickHandler);
-        DisposeOpenWithIcons();
         OpenWithMenuItems.Children.Clear();
+        _openWithIcons.Clear();
 
         foreach (OpenWithApplication application in applications)
         {
-            Bitmap? icon = CreateOpenWithApplicationIcon(application.IconPngContent);
-
-            if (icon is not null)
-            {
-                _openWithIcons.Add(icon);
-            }
+            Image? icon = _openWithIcons.CreateIcon(application);
 
             Button button = CreateOpenWithApplicationMenuButton(
                 application.DisplayName,
@@ -458,17 +449,15 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     {
         StackPanel panel = new();
         panel.Classes.Add("viewer-menu-items");
-        panel.Children.Add(CreateMenuButton(
+        panel.Children.Add(CreateOutlineMenuButton(
             "Копировать",
-            CopyIconGeometry,
-            events.ContextCopyClicked,
-            0d));
+            ViewerActionIconGeometry.Copy,
+            events.ContextCopyClicked));
 
-        panel.Children.Add(CreateMenuButton(
+        panel.Children.Add(CreateOutlineMenuButton(
             ViewerUiStrings.SaveAs,
-            SaveIconGeometry,
-            events.ContextSaveAsClicked,
-            0d));
+            ViewerActionIconGeometry.Save,
+            events.ContextSaveAsClicked));
         panel.Children.Add(CreateMenuButton(
             "Выделить область",
             "M6,6 L12,6 L12,8 L8,8 L8,12 L6,12 Z M12,16 L16,16 L16,12 L18,12 L18,18 L12,18 Z",
@@ -477,23 +466,20 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
 
         foreach (PicaActionDefinition action in GetActions(actions, PicaActionTargets.CurrentImage))
         {
-            Button button = CreateMenuButton(
-                action.DisplayName,
-                action.IconGeometry,
-                events.ContextExternalActionClicked,
-                action.IconRotationDegrees);
+            Button button = CreateExternalActionMenuButton(
+                action,
+                events.ContextExternalActionClicked);
             button.Tag = action;
             panel.Children.Add(button);
         }
 
-        panel.Children.Add(CreateMenuButton(
+        panel.Children.Add(CreateOutlineMenuButton(
             "Показать в папке",
-            FolderIconGeometry,
-            events.ContextRevealInFolderClicked,
-            0d));
+            ViewerActionIconGeometry.ShowInFolder,
+            events.ContextRevealInFolderClicked));
         openWithButton = CreateSubmenuButton(
             "Открыть с помощью",
-            OpenWithIconGeometry,
+            ViewerActionIconGeometry.OpenWith,
             events.ContextOpenWithClicked);
         panel.Children.Add(openWithButton);
 
@@ -578,26 +564,23 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             Spacing = SelectionButtonSpacing,
             IsVisible = false
         };
-        toolbar.Children.Add(CreateSelectionButton(
-            CopyIconGeometry,
+        toolbar.Children.Add(CreateOutlineSelectionButton(
+            ViewerActionIconGeometry.Copy,
             events.SelectionCopyClicked,
-            0d,
             menuForegroundBrush));
 
         AddSelectionActions(toolbar, actions, events, menuForegroundBrush,
             PicaSelectionActionPlacement.BeforeSave);
 
-        toolbar.Children.Add(CreateSelectionButton(
-            SaveIconGeometry,
+        toolbar.Children.Add(CreateOutlineSelectionButton(
+            ViewerActionIconGeometry.Save,
             events.SelectionSaveAsClicked,
-            0d,
             menuForegroundBrush));
         AddSelectionActions(toolbar, actions, events, menuForegroundBrush,
             PicaSelectionActionPlacement.AfterSave);
-        openWithButton = CreateSelectionButton(
-            OpenWithIconGeometry,
+        openWithButton = CreateOutlineSelectionButton(
+            ViewerActionIconGeometry.OpenWith,
             events.SelectionOpenWithClicked,
-            0d,
             menuForegroundBrush);
         toolbar.Children.Add(openWithButton);
         toolbar.Children.Add(CreateSelectionButton(
@@ -624,14 +607,41 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         return CreateMenuButton(content, clickHandler);
     }
 
+    private static Button CreateExternalActionMenuButton(
+        PicaActionDefinition action,
+        EventHandler<RoutedEventArgs> clickHandler)
+    {
+        StackPanel content = action.UseOutlineIcon
+            ? CreateOutlineMenuButtonContent(
+                action.DisplayName,
+                action.IconGeometry,
+                action.IconRotationDegrees)
+            : CreateMenuButtonContent(
+                action.DisplayName,
+                action.IconGeometry,
+                action.IconRotationDegrees);
+
+        return CreateMenuButton(content, clickHandler);
+    }
+
+    private static Button CreateOutlineMenuButton(
+        string text,
+        string geometry,
+        EventHandler<RoutedEventArgs> clickHandler)
+    {
+        return CreateMenuButton(
+            CreateOutlineMenuButtonContent(text, geometry),
+            clickHandler);
+    }
+
     private static Button CreateSubmenuButton(
         string text,
         string geometry,
         EventHandler<RoutedEventArgs> clickHandler)
     {
-        StackPanel label = CreateMenuButtonContent(text, geometry, 0d);
-
-        return CreateSubmenuButton(label, clickHandler);
+        return CreateSubmenuButton(
+            CreateOutlineMenuButtonContent(text, geometry),
+            clickHandler);
     }
 
     private static Button CreateSubmenuButton(
@@ -682,37 +692,20 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
 
     private static Button CreateOpenWithApplicationMenuButton(
         string text,
-        Bitmap? icon,
+        Image? icon,
         EventHandler<RoutedEventArgs> clickHandler)
     {
         StackPanel content = CreateMenuButtonPanel();
 
         if (icon is not null)
         {
-            Image applicationIcon = new()
-            {
-                Source = icon,
-                Stretch = Stretch.Uniform
-            };
-            applicationIcon.Classes.Add("viewer-menu-application-icon");
-            content.Children.Add(applicationIcon);
+            icon.Classes.Add("viewer-menu-application-icon");
+            content.Children.Add(icon);
         }
 
         content.Children.Add(CreateMenuTextBlock(text));
 
         return CreateMenuButton(content, clickHandler);
-    }
-
-    private static Bitmap? CreateOpenWithApplicationIcon(byte[]? pngContent)
-    {
-        if ((pngContent is null) || (pngContent.Length == 0))
-        {
-            return null;
-        }
-
-        using MemoryStream stream = new(pngContent, writable: false);
-
-        return new Bitmap(stream);
     }
 
     private static TextBlock CreateMenuTextBlock(string text)
@@ -752,11 +745,30 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         string geometry,
         double iconRotationDegrees)
     {
-        StackPanel content = CreateMenuButtonPanel();
         PathIcon icon = CreatePathIcon(
             geometry,
             iconRotationDegrees);
         icon.Classes.Add("viewer-menu-icon");
+
+        return CreateMenuButtonContent(text, icon);
+    }
+
+    private static StackPanel CreateOutlineMenuButtonContent(
+        string text,
+        string geometry,
+        double rotationDegrees = 0d)
+    {
+        ShapePath icon = CreateOutlineIcon(geometry, rotationDegrees);
+        icon.Classes.Add("viewer-menu-outline-icon");
+
+        return CreateMenuButtonContent(text, icon);
+    }
+
+    private static StackPanel CreateMenuButtonContent(
+        string text,
+        Control icon)
+    {
+        StackPanel content = CreateMenuButtonPanel();
         content.Children.Add(icon);
         content.Children.Add(CreateMenuTextBlock(text));
 
@@ -787,11 +799,17 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         foreach (PicaActionDefinition action in GetActions(actions, PicaActionTargets.Selection)
             .Where(action => action.SelectionPlacement == placement))
         {
-            Button button = CreateSelectionButton(
-                action.IconGeometry,
-                events.SelectionExternalActionClicked,
-                action.IconRotationDegrees,
-                foreground);
+            Button button = action.UseOutlineIcon
+                ? CreateOutlineSelectionButton(
+                    action.IconGeometry,
+                    events.SelectionExternalActionClicked,
+                    foreground,
+                    action.IconRotationDegrees)
+                : CreateSelectionButton(
+                    action.IconGeometry,
+                    events.SelectionExternalActionClicked,
+                    action.IconRotationDegrees,
+                    foreground);
             button.Tag = action;
             toolbar.Children.Add(button);
         }
@@ -821,6 +839,27 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             iconRotationDegrees);
         icon.Classes.Add("viewer-tool-icon");
         icon.Foreground = iconBrush;
+
+        return CreateSelectionButton(icon, clickHandler);
+    }
+
+    private static Button CreateOutlineSelectionButton(
+        string geometry,
+        EventHandler<RoutedEventArgs> clickHandler,
+        IBrush iconBrush,
+        double rotationDegrees = 0d)
+    {
+        ShapePath icon = CreateOutlineIcon(geometry, rotationDegrees);
+        icon.Classes.Add("viewer-tool-outline-icon");
+        icon.Stroke = iconBrush;
+
+        return CreateSelectionButton(icon, clickHandler);
+    }
+
+    private static Button CreateSelectionButton(
+        Control icon,
+        EventHandler<RoutedEventArgs> clickHandler)
+    {
         Button button = new()
         {
             Width = SelectionButtonSize,
@@ -831,6 +870,24 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         button.Click += clickHandler;
 
         return button;
+    }
+
+    private static ShapePath CreateOutlineIcon(
+        string geometry,
+        double rotationDegrees = 0d)
+    {
+        ShapePath icon = new()
+        {
+            Data = StreamGeometry.Parse(geometry),
+            Fill = null,
+            Stretch = Stretch.Uniform,
+            StrokeLineCap = PenLineCap.Round,
+            StrokeJoin = PenLineJoin.Round
+        };
+
+        ApplyIconRotation(icon, rotationDegrees);
+
+        return icon;
     }
 
     private static PathIcon CreatePathIcon(
@@ -851,13 +908,18 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             Data = geometry
         };
 
+        ApplyIconRotation(icon, rotationDegrees);
+
+        return icon;
+    }
+
+    private static void ApplyIconRotation(Control icon, double rotationDegrees)
+    {
         if (Math.Abs(rotationDegrees) > double.Epsilon)
         {
             icon.RenderTransform = new RotateTransform(rotationDegrees);
             icon.RenderTransformOrigin = new RelativePoint(0.5d, 0.5d, RelativeUnit.Relative);
         }
-
-        return icon;
     }
 
     private static PathIcon CreatePathIcon(
@@ -928,16 +990,6 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     private double NormalizeCheckerboardPatternOffset(double offset)
     {
         return offset % ViewerCheckerboardFactory.TileSize;
-    }
-
-    private void DisposeOpenWithIcons()
-    {
-        foreach (Bitmap icon in _openWithIcons)
-        {
-            icon.Dispose();
-        }
-
-        _openWithIcons.Clear();
     }
 
     private IBrush GetRequiredBrush(string resourceKey)

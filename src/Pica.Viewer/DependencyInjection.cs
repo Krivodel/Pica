@@ -75,6 +75,7 @@ public static class DependencyInjection
             PlatformFileActionsFactory.Create(
                 provider.GetRequiredService<ILogger<WindowsApplicationIconLoader>>(),
                 provider.GetRequiredService<IFileRevealPlatform>()));
+        services.AddSingleton<IPicaImageFileActions, PicaImageFileActions>();
         services.AddSingleton<ClipboardFlushCoordinator>();
         services.AddSingleton<IClipboardImageWriter>(provider =>
             provider.GetRequiredService<ClipboardFlushCoordinator>());

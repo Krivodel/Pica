@@ -83,6 +83,15 @@
                 Value="{StaticResource ViewerMenuForegroundBrush}" />
     </Style>
 
+    <Style Selector="Path.viewer-tool-outline-icon">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerToolIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerToolIconSize}" />
+        <Setter Property="StrokeThickness"
+                Value="{StaticResource ViewerOutlineIconStrokeThickness}" />
+    </Style>
+
     <Style Selector="Border.viewer-content-navigation-information">
         <Setter Property="Padding"
                 Value="10,5" />
