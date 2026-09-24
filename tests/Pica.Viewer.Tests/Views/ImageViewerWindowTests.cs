@@ -791,6 +791,136 @@ public sealed class ImageViewerWindowTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Navigate_WithSameResolutionAndPreservationEnabled_KeepsZoomAndPosition(
+        bool fastLoading)
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory temporaryDirectory = new();
+            string firstPath = await CreateImageAsync(
+                temporaryDirectory.DirectoryPath);
+            string secondPath = Path.Combine(
+                temporaryDirectory.DirectoryPath,
+                "second.png");
+            File.Copy(firstPath, secondPath);
+            Guid secondItemId = Guid.Parse(
+                "22222222-2222-2222-2222-222222222222");
+            PicaViewerRequest request = new(
+                new List<PicaImageItem>
+                {
+                    new(ItemId, firstPath, "image.png"),
+                    new(secondItemId, secondPath, "second.png")
+                },
+                ItemId);
+            ControlledFullResolutionImageLoader fullResolutionLoader = new(
+                new List<string> { firstPath, secondPath });
+            ImageViewerState state = new()
+            {
+                IsFastLoadingEnabled = fastLoading,
+                IsPanningInertiaEnabled = false,
+                PreserveZoomAndPositionOnNavigation = true,
+                ResizeBehavior = WindowResizeBehavior.Free
+            };
+            ImageViewerWindow window = CreateWindow(
+                request,
+                state,
+                new RecordingImageChannelBitmapLoader(),
+                new ImagePreviewLoader(
+                    new ImageFormatRegistry(),
+                    NullLogger<ImagePreviewLoader>.Instance),
+                fullResolutionLoader);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException(
+                    "The viewer content must be created.");
+            using CancellationTokenSource timeout = new(
+                TimeSpan.FromSeconds(TestTimeoutSeconds));
+            Bitmap firstBitmap = CreateBitmap(SourceImageWidth, SourceImageHeight);
+            Bitmap secondBitmap = CreateBitmap(SourceImageWidth, SourceImageHeight);
+
+            try
+            {
+                window.Show();
+                await fullResolutionLoader.WaitUntilStartedAsync(
+                    firstPath,
+                    timeout.Token);
+                fullResolutionLoader.Complete(firstPath, firstBitmap);
+                await WaitForImageSourceAsync(view, firstBitmap, timeout.Token);
+
+                Button zoomInButton = view.FindControl<Button>("ZoomInButton")
+                    ?? throw new InvalidOperationException(
+                        "The viewer zoom button was not found.");
+                zoomInButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Task.Delay(250, timeout.Token);
+                Point panStart = new(
+                    view.ViewerArea.Bounds.Width / 2d,
+                    view.ViewerArea.Bounds.Height / 2d);
+                Point panEnd = new(panStart.X + 80d, panStart.Y + 40d);
+                window.MouseDown(
+                    panStart,
+                    MouseButton.Left,
+                    RawInputModifiers.None);
+                window.MouseMove(
+                    panEnd,
+                    RawInputModifiers.LeftMouseButton);
+                window.MouseUp(
+                    panEnd,
+                    MouseButton.Left,
+                    RawInputModifiers.None);
+                await Task.Delay(250, timeout.Token);
+                double expectedWidth = view.Image.Width;
+                double expectedHeight = view.Image.Height;
+                double expectedLeft = Canvas.GetLeft(view.Image);
+                double expectedTop = Canvas.GetTop(view.Image);
+
+                window.KeyPress(
+                    Key.Right,
+                    RawInputModifiers.None,
+                    PhysicalKey.ArrowRight,
+                    null);
+                if (fastLoading)
+                {
+                    await WaitForImageSourceAsync(
+                        view,
+                        source => source.PixelSize.Width
+                            == ImagePreviewLoader.PreviewDecodeWidth,
+                        timeout.Token);
+
+                    view.Image.Width.Should().BeApproximately(
+                        expectedWidth,
+                        0.001d);
+                    Canvas.GetLeft(view.Image).Should().BeApproximately(
+                        expectedLeft,
+                        0.001d);
+                    Canvas.GetTop(view.Image).Should().BeApproximately(
+                        expectedTop,
+                        0.001d);
+                }
+
+                await fullResolutionLoader.WaitUntilStartedAsync(
+                    secondPath,
+                    timeout.Token);
+                fullResolutionLoader.Complete(secondPath, secondBitmap);
+                await WaitForImageSourceAsync(view, secondBitmap, timeout.Token);
+
+                view.Image.Width.Should().BeApproximately(expectedWidth, 0.001d);
+                view.Image.Height.Should().BeApproximately(expectedHeight, 0.001d);
+                Canvas.GetLeft(view.Image).Should().BeApproximately(
+                    expectedLeft,
+                    0.001d);
+                Canvas.GetTop(view.Image).Should().BeApproximately(
+                    expectedTop,
+                    0.001d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
     [Fact]
     public async Task ModifiedNavigationKeys_WithDifferentStillImageSizes_NavigateAndResetImageLayout()
     {
@@ -811,6 +941,7 @@ public sealed class ImageViewerWindowTests
             ImageViewerState state = new()
             {
                 IsFastLoadingEnabled = false,
+                PreserveZoomAndPositionOnNavigation = true,
                 ResizeBehavior = WindowResizeBehavior.Free
             };
             ImageViewerWindow window = CreateWindow(
@@ -1719,9 +1850,21 @@ public sealed class ImageViewerWindowTests
         Bitmap expectedBitmap,
         CancellationToken ct)
     {
-        if (object.ReferenceEquals(
-            view.Image.Source,
-            expectedBitmap))
+        await WaitForImageSourceAsync(
+            view,
+            source => object.ReferenceEquals(source, expectedBitmap),
+            ct);
+    }
+
+    private static async Task WaitForImageSourceAsync(
+        ImageViewerView view,
+        Func<Bitmap, bool> matches,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(matches);
+
+        if (view.Image.Source is Bitmap currentSource
+            && matches(currentSource))
         {
             return;
         }
@@ -1736,9 +1879,8 @@ public sealed class ImageViewerWindowTests
             _ = sender;
 
             if ((e.Property == Image.SourceProperty)
-                && object.ReferenceEquals(
-                    view.Image.Source,
-                    expectedBitmap))
+                && (view.Image.Source is Bitmap source)
+                && matches(source))
             {
                 sourceChanged.TrySetResult();
             }

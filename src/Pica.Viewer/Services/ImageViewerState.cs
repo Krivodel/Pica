@@ -11,6 +11,8 @@ public sealed class ImageViewerState
     public bool IsFastLoadingEnabled { get; set; } = ViewerSettingsDefaults.FastLoadingEnabled;
     public bool AllowFreeZoomOut { get; set; } = ViewerSettingsDefaults.AllowFreeZoomOut;
     public bool IsPanningInertiaEnabled { get; set; } = ViewerSettingsDefaults.PanningInertiaEnabled;
+    public bool PreserveZoomAndPositionOnNavigation { get; set; } =
+        ViewerSettingsDefaults.PreserveZoomAndPositionOnNavigation;
     public WindowResizeBehavior ResizeBehavior { get; set; } = ViewerSettingsDefaults.ResizeBehavior;
     public bool RememberWindowPlacement { get; set; } = ViewerSettingsDefaults.RememberWindowPlacement;
     public bool ShowImageName { get; set; } = ViewerSettingsDefaults.ShowImageName;

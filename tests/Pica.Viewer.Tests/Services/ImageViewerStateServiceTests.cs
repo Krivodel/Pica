@@ -152,10 +152,27 @@ public sealed class ImageViewerStateServiceTests
         restoredState.IsFastLoadingEnabled.Should().BeFalse();
         restoredState.AllowFreeZoomOut.Should().BeFalse();
         restoredState.IsPanningInertiaEnabled.Should().BeTrue();
+        restoredState.PreserveZoomAndPositionOnNavigation.Should().BeFalse();
         restoredState.ShowImageName.Should().BeFalse();
         restoredState.ShowImageFormat.Should().BeTrue();
         restoredState.ShowImageResolution.Should().BeTrue();
         restoredState.ShowImageModificationDate.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithNavigationPlacementEnabled_RoundTripsSetting()
+    {
+        using ImageViewerStateTestContext context = new();
+        ImageViewerState state = new()
+        {
+            PreserveZoomAndPositionOnNavigation = true
+        };
+
+        ImageViewerState restoredState = await SaveAndLoadAsync(
+            context.Service,
+            state);
+
+        restoredState.PreserveZoomAndPositionOnNavigation.Should().BeTrue();
     }
 
     [Fact]

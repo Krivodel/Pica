@@ -147,6 +147,24 @@ public sealed class ImageViewerSettingsViewModelTests
     }
 
     [Fact]
+    public async Task ChangePreserveZoomAndPositionOnNavigationCommand_WhenEnabled_SavesSetting()
+    {
+        ImageViewerSettingsViewModel viewModel = CreateViewModel(
+            CreateState(),
+            out RecordingImageViewerStateService stateService,
+            out _,
+            out _);
+
+        await viewModel.ChangePreserveZoomAndPositionOnNavigationCommand
+            .ExecuteAsync(true);
+
+        viewModel.PreserveZoomAndPositionOnNavigation.Should().BeTrue();
+        stateService.LastSavedState?.PreserveZoomAndPositionOnNavigation
+            .Should().BeTrue();
+        viewModel.Dispose();
+    }
+
+    [Fact]
     public async Task ChangeResizeBehaviorCommand_WithValue_UpdatesAndSavesState()
     {
         ImageViewerSettingsViewModel viewModel = CreateViewModel(

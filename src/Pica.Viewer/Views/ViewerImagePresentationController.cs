@@ -32,6 +32,10 @@ internal sealed class ViewerImagePresentationController :
     private ImagePresentationBitmapLease? _displayedBitmapLease;
     private Guid? _displayedItemId;
     private int _displayedFrameIndex = -1;
+    private PixelSize _displayedSourcePixelSize;
+    private Guid? _itemIdBeforeImageLoad;
+    private PixelSize _sourcePixelSizeBeforeImageLoad;
+    private bool _preservePlacementForImageLoad;
 
     internal ViewerImagePresentationController(
         Window owner,
@@ -138,6 +142,16 @@ internal sealed class ViewerImagePresentationController :
     private void ApplyFullResolutionLayout(
         ImageLoadTransitionEventArgs transition)
     {
+        bool preservePlacement = CanPreserveImageLoadPlacement(
+            _imagePresentation.SourcePixelSize);
+
+        if (_preservePlacementForImageLoad && !preservePlacement)
+        {
+            _selectionInteraction.Cancel();
+            ApplyLoadedImageLayout();
+            return;
+        }
+
         PixelSize previewSize = transition.PreviousPixelSize;
         PixelRect previewSelection = _selection.PixelRect;
         double previewScale = _viewport.Scale;
@@ -147,7 +161,11 @@ internal sealed class ViewerImagePresentationController :
             || (previewSize.Height <= 0))
         {
             _selectionInteraction.Cancel();
-            ApplyLoadedImageLayout();
+            if (!preservePlacement)
+            {
+                ApplyLoadedImageLayout();
+            }
+
             return;
         }
 
@@ -160,10 +178,33 @@ internal sealed class ViewerImagePresentationController :
                     transition.CurrentPixelSize));
         }
 
-        _viewport.ApplyScaleAfterSourceReplacement(
-            previewScale
-                * previewSize.Width
-                / transition.CurrentPixelSize.Width);
+        if (!preservePlacement)
+        {
+            _viewport.ApplyScaleAfterSourceReplacement(
+                previewScale
+                    * previewSize.Width
+                    / transition.CurrentPixelSize.Width);
+        }
+    }
+
+    private static bool HasSamePositivePixelSize(
+        PixelSize first,
+        PixelSize second)
+    {
+        return (first.Width > 0)
+            && (first.Height > 0)
+            && (first.Width == second.Width)
+            && (first.Height == second.Height);
+    }
+
+    private bool CanPreserveImageLoadPlacement(
+        PixelSize currentSourcePixelSize)
+    {
+        return (_settings.PreserveZoomAndPositionOnNavigation)
+            && (_preservePlacementForImageLoad)
+            && HasSamePositivePixelSize(
+                _sourcePixelSizeBeforeImageLoad,
+                currentSourcePixelSize);
     }
 
     private void ApplyLoadedImageLayout()
@@ -227,12 +268,20 @@ internal sealed class ViewerImagePresentationController :
         switch (e.Kind)
         {
             case ImageLoadTransitionKind.Started:
+                _itemIdBeforeImageLoad = _displayedItemId;
+                _sourcePixelSizeBeforeImageLoad = _displayedSourcePixelSize;
+                _preservePlacementForImageLoad = false;
                 _viewport.ResetPanMotion();
                 _selectionInteraction.Cancel();
                 break;
             case ImageLoadTransitionKind.PreviewApplied:
                 _selectionInteraction.Cancel();
-                ApplyLoadedImageLayout();
+                if (!CanPreserveImageLoadPlacement(
+                    _imagePresentation.SourcePixelSize))
+                {
+                    ApplyLoadedImageLayout();
+                }
+
                 break;
             case ImageLoadTransitionKind.FullResolutionApplied:
                 ApplyFullResolutionLayout(e);
@@ -240,7 +289,14 @@ internal sealed class ViewerImagePresentationController :
             case ImageLoadTransitionKind.ContentGroupApplied:
                 _viewport.ResetPanMotion();
                 _selectionInteraction.Cancel();
-                ApplyLoadedImageLayout();
+                if ((!_settings.PreserveZoomAndPositionOnNavigation)
+                    || !HasSamePositivePixelSize(
+                        e.PreviousPixelSize,
+                        e.CurrentPixelSize))
+                {
+                    ApplyLoadedImageLayout();
+                }
+
                 break;
             default:
                 throw new ArgumentOutOfRangeException(
@@ -275,8 +331,37 @@ internal sealed class ViewerImagePresentationController :
             nextBitmapLease = null;
         }
 
-        bool isStillImageSwitch =
-            IsStillImageSwitch();
+        Guid? previousItemId = _displayedItemId;
+        PixelSize previousSourcePixelSize = _displayedSourcePixelSize;
+        bool isStillImageSwitch = IsStillImageSwitch();
+        Guid? currentItemId = _imagePresentation.CurrentItem?.Id;
+        PixelSize currentSourcePixelSize =
+            _imagePresentation.SourcePixelSize;
+        bool isNewImageItem = (previousItemId is not null)
+            && (currentItemId is not null)
+            && (previousItemId != currentItemId);
+
+        if (isNewImageItem)
+        {
+            _preservePlacementForImageLoad =
+                _settings.PreserveZoomAndPositionOnNavigation
+                && (_itemIdBeforeImageLoad == previousItemId)
+                && HasSamePositivePixelSize(
+                    _sourcePixelSizeBeforeImageLoad,
+                    currentSourcePixelSize);
+        }
+
+        bool preserveImageLoadPlacement =
+            CanPreserveImageLoadPlacement(currentSourcePixelSize);
+        bool preserveStillImagePlacement =
+            _settings.PreserveZoomAndPositionOnNavigation
+            && isStillImageSwitch
+            && HasSamePositivePixelSize(
+                previousSourcePixelSize,
+                currentSourcePixelSize);
+        bool preservePlacement = preserveImageLoadPlacement
+            || preserveStillImagePlacement;
+
         _view.Image.Source = displayedBitmap;
 
         if (!object.ReferenceEquals(
@@ -291,7 +376,17 @@ internal sealed class ViewerImagePresentationController :
             previousBitmap,
             displayedBitmap))
         {
-            if (isStillImageSwitch)
+            if (preservePlacement
+                && (previousBitmap is not null)
+                && (displayedBitmap is not null))
+            {
+                _viewport.StopScaleAnimation();
+                _viewport.ApplyScaleAfterSourceReplacement(
+                    _viewport.Scale
+                        * previousBitmap.PixelSize.Width
+                        / displayedBitmap.PixelSize.Width);
+            }
+            else if (isStillImageSwitch)
             {
                 ApplyLoadedImageLayout();
             }
@@ -309,6 +404,10 @@ internal sealed class ViewerImagePresentationController :
             _displayedItemId = null;
             _displayedFrameIndex = -1;
         }
+
+        _displayedSourcePixelSize = displayedBitmap is null
+            ? new PixelSize()
+            : currentSourcePixelSize;
     }
 
     private void ReplaceDisplayedBitmapLease(

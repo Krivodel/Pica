@@ -19,6 +19,8 @@ internal sealed partial class ImageViewerSettingsViewModel :
     public bool IsFastLoadingEnabled => _state.IsFastLoadingEnabled;
     public bool AllowFreeZoomOut => _state.AllowFreeZoomOut;
     public bool IsPanningInertiaEnabled => _state.IsPanningInertiaEnabled;
+    public bool PreserveZoomAndPositionOnNavigation =>
+        _state.PreserveZoomAndPositionOnNavigation;
     public WindowResizeBehavior ResizeBehavior => _state.ResizeBehavior;
     public bool RememberWindowPlacement => _state.RememberWindowPlacement;
     public bool ShowImageName => _state.ShowImageName;
@@ -201,6 +203,22 @@ internal sealed partial class ImageViewerSettingsViewModel :
                 OnPropertyChanged(nameof(IsPanningInertiaEnabled));
             },
             nameof(ChangePanningInertiaAsync),
+            ct);
+    }
+
+    [RelayCommand]
+    private async Task ChangePreserveZoomAndPositionOnNavigationAsync(
+        bool preserveZoomAndPositionOnNavigation,
+        CancellationToken ct)
+    {
+        await ChangeSettingAsync(
+            () =>
+            {
+                _state.PreserveZoomAndPositionOnNavigation =
+                    preserveZoomAndPositionOnNavigation;
+                OnPropertyChanged(nameof(PreserveZoomAndPositionOnNavigation));
+            },
+            nameof(ChangePreserveZoomAndPositionOnNavigationAsync),
             ct);
     }
 

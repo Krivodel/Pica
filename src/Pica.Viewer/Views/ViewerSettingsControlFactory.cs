@@ -35,6 +35,10 @@ internal static class ViewerSettingsControlFactory
                 "Свободное отдаление",
                 settings.AllowFreeZoomOut,
                 settings.ChangeAllowFreeZoomOutCommand),
+            new ViewerCheckBoxSettingControl(
+                "Сохранять вид при перелистывании",
+                settings.PreserveZoomAndPositionOnNavigation,
+                settings.ChangePreserveZoomAndPositionOnNavigationCommand),
             new ViewerChoiceSettingControl<WindowResizeBehavior>(
                 "Изменение размера окна",
                 ViewerSettingChoices.ResizeBehaviorOptions,
