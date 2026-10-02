@@ -178,11 +178,6 @@ internal sealed class ImageSelectionController : IDisposable
         return _geometry.ClampPointToImage(position);
     }
 
-    internal Rect GetVisibleImageRect()
-    {
-        return _viewport.GetVisibleImageRect();
-    }
-
     internal void UpdateOverlay()
     {
         Size viewport = GetViewportSize();

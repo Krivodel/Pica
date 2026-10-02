@@ -27,7 +27,7 @@ internal sealed class ViewerPointerInputController
     private readonly ImageViewerActionController _actions;
     private readonly ImageDoubleClickTracker _doubleClickTracker;
     private bool _isPointerPressed;
-    private bool _isImageClickCandidate;
+    private bool _isViewerClickCandidate;
     private Point _pointerPressPosition;
     private Point _lastPointerPosition;
     private PixelPoint? _lastPointerScreenPosition;
@@ -123,7 +123,7 @@ internal sealed class ViewerPointerInputController
 
         _floatingMenus.HideAll();
         _isPointerPressed = true;
-        _isImageClickCandidate = false;
+        _isViewerClickCandidate = false;
         _pointerPressPosition = position;
 
         if (_selection.IsArmed && isLeftButtonPressed)
@@ -150,10 +150,8 @@ internal sealed class ViewerPointerInputController
             return;
         }
 
-        _isImageClickCandidate = isLeftButtonPressed
-            && _selectionInteraction
-                .GetVisibleImageRect()
-                .Contains(position);
+        _isViewerClickCandidate = isLeftButtonPressed
+            && IsViewerClickPosition(position);
         _viewport.BeginPanMotion(position);
         e.Pointer.Capture(_view.ViewerArea);
         e.Handled = true;
@@ -203,10 +201,10 @@ internal sealed class ViewerPointerInputController
             return;
         }
 
-        if (_isImageClickCandidate
+        if (_isViewerClickCandidate
             && HasPointerMovedPastClickTolerance(position))
         {
-            _isImageClickCandidate = false;
+            _isViewerClickCandidate = false;
         }
 
         if (_selection.IsSelecting)
@@ -241,7 +239,7 @@ internal sealed class ViewerPointerInputController
         if (_actions.IsSaving)
         {
             _isPointerPressed = false;
-            _isImageClickCandidate = false;
+            _isViewerClickCandidate = false;
             _selection.EndManipulation();
             _viewport.ReleasePanMotion();
             e.Pointer.Capture(null);
@@ -256,15 +254,13 @@ internal sealed class ViewerPointerInputController
         }
 
         Point position = e.GetPosition(_view.ViewerArea);
-        bool isImageClick = _isImageClickCandidate
+        bool isViewerClick = _isViewerClickCandidate
             && !_selection.IsSelecting
             && !_selection.IsActive
-            && _selectionInteraction
-                .GetVisibleImageRect()
-                .Contains(position);
+            && IsViewerClickPosition(position);
         bool wasPanning = _viewport.IsPanning;
         _isPointerPressed = false;
-        _isImageClickCandidate = false;
+        _isViewerClickCandidate = false;
         _selection.EndManipulation();
         e.Pointer.Capture(null);
 
@@ -285,9 +281,9 @@ internal sealed class ViewerPointerInputController
             _selectionInteraction.ScheduleClipboardPreparation();
             e.Handled = true;
         }
-        else if (isImageClick)
+        else if (isViewerClick)
         {
-            RegisterImageClick(position);
+            RegisterViewerClick(position);
             e.Handled = true;
         }
     }
@@ -437,7 +433,15 @@ internal sealed class ViewerPointerInputController
         return false;
     }
 
-    private void RegisterImageClick(Point position)
+    private bool IsViewerClickPosition(Point position)
+    {
+        Rect viewerRect = new(_view.ViewerArea.Bounds.Size);
+
+        return (_viewport.CurrentBitmap is not null)
+            && viewerRect.Contains(position);
+    }
+
+    private void RegisterViewerClick(Point position)
     {
         DateTimeOffset clickedAt = DateTimeOffset.UtcNow;
 

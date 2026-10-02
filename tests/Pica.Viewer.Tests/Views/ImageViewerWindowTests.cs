@@ -174,6 +174,158 @@ public sealed class ImageViewerWindowTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ViewerDoubleClick_OnBackgroundOrImage_TogglesWindowMode(
+        bool clickBackground)
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+            ImageViewerState state = CreateBackgroundClickState();
+            ImageViewerWindow window = await CreateLoadedWindowAsync(directory.DirectoryPath, state, timeout.Token);
+
+            try
+            {
+                Point position = GetViewerClickPosition(window, clickBackground);
+
+                DoubleClick(window, position);
+
+                window.CurrentWindowMode.Should().Be(ViewerWindowMode.FullScreen);
+
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                position = GetViewerClickPosition(window, clickBackground);
+
+                DoubleClick(window, position);
+
+                window.CurrentWindowMode.Should().Be(ViewerWindowMode.Windowed);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task BackgroundDoubleClick_WhenDisabledOrSaving_PreservesWindowMode(
+        bool expandOnDoubleClick,
+        bool isSaving)
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+            ImageViewerState state = CreateBackgroundClickState();
+            state.ExpandOnDoubleClick = expandOnDoubleClick;
+            ImageViewerWindow window = await CreateLoadedWindowAsync(directory.DirectoryPath, state, timeout.Token);
+
+            try
+            {
+                Point position = GetViewerClickPosition(window, true);
+                window.SetSavingInteractionState(isSaving);
+
+                DoubleClick(window, position);
+
+                window.CurrentWindowMode.Should().Be(ViewerWindowMode.Windowed);
+            }
+            finally
+            {
+                window.SetSavingInteractionState(false);
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(MouseButton.Left, RawInputModifiers.Control)]
+    [InlineData(MouseButton.Middle, RawInputModifiers.None)]
+    public async Task BackgroundDoubleClick_WithSelectionModifierOrMiddleButton_PreservesWindowMode(
+        MouseButton button,
+        RawInputModifiers modifiers)
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+            ImageViewerWindow window = await CreateLoadedWindowAsync(
+                directory.DirectoryPath, CreateBackgroundClickState(), timeout.Token);
+
+            try
+            {
+                Point position = GetViewerClickPosition(window, true);
+
+                DoubleClick(window, position, button, modifiers);
+
+                window.CurrentWindowMode.Should().Be(ViewerWindowMode.Windowed);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task BackgroundDrag_FollowedBySingleClick_PreservesWindowMode()
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+            ImageViewerWindow window = await CreateLoadedWindowAsync(
+                directory.DirectoryPath, CreateBackgroundClickState(), timeout.Token);
+
+            try
+            {
+                const double DragDistance = 20d;
+                Point start = GetViewerClickPosition(window, true);
+                Point end = new(start.X + DragDistance, start.Y);
+
+                window.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
+                window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+                window.MouseUp(end, MouseButton.Left, RawInputModifiers.None);
+                window.MouseDown(end, MouseButton.Left, RawInputModifiers.None);
+                window.MouseUp(end, MouseButton.Left, RawInputModifiers.None);
+
+                window.CurrentWindowMode.Should().Be(ViewerWindowMode.Windowed);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task BackgroundDoubleClick_WithoutImage_PreservesWindowMode()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(
+                CreateEmptyRequest(), CreateBackgroundClickState(), new RecordingImageChannelBitmapLoader());
+
+            try
+            {
+                window.Show();
+                Point position = new(window.ClientSize.Width / 2d, window.ClientSize.Height / 2d);
+
+                DoubleClick(window, position);
+
+                window.CurrentWindowMode.Should().Be(ViewerWindowMode.Windowed);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
     [InlineData(WindowResizeBehavior.Free, -1)]
     [InlineData(WindowResizeBehavior.Free, 0)]
     [InlineData(WindowResizeBehavior.Free, 1)]
@@ -2093,6 +2245,36 @@ public sealed class ImageViewerWindowTests
         }
     }
 
+    private static ImageViewerState CreateBackgroundClickState()
+    {
+        ImageViewerState state = CreateWindowedState();
+        state.ExpandOnDoubleClick = true;
+        state.IsFastLoadingEnabled = false;
+        state.IsPanningInertiaEnabled = false;
+        state.ResizeBehavior = WindowResizeBehavior.Free;
+        state.WindowWidth = 800d;
+        state.WindowHeight = 800d;
+
+        return state;
+    }
+
+    private static Point GetViewerClickPosition(
+        ImageViewerWindow window,
+        bool clickBackground)
+    {
+        ImageViewerView view = window.Content as ImageViewerView
+            ?? throw new InvalidOperationException("The viewer content must be created.");
+        double imageTop = Canvas.GetTop(view.Image);
+        imageTop.Should().BeGreaterThan(0d);
+        double positionY = clickBackground
+            ? imageTop / 2d
+            : imageTop + (view.Image.Height / 2d);
+
+        return view.ViewerArea.TranslatePoint(
+            new Point(view.ViewerArea.Bounds.Width / 2d, positionY), window)
+            ?? throw new InvalidOperationException("The viewer area must be attached to the window.");
+    }
+
     private static ImageViewerState CreateWindowedState()
     {
         return new ImageViewerState
@@ -2105,24 +2287,26 @@ public sealed class ImageViewerWindowTests
 
     private static void DoubleClick(
         ImageViewerWindow window,
-        Point position)
+        Point position,
+        MouseButton button = MouseButton.Left,
+        RawInputModifiers modifiers = RawInputModifiers.None)
     {
         window.MouseDown(
             position,
-            MouseButton.Left,
-            RawInputModifiers.None);
+            button,
+            modifiers);
         window.MouseUp(
             position,
-            MouseButton.Left,
-            RawInputModifiers.None);
+            button,
+            modifiers);
         window.MouseDown(
             position,
-            MouseButton.Left,
-            RawInputModifiers.None);
+            button,
+            modifiers);
         window.MouseUp(
             position,
-            MouseButton.Left,
-            RawInputModifiers.None);
+            button,
+            modifiers);
     }
 
     private static ImageViewerWindow CreateWindow()

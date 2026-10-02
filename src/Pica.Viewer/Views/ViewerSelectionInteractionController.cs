@@ -107,11 +107,6 @@ internal sealed class ViewerSelectionInteractionController
         _selection.SetPixelRect(pixelRect);
     }
 
-    internal Rect GetVisibleImageRect()
-    {
-        return _selection.GetVisibleImageRect();
-    }
-
     private void UpdateCursor()
     {
         _cursor.UpdateSelection(
