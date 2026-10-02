@@ -25,6 +25,7 @@ internal static class WindowsShortcutNative
     private const int ShellItemCreated = 0x00000002;
     private const int ShellItemDeleted = 0x00000004;
     private const int ShellItemUpdated = 0x00002000;
+    private const int ShellAssociationsChanged = 0x08000000;
     private const uint ShellUnicodePath = 0x0005;
     private const uint ShellFlush = 0x1000;
     private const uint AbortIfHung = 0x0002;
@@ -42,6 +43,11 @@ internal static class WindowsShortcutNative
     {
         SendMessageTimeoutW(window, SetWindowHotKeyMessage, nint.Zero, nint.Zero,
             AbortIfHung, QueryTimeoutMilliseconds, out _);
+    }
+
+    internal static void NotifyAssociationsChanged()
+    {
+        SHChangeNotify(ShellAssociationsChanged, ShellFlush, null, nint.Zero);
     }
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -98,5 +104,5 @@ internal static class WindowsShortcutNative
         uint flags, uint timeout, out nuint result);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern void SHChangeNotify(int eventId, uint flags, string item, nint otherItem);
+    private static extern void SHChangeNotify(int eventId, uint flags, string? item, nint otherItem);
 }

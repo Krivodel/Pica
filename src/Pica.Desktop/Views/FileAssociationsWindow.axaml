@@ -1,0 +1,108 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:resources="using:Pica.Desktop.Resources"
+                 xmlns:suki="using:SukiUI.Controls"
+                 xmlns:vm="using:Pica.Desktop.ViewModels"
+                 x:Class="Pica.Desktop.Views.FileAssociationsWindow"
+                 x:DataType="vm:FileAssociationsViewModel"
+                 Width="620"
+                 Height="670"
+                 MinWidth="460"
+                 MinHeight="420"
+                 CanMaximize="False"
+                 CanMinimize="False"
+                 ShowBottomBorder="False"
+                 WindowStartupLocation="CenterOwner"
+                 Title="{x:Static resources:DesktopUiStrings.FileAssociationsTitle}">
+    <suki:SukiWindow.Styles>
+        <StyleInclude Source="/Resources/FileAssociationsStyles.axaml" />
+        <StyleInclude Source="avares://Pica.Viewer/Resources/ViewerErrorStyles.axaml" />
+    </suki:SukiWindow.Styles>
+
+    <suki:SukiWindow.KeyBindings>
+        <KeyBinding Gesture="Escape"
+                    Command="{Binding CloseCommand}" />
+    </suki:SukiWindow.KeyBindings>
+
+    <Grid Margin="24"
+          RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+        <StackPanel Classes="association-section">
+            <TextBlock Classes="association-heading"
+                       Text="Открывать изображения в Pica" />
+            <TextBlock TextWrapping="Wrap"
+                       Text="{x:Static resources:DesktopUiStrings.FileAssociationsDescription}" />
+        </StackPanel>
+
+        <TextBox Grid.Row="1"
+                 Margin="0,16,0,12"
+                 PlaceholderText="{x:Static resources:DesktopUiStrings.FileAssociationsSearch}"
+                 Text="{Binding FilterText, Mode=TwoWay}" />
+
+        <Grid Grid.Row="2"
+              Margin="0,0,0,12"
+              ColumnDefinitions="*,Auto,Auto">
+            <TextBlock VerticalAlignment="Center"
+                       Text="{Binding SelectionSummary}" />
+            <Button Grid.Column="1"
+                    Margin="0,0,8,0"
+                    Command="{Binding SelectAllCommand}"
+                    Content="{x:Static resources:DesktopUiStrings.FileAssociationsSelectAll}" />
+            <Button Grid.Column="2"
+                    Command="{Binding ClearSelectionCommand}"
+                    Content="{x:Static resources:DesktopUiStrings.FileAssociationsClear}" />
+        </Grid>
+
+        <Grid Grid.Row="3">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl IsEnabled="{Binding !IsLoading}"
+                              ItemsSource="{Binding Formats}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FileAssociationFormatViewModel">
+                            <CheckBox Classes="association-format"
+                                      IsVisible="{Binding MatchesFilter}"
+                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      Content="{Binding Extension}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding !HasMatchingFormats}"
+                       Text="{x:Static resources:DesktopUiStrings.FileAssociationsEmpty}" />
+        </Grid>
+
+        <StackPanel Grid.Row="4"
+                    Margin="0,12,0,0"
+                    Classes="association-section">
+            <ProgressBar IsVisible="{Binding IsLoading}"
+                         IsIndeterminate="True" />
+            <TextBlock Classes="viewer-error"
+                       IsVisible="{Binding HasErrorMessage}"
+                       TextWrapping="Wrap"
+                       Text="{Binding ErrorMessage}" />
+            <TextBlock IsVisible="{Binding HasStatusMessage}"
+                       TextWrapping="Wrap"
+                       Text="{Binding StatusMessage}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="5"
+                    Margin="0,16,0,0"
+                    HorizontalAlignment="Right"
+                    Classes="association-actions"
+                    Orientation="Horizontal">
+            <Button Command="{Binding CloseCommand}"
+                    Content="{Binding CloseButtonText}" />
+            <Button x:Name="ApplyFormats"
+                    Classes="Flat"
+                    IsDefault="True"
+                    Command="{Binding ApplyCommand}"
+                    Content="{x:Static resources:DesktopUiStrings.FileAssociationsApply}" />
+        </StackPanel>
+    </Grid>
+</suki:SukiWindow>

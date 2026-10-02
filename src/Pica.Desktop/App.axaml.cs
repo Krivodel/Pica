@@ -120,7 +120,7 @@ public sealed partial class App : Application
             GetRequiredService<PicaApplicationLifecycle>();
         _ = lifecycle.StartAsync(
             desktopLifetime,
-            _launchContext.SourceWindowHandle,
+            _launchContext,
             CancellationToken.None);
     }
 

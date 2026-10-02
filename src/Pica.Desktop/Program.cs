@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 
 using Pica.Desktop.Services;
 using Pica.Desktop.Services.Background;
+using Pica.Desktop.Services.FileAssociations;
 using Pica.Desktop.Services.Logging;
 
 namespace Pica.Desktop;
@@ -22,14 +23,29 @@ internal static class Program
     {
         PicaLaunchContext launchContext = new(
             WindowsForegroundWindowCapture.Capture());
-        VelopackApp velopack = VelopackApp.Build();
+        VelopackApp velopack = VelopackApp.Build()
+            .OnFirstRun(_ => launchContext = launchContext with { CanOfferFileAssociations = true });
 
         if (OperatingSystem.IsWindows())
         {
-            velopack.OnBeforeUninstallFastCallback(_ => PicaClipboardShortcutRegistration.RemoveShortcuts());
+            velopack.OnAfterInstallFastCallback(_ => PicaInstallation.RecordFirstRun(PicaInstallation.ExecutablePath));
+            velopack.OnBeforeUninstallFastCallback(_ =>
+            {
+                PicaClipboardShortcutRegistration.RemoveShortcuts();
+
+                if (OperatingSystem.IsWindows())
+                {
+                    new WindowsFileAssociationStore().RemoveApplication();
+                }
+            });
         }
 
         velopack.Run();
+
+        if (OperatingSystem.IsWindows() && PicaInstallation.HasFirstRunMarker)
+        {
+            launchContext = launchContext with { CanOfferFileAssociations = true };
+        }
 
         if (OperatingSystem.IsWindows() && (args.Length == 1) && (args[0] == PicaLaunchArguments.ClipboardAgentArgument))
         {

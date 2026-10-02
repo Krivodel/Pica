@@ -54,8 +54,9 @@ internal static class ViewerSettingsControlFactory
                 settings.ChangeRememberWindowPlacementCommand)
         ];
 
-        settingControls.AddRange(settingContributions.Select(
-            contribution => contribution.CreateControl()));
+        settingControls.AddRange(settingContributions
+            .Where(contribution => contribution.Placement == ViewerSettingPlacement.Inline)
+            .Select(contribution => contribution.CreateControl()));
         settingControls.AddRange(
         new List<ViewerSettingControl>
         {
@@ -81,6 +82,9 @@ internal static class ViewerSettingsControlFactory
                 settings.ShowImageResolution,
                 settings.ChangeShowImageResolutionCommand)
         });
+        settingControls.AddRange(settingContributions
+            .Where(contribution => contribution.Placement == ViewerSettingPlacement.Footer)
+            .Select(contribution => contribution.CreateControl()));
 
         return settingControls;
     }

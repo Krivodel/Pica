@@ -4,6 +4,7 @@ using SukiUI.Toasts;
 
 using Pica.Desktop.Services;
 using Pica.Desktop.Services.Background;
+using Pica.Desktop.Services.FileAssociations;
 using Pica.Desktop.Services.Updates;
 using Pica.Desktop.Views.Updates;
 using Pica.Viewer.Services;
@@ -44,6 +45,14 @@ public static class DependencyInjection
         services.AddSingleton<ApplicationUpdateToastPresenter>();
         services.AddSingleton<ApplicationUpdateCoordinator>();
         services.AddSingleton<PicaApplicationLifecycle>();
+
+        if (OperatingSystem.IsWindows())
+        {
+            services.AddSingleton<IPicaFileAssociationStore, WindowsFileAssociationStore>();
+            services.AddSingleton<IPicaFileAssociationService, PicaFileAssociationService>();
+            services.AddSingleton<PicaFileAssociationDialog>();
+            services.AddSingleton<IViewerSettingContributionProvider, PicaFileAssociationSettingContributionProvider>();
+        }
 
         return services;
     }

@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.Logging;
 
 using Pica.Desktop.Services.Background;
+using Pica.Desktop.Services.FileAssociations;
 using Pica.Desktop.Services.Updates;
 using Pica.Desktop.Views;
 using Pica.Viewer.Services;
@@ -21,6 +22,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
     private readonly IClipboardImageWriter _clipboardImageWriter;
     private readonly ApplicationUpdateCoordinator _updateCoordinator;
     private readonly IApplicationUpdateService _updateService;
+    private readonly PicaFileAssociationDialog? _fileAssociationDialog;
     private readonly ILogger<PicaApplicationLifecycle> _logger;
     private IClassicDesktopStyleApplicationLifetime? _desktopLifetime;
     private PicaHostConnection? _hostConnection;
@@ -42,6 +44,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
         IClipboardImageWriter clipboardImageWriter,
         ApplicationUpdateCoordinator updateCoordinator,
         IApplicationUpdateService updateService,
+        IEnumerable<PicaFileAssociationDialog> fileAssociationDialogs,
         ILogger<PicaApplicationLifecycle> logger)
     {
         _startupRequestFactory = startupRequestFactory
@@ -60,15 +63,18 @@ internal sealed class PicaApplicationLifecycle : IDisposable
             ?? throw new ArgumentNullException(nameof(updateCoordinator));
         _updateService = updateService
             ?? throw new ArgumentNullException(nameof(updateService));
+        ArgumentNullException.ThrowIfNull(fileAssociationDialogs);
+        _fileAssociationDialog = fileAssociationDialogs.SingleOrDefault();
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task StartAsync(
         IClassicDesktopStyleApplicationLifetime desktopLifetime,
-        long? sourceWindowHandle,
+        PicaLaunchContext launchContext,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(desktopLifetime);
+        ArgumentNullException.ThrowIfNull(launchContext);
         ObjectDisposedException.ThrowIf(_isDisposed, this);
         ct.ThrowIfCancellationRequested();
         _desktopLifetime = desktopLifetime;
@@ -84,13 +90,29 @@ internal sealed class PicaApplicationLifecycle : IDisposable
             PicaStartupRequest startupRequest = await _startupRequestFactory
                 .CreateAsync(
                     arguments,
-                    sourceWindowHandle,
+                    launchContext.SourceWindowHandle,
                     startupCancellationSource.Token);
             await OpenViewerWindowAsync(
                 desktopLifetime,
                 startupRequest,
                 arguments,
                 startupCancellationSource.Token);
+
+            if (launchContext.CanOfferFileAssociations && _hostConnection is null
+                && _fileAssociationDialog is not null && desktopLifetime.MainWindow is { IsVisible: true } owner)
+            {
+                try
+                {
+                    await _fileAssociationDialog.ShowFirstRunAsync(owner, startupCancellationSource.Token);
+                }
+                catch (OperationCanceledException) when (startupCancellationSource.IsCancellationRequested)
+                {
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Pica could not show the first-run file association menu");
+                }
+            }
         }
         catch (OperationCanceledException)
             when (startupCancellationSource.IsCancellationRequested)
@@ -202,6 +224,21 @@ internal sealed class PicaApplicationLifecycle : IDisposable
         Task closeCleanupCompletion)
     {
         ArgumentNullException.ThrowIfNull(closeCleanupCompletion);
+
+        if (_fileAssociationDialog is not null)
+        {
+            try
+            {
+                await _fileAssociationDialog.Completion;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Pica could not finish file association menu cleanup");
+            }
+        }
 
         try
         {

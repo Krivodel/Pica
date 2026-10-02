@@ -1,0 +1,26 @@
+<Styles xmlns="https://github.com/avaloniaui">
+    <Style Selector="StackPanel.association-section">
+        <Setter Property="Spacing"
+                Value="6" />
+    </Style>
+    <Style Selector="StackPanel.association-actions">
+        <Setter Property="Spacing"
+                Value="8" />
+    </Style>
+    <Style Selector="TextBlock.association-heading">
+        <Setter Property="FontSize"
+                Value="20" />
+        <Setter Property="FontWeight"
+                Value="SemiBold" />
+    </Style>
+    <Style Selector="CheckBox.association-format">
+        <Setter Property="MinWidth"
+                Value="164" />
+        <Setter Property="Margin"
+                Value="0,0,8,8" />
+        <Setter Property="Padding"
+                Value="12,8" />
+        <Setter Property="HorizontalContentAlignment"
+                Value="Stretch" />
+    </Style>
+</Styles>

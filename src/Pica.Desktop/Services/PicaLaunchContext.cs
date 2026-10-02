@@ -4,4 +4,5 @@ internal sealed record PicaLaunchContext(long? SourceWindowHandle)
 {
     internal static PicaLaunchContext Empty { get; } =
         new PicaLaunchContext((long?)null);
+    internal bool CanOfferFileAssociations { get; init; }
 }

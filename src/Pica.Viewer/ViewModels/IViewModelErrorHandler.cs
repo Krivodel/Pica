@@ -1,6 +1,6 @@
 namespace Pica.Viewer.ViewModels;
 
-internal interface IViewModelErrorHandler
+public interface IViewModelErrorHandler
 {
     void Log(Exception exception, string operationName);
 

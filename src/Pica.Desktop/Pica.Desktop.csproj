@@ -54,6 +54,14 @@
     <None Update="Assets\Info.plist">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
+    <None Include="..\..\THIRD-PARTY-NOTICES.md"
+          Link="THIRD-PARTY-NOTICES.md"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\LICENSES\MPL-2.0.txt"
+          Link="LICENSES\MPL-2.0.txt"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="RemovePublishedSymbols" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release' and '$(PublishSingleFile)' == 'true'">

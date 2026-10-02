@@ -13,20 +13,7 @@ namespace Pica.Desktop.Services;
 internal sealed class PicaClipboardShortcutService
 {
     internal static string AgentPipeName => PicaBackgroundActivationEndpoint.Default.PipeName + ".Clipboard";
-    internal static string ExecutablePath
-    {
-        get
-        {
-            string executable = Environment.ProcessPath
-                ?? throw new InvalidOperationException("Pica executable path is unavailable.");
-            DirectoryInfo? directory = Directory.GetParent(executable);
-            string? root = directory?.Parent?.FullName;
-            string? stablePath = root is null ? null : Path.Combine(root, Path.GetFileName(executable));
-
-            return (directory?.Name == "current") && (stablePath is not null) && File.Exists(stablePath)
-                ? stablePath : executable;
-        }
-    }
+    internal static string ExecutablePath => PicaInstallation.ExecutablePath;
     internal PicaDesktopState CurrentState { get; private set; } = new();
 
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(1);
