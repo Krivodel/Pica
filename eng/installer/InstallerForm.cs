@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
@@ -205,8 +206,42 @@ internal sealed class InstallerForm : Form
             return;
         }
 
+        LaunchInstalledApplication(installPath);
         DialogResult = DialogResult.OK;
         Close();
+    }
+
+    private void LaunchInstalledApplication(string installPath)
+    {
+        try
+        {
+            ProcessStartInfo startInfo = new()
+            {
+                FileName = Path.Combine(installPath, $"{InstallerProduct.ApplicationName}.exe"),
+                WorkingDirectory = installPath,
+                UseShellExecute = true
+            };
+            using Process? process = Process.Start(startInfo);
+
+            if (process is null)
+            {
+                throw new InvalidOperationException(
+                    "The installed Pica process was not created.");
+            }
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+            or InvalidOperationException
+            or IOException
+            or UnauthorizedAccessException)
+        {
+            _logger.LogError(ex, "Failed to launch Pica after installation.");
+            MessageBox.Show(
+                this,
+                "Pica установлена, но запустить её не удалось.",
+                InstallerProduct.InstallationWindowTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
     }
 
     private void SetInstallationControlsEnabled(bool enabled)

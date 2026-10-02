@@ -11,7 +11,7 @@ namespace Pica.Viewer.Tests.Services;
 public sealed class ImageViewerStateServiceTests
 {
     [Fact]
-    public async Task LoadAsync_WithoutSavedState_EnablesCheckerboardBackgroundByDefault()
+    public async Task LoadAsync_WithoutSavedState_UsesDefaultSettings()
     {
         using ImageViewerStateTestContext context = new();
 
@@ -19,6 +19,19 @@ public sealed class ImageViewerStateServiceTests
             CancellationToken.None);
 
         state.IsCheckerboardBackgroundEnabled.Should().BeTrue();
+        state.MovementSpeed.Should().Be(2);
+        state.ZoomSpeed.Should().Be(4);
+        state.IsPanningInertiaEnabled.Should().BeTrue();
+        state.AllowFreeZoomOut.Should().BeTrue();
+        state.PreserveZoomAndPositionOnNavigation.Should().BeFalse();
+        state.ResizeBehavior.Should().Be(WindowResizeBehavior.AlwaysFitImage);
+        state.ExpandOnDoubleClick.Should().BeTrue();
+        state.RememberWindowPlacement.Should().BeFalse();
+        state.IsFastLoadingEnabled.Should().BeTrue();
+        state.ShowImageName.Should().BeFalse();
+        state.ShowImageFormat.Should().BeTrue();
+        state.ShowImageModificationDate.Should().BeFalse();
+        state.ShowImageResolution.Should().BeTrue();
     }
 
     [Fact]
@@ -149,13 +162,40 @@ public sealed class ImageViewerStateServiceTests
         restoredState.IsWindowed.Should().BeTrue();
         restoredState.IsCheckerboardBackgroundEnabled.Should().BeTrue();
         restoredState.IsFilteringEnabled.Should().BeTrue();
-        restoredState.IsFastLoadingEnabled.Should().BeFalse();
-        restoredState.AllowFreeZoomOut.Should().BeFalse();
+        restoredState.IsFastLoadingEnabled.Should().BeTrue();
+        restoredState.AllowFreeZoomOut.Should().BeTrue();
         restoredState.IsPanningInertiaEnabled.Should().BeTrue();
         restoredState.PreserveZoomAndPositionOnNavigation.Should().BeFalse();
         restoredState.ShowImageName.Should().BeFalse();
         restoredState.ShowImageFormat.Should().BeTrue();
         restoredState.ShowImageResolution.Should().BeTrue();
+        restoredState.ShowImageModificationDate.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task LoadAsync_WithSavedSettings_PreservesPreviousValues()
+    {
+        using ImageViewerStateTestContext context = new();
+        const string savedStateJson = """
+            {
+              "movementSpeed": 3,
+              "isFastLoadingEnabled": false,
+              "allowFreeZoomOut": false,
+              "rememberWindowPlacement": true,
+              "showImageModificationDate": true
+            }
+            """;
+        await File.WriteAllTextAsync(
+            context.StateFilePath,
+            savedStateJson,
+            CancellationToken.None);
+
+        ImageViewerState restoredState = await context.Service.LoadAsync(CancellationToken.None);
+
+        restoredState.MovementSpeed.Should().Be(3);
+        restoredState.IsFastLoadingEnabled.Should().BeFalse();
+        restoredState.AllowFreeZoomOut.Should().BeFalse();
+        restoredState.RememberWindowPlacement.Should().BeTrue();
         restoredState.ShowImageModificationDate.Should().BeTrue();
     }
 

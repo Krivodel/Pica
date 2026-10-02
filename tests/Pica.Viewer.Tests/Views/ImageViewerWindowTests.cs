@@ -52,6 +52,101 @@ public sealed class ImageViewerWindowTests
     }
 
     [Fact]
+    public async Task Show_WithEmptySession_DisplaysCenteredMessageWithoutInterceptingInput()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                TextBlock message = view.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(text => text.Text == ViewerUiStrings.NoImages);
+                message.IsVisible.Should().BeTrue();
+                message.IsHitTestVisible.Should().BeFalse();
+                Point messageCenter = message.TranslatePoint(
+                    new Point(message.Bounds.Width / 2d, message.Bounds.Height / 2d), view.ViewerArea)
+                    ?? throw new InvalidOperationException("The empty message must be attached to the viewer.");
+                messageCenter.X.Should().BeApproximately(view.ViewerArea.Bounds.Width / 2d, 0.5d);
+                messageCenter.Y.Should().BeApproximately(view.ViewerArea.Bounds.Height / 2d, 0.5d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task PasteFromClipboardAsync_WithEmptySession_HidesEmptyMessageAndKeepsImageOnNavigation()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(typeof(SkiaViewerTestSession), SessionLock, async () =>
+        {
+            DelegateClipboardImageReader reader = new()
+            {
+                Read = _ => Task.FromResult<IReadOnlyList<ClipboardImageInput>>(
+                    new ClipboardImageInput[] { ClipboardImageInput.FromBitmap(CreateBitmap(SourceImageWidth, SourceImageHeight)) })
+            };
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader(), clipboardReader: reader);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+
+            try
+            {
+                window.Show();
+                TextBlock message = view.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(text => text.Text == ViewerUiStrings.NoImages);
+                message.IsVisible.Should().BeTrue();
+
+                await window.PasteFromClipboardAsync(timeout.Token);
+                await WaitForImageSourceAsync(view,
+                    source => source.PixelSize == new PixelSize(SourceImageWidth, SourceImageHeight), timeout.Token);
+                window.KeyPress(Key.Right, RawInputModifiers.None, PhysicalKey.ArrowRight, null);
+
+                message.IsVisible.Should().BeFalse();
+                view.Image.Source.Should().NotBeNull();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task Show_WithImageFile_HidesEmptyMessage()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(typeof(SkiaViewerTestSession), SessionLock, async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+            ImageViewerState state = CreateWindowedState();
+            state.IsFastLoadingEnabled = false;
+            ImageViewerWindow window = await CreateLoadedWindowAsync(directory.DirectoryPath, state, timeout.Token);
+
+            try
+            {
+                TextBlock message = window.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(text => text.Text == ViewerUiStrings.NoImages);
+
+                message.IsVisible.Should().BeFalse();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public async Task ShowError_InViewerSettingsWithApplicationTheme_DisplaysRedText()
     {
         await DispatchAsync(() =>
@@ -1172,7 +1267,8 @@ public sealed class ImageViewerWindowTests
                 ItemId);
             ImageViewerState state = new()
             {
-                IsCheckerboardBackgroundEnabled = false
+                IsCheckerboardBackgroundEnabled = false,
+                IsFastLoadingEnabled = false
             };
             ImageViewerWindow window = CreateWindow(
                 request,

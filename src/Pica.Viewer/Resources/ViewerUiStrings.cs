@@ -2,6 +2,8 @@ namespace Pica.Viewer.Resources;
 
 internal static class ViewerUiStrings
 {
+    public const string NoImages = "Нет изображений";
+
     internal const string Animation = "Анимация";
     internal const string AnimationCount = "Анимаций:";
     internal const string Channel = "Канал";

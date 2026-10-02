@@ -16,6 +16,7 @@ internal sealed partial class ImageViewerSessionViewModel :
     internal IReadOnlyList<PicaImageItem> Items => _session.Items;
     internal IReadOnlyList<PicaActionDefinition> Actions => _session.Actions;
     internal PicaImageItem? SelectedItem => _session.SelectedItem;
+    internal bool IsEmpty => SelectedItem is null;
     internal int SelectedIndex => _session.SelectedIndex;
     internal bool IsClipboardImageActive => _session.IsClipboardImageActive;
     internal long SourceResetVersion => _session.SourceResetVersion;
@@ -227,6 +228,14 @@ internal sealed partial class ImageViewerSessionViewModel :
         if (e.PropertyName is { } propertyName)
         {
             OnPropertyChanged(propertyName);
+
+            if (string.Equals(
+                propertyName,
+                nameof(ImageViewerSession.SelectedItem),
+                StringComparison.Ordinal))
+            {
+                OnPropertyChanged(nameof(IsEmpty));
+            }
 
             if (string.Equals(
                 propertyName,

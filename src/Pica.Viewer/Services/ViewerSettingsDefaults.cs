@@ -2,20 +2,20 @@ namespace Pica.Viewer.Services;
 
 internal static class ViewerSettingsDefaults
 {
-    public const int MovementSpeed = 3;
+    public const int MovementSpeed = 2;
     public const int ZoomSpeed = 4;
     public const bool CheckerboardBackgroundEnabled = true;
     public const bool FilteringEnabled = true;
     public const bool ExpandOnDoubleClick = true;
-    public const bool FastLoadingEnabled = false;
-    public const bool AllowFreeZoomOut = false;
+    public const bool FastLoadingEnabled = true;
+    public const bool AllowFreeZoomOut = true;
     public const bool PanningInertiaEnabled = true;
     public const bool PreserveZoomAndPositionOnNavigation = false;
-    public const bool RememberWindowPlacement = true;
+    public const bool RememberWindowPlacement = false;
     public const bool ShowImageName = false;
     public const bool ShowImageFormat = true;
     public const bool ShowImageResolution = true;
-    public const bool ShowImageModificationDate = true;
+    public const bool ShowImageModificationDate = false;
     public const WindowResizeBehavior ResizeBehavior = WindowResizeBehavior.AlwaysFitImage;
 
     public static int MinimumSpeed => SpeedValues[0];

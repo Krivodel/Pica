@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:Pica.Viewer.Controls"
+             xmlns:resources="using:Pica.Viewer.Resources"
              xmlns:services="using:Pica.Viewer.Services"
              xmlns:suki="https://github.com/kikipoulet/SukiUI"
              xmlns:vm="using:Pica.Viewer.ViewModels"
@@ -44,6 +45,13 @@
             </Canvas>
 
             <Grid x:Name="ViewerDynamicLayerControl">
+                <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False"
+                           IsVisible="{Binding IsEmpty}"
+                           Foreground="{StaticResource ViewerMenuForegroundBrush}"
+                           Text="{x:Static resources:ViewerUiStrings.NoImages}" />
+
                 <suki:Loading x:Name="AnimationLoadingIndicatorControl"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center"
