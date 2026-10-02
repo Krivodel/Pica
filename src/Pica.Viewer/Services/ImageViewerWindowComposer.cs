@@ -105,7 +105,8 @@ internal sealed class ImageViewerWindowComposer
                 presentationServices.Presentation,
                 presentationServices.Readiness,
                 platformContext,
-                actionDispatcher);
+                actionDispatcher,
+                presentationServices.LoadCoordinator);
             return new ImageViewerWindowComposition(
                 window,
                 frameScheduler,

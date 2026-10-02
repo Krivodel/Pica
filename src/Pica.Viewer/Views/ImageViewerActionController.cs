@@ -35,6 +35,7 @@ internal sealed class ImageViewerActionController : IDisposable
     private readonly ViewerFrameAnimationRunner _animationRunner;
     private readonly Action _cancelSelection;
     private readonly Action<OpenWithTarget> _hideOpenWithAfterAction;
+    private readonly ViewerNotificationPresenter _notifications;
     private long _copyFeedbackAnimationId;
     private long _saveStatusAnimationId;
     private bool _isDisposed;
@@ -70,6 +71,7 @@ internal sealed class ImageViewerActionController : IDisposable
         _hideOpenWithAfterAction = hideOpenWithAfterAction
             ?? throw new ArgumentNullException(nameof(hideOpenWithAfterAction));
         _actions.PropertyChanged += OnActionsPropertyChanged;
+        _notifications = new ViewerNotificationPresenter(owner);
     }
 
     public void Dispose()
@@ -81,6 +83,7 @@ internal sealed class ImageViewerActionController : IDisposable
 
         _isDisposed = true;
         _actions.PropertyChanged -= OnActionsPropertyChanged;
+        _notifications.Dispose();
         _copyFeedbackAnimationId++;
         _saveStatusAnimationId++;
     }
@@ -88,6 +91,16 @@ internal sealed class ImageViewerActionController : IDisposable
     internal async Task CopyCurrentAsync(CancellationToken ct)
     {
         await _actionGate.RunAsync(CopyCurrentCoreAsync, ct);
+    }
+
+    internal async Task PasteFromClipboardAsync(CancellationToken ct)
+    {
+        await _actions.PasteFromClipboardAsync(ct);
+
+        if (!_isDisposed && (_actions.ErrorMessage is { } message))
+        {
+            _notifications.ShowError(message);
+        }
     }
 
     internal async Task CopyCurrentWithFeedbackAsync(CancellationToken ct)

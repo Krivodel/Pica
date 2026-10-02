@@ -70,12 +70,8 @@ internal sealed class PicaBackgroundIdleSettingContributionProvider :
     {
         try
         {
-            PicaDesktopState state = await _stateService
-                .LoadAsync(ct)
-                .ConfigureAwait(false);
-            state.BackgroundIdleTimeoutSeconds = timeoutSeconds;
             await _stateService
-                .SaveAsync(state, ct)
+                .UpdateAsync(state => state.BackgroundIdleTimeoutSeconds = timeoutSeconds, ct)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)

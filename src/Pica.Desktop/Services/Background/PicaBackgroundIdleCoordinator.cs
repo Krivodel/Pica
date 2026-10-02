@@ -185,11 +185,6 @@ internal sealed class PicaBackgroundIdleCoordinator :
 
     private NamedPipeServerStream CreatePipe()
     {
-        return new NamedPipeServerStream(
-            _endpoint.PipeName,
-            PipeDirection.InOut,
-            NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        return PicaActivationServer.CreatePipe(_endpoint.PipeName);
     }
 }

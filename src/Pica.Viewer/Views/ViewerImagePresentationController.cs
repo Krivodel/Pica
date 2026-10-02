@@ -36,6 +36,8 @@ internal sealed class ViewerImagePresentationController :
     private Guid? _itemIdBeforeImageLoad;
     private PixelSize _sourcePixelSizeBeforeImageLoad;
     private bool _preservePlacementForImageLoad;
+    private long _displayedSourceResetVersion;
+    private bool _resetPlacementForImageLoad;
 
     internal ViewerImagePresentationController(
         Window owner,
@@ -201,6 +203,7 @@ internal sealed class ViewerImagePresentationController :
         PixelSize currentSourcePixelSize)
     {
         return (_settings.PreserveZoomAndPositionOnNavigation)
+            && !_resetPlacementForImageLoad
             && (_preservePlacementForImageLoad)
             && HasSamePositivePixelSize(
                 _sourcePixelSizeBeforeImageLoad,
@@ -268,6 +271,8 @@ internal sealed class ViewerImagePresentationController :
         switch (e.Kind)
         {
             case ImageLoadTransitionKind.Started:
+                _resetPlacementForImageLoad = _displayedSourceResetVersion != _session.SourceResetVersion;
+                _displayedSourceResetVersion = _session.SourceResetVersion;
                 _itemIdBeforeImageLoad = _displayedItemId;
                 _sourcePixelSizeBeforeImageLoad = _displayedSourcePixelSize;
                 _preservePlacementForImageLoad = false;

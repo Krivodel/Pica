@@ -7,6 +7,8 @@ internal abstract class ViewerSettingControl
     internal string? Label { get; }
     internal abstract Control Control { get; }
 
+    protected const double ErrorSpacing = 4d;
+
     protected ViewerSettingControl(string? label)
     {
         Label = label;

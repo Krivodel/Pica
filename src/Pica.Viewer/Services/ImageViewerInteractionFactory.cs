@@ -17,6 +17,9 @@ internal sealed class ImageViewerInteractionFactory
     private readonly ILogger<ImageViewerActionsViewModel> _actionsLogger;
     private readonly ILogger<ImageViewerOpenWithViewModel> _openWithLogger;
     private readonly ILogger<TemporaryImageFileStore> _temporaryFileLogger;
+    private readonly FullResolutionImageLoader _fullResolutionLoader;
+    private readonly ClipboardImageFormatCatalog _clipboardFormats;
+    private readonly ILogger<ViewerClipboardPasteService> _pasteLogger;
 
     public ImageViewerInteractionFactory(
         ViewerClipboardFactory clipboardFactory,
@@ -28,7 +31,10 @@ internal sealed class ImageViewerInteractionFactory
         IViewModelErrorHandler errorHandler,
         ILogger<ImageViewerActionsViewModel> actionsLogger,
         ILogger<ImageViewerOpenWithViewModel> openWithLogger,
-        ILogger<TemporaryImageFileStore> temporaryFileLogger)
+        ILogger<TemporaryImageFileStore> temporaryFileLogger,
+        FullResolutionImageLoader fullResolutionLoader,
+        ClipboardImageFormatCatalog clipboardFormats,
+        ILogger<ViewerClipboardPasteService> pasteLogger)
     {
         _clipboardFactory = clipboardFactory
             ?? throw new ArgumentNullException(nameof(clipboardFactory));
@@ -50,6 +56,9 @@ internal sealed class ImageViewerInteractionFactory
             ?? throw new ArgumentNullException(nameof(openWithLogger));
         _temporaryFileLogger = temporaryFileLogger
             ?? throw new ArgumentNullException(nameof(temporaryFileLogger));
+        _fullResolutionLoader = fullResolutionLoader ?? throw new ArgumentNullException(nameof(fullResolutionLoader));
+        _clipboardFormats = clipboardFormats ?? throw new ArgumentNullException(nameof(clipboardFormats));
+        _pasteLogger = pasteLogger ?? throw new ArgumentNullException(nameof(pasteLogger));
     }
 
     internal ImageViewerInteractionServices Create(
@@ -57,17 +66,20 @@ internal sealed class ImageViewerInteractionFactory
         ImagePresentationController presentation,
         IImagePresentationReadiness presentationReadiness,
         ViewerWindowPlatformContext platformContext,
-        IViewerActionDispatcher actionDispatcher)
+        IViewerActionDispatcher actionDispatcher,
+        ImageLoadCoordinator loadCoordinator)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(presentation);
         ArgumentNullException.ThrowIfNull(presentationReadiness);
         ArgumentNullException.ThrowIfNull(platformContext);
         ArgumentNullException.ThrowIfNull(actionDispatcher);
+        ArgumentNullException.ThrowIfNull(loadCoordinator);
         ViewerClipboardServices? clipboardServices = null;
         TemporaryImageFileStore? temporaryFileStore = null;
         ViewerImageCommandService? commandService = null;
         ImageViewerActionsViewModel? actions = null;
+        ViewerClipboardPasteService? pasteService = null;
 
         try
         {
@@ -90,13 +102,18 @@ internal sealed class ImageViewerInteractionFactory
                 imageOperations,
                 _clipboardImagePreparer,
                 temporaryFileStore);
+            pasteService = new ViewerClipboardPasteService(
+                session, loadCoordinator, platformContext,
+                clipboardServices.Reader, _fullResolutionLoader,
+                _clipboardFormats, _uiDispatcher, _pasteLogger);
             actions = new ImageViewerActionsViewModel(
                 commandService,
                 presentation,
                 session,
                 _platformFileActions,
                 _errorHandler,
-                _actionsLogger);
+                _actionsLogger,
+                pasteService);
             ImageViewerOpenWithViewModel openWith = new(
                 commandService,
                 _platformFileActions,
@@ -113,6 +130,7 @@ internal sealed class ImageViewerInteractionFactory
         catch (Exception)
         {
             actions?.Dispose();
+            pasteService?.Dispose();
             commandService?.Dispose();
 
             if (commandService is null)

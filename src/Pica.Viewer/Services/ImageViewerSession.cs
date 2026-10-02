@@ -9,9 +9,11 @@ internal sealed partial class ImageViewerSession : ObservableObject
     internal IReadOnlyList<PicaImageItem> Items { get; }
     internal IReadOnlyList<PicaActionDefinition> Actions { get; }
     internal PicaImageItem? SelectedItem =>
-        SelectedIndex >= 0 && SelectedIndex < Items.Count
+        _clipboardItem ?? (SelectedIndex >= 0 && SelectedIndex < Items.Count
             ? Items[SelectedIndex]
-            : null;
+            : null);
+    internal bool IsClipboardImageActive => _clipboardItem is not null;
+    internal long SourceResetVersion { get; private set; }
     internal bool IsChannelModeActive => ImageMode == ViewerImageMode.Channels;
     internal bool IsMainImageModeActive => ImageMode == ViewerImageMode.Main;
     internal bool IsChannelAvailabilityKnown { get; private set; }
@@ -61,7 +63,9 @@ internal sealed partial class ImageViewerSession : ObservableObject
 
     internal event EventHandler<ImageContentNavigationRequestedEventArgs>?
         ContentNavigationRequested;
+    internal event EventHandler? NavigationRequested;
 
+    private PicaImageItem? _clipboardItem;
     private IReadOnlyList<ImageChannel> _availableChannels;
     private int _selectedChannelIndex;
     private int _frameCount;
@@ -146,6 +150,13 @@ internal sealed partial class ImageViewerSession : ObservableObject
     internal void Navigate(int direction)
     {
         ValidateNavigationDirection(direction);
+        NavigationRequested?.Invoke(this, EventArgs.Empty);
+
+        if (IsClipboardImageActive)
+        {
+            RestoreOriginalImage();
+            return;
+        }
 
         if (IsChannelModeActive)
         {
@@ -159,6 +170,7 @@ internal sealed partial class ImageViewerSession : ObservableObject
     internal void NavigateFrame(int direction)
     {
         ValidateNavigationDirection(direction);
+        NavigationRequested?.Invoke(this, EventArgs.Empty);
 
         if (!CanNavigateFrames)
         {
@@ -191,6 +203,7 @@ internal sealed partial class ImageViewerSession : ObservableObject
                 $"The animation frame index must be between 0 and {_frameCount - 1}.");
         }
 
+        NavigationRequested?.Invoke(this, EventArgs.Empty);
         SetSelectedFrameIndex(frameIndex);
     }
 
@@ -243,6 +256,13 @@ internal sealed partial class ImageViewerSession : ObservableObject
     internal void NavigateContent(int direction)
     {
         ValidateNavigationDirection(direction);
+        NavigationRequested?.Invoke(this, EventArgs.Empty);
+
+        if (IsClipboardImageActive)
+        {
+            RestoreOriginalImage();
+            return;
+        }
 
         if (!IsContentGroupIndexValid(_selectedContentGroupIndex))
         {
@@ -451,6 +471,30 @@ internal sealed partial class ImageViewerSession : ObservableObject
             ? _availableChannels[_selectedChannelIndex]
             : null;
         IsChannelAvailabilityKnown = true;
+    }
+
+    internal void SetClipboardImage(PicaImageItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        SelectMainImageMode();
+        SourceResetVersion++;
+        _clipboardItem = item;
+        OnPropertyChanged(nameof(IsClipboardImageActive));
+        OnPropertyChanged(nameof(SelectedItem));
+    }
+
+    private void RestoreOriginalImage()
+    {
+        if ((SelectedIndex < 0) || (SelectedIndex >= Items.Count))
+        {
+            return;
+        }
+
+        SelectMainImageMode();
+        SourceResetVersion++;
+        _clipboardItem = null;
+        OnPropertyChanged(nameof(IsClipboardImageActive));
+        OnPropertyChanged(nameof(SelectedItem));
     }
 
     private static int GetItemIndexOrDefault(

@@ -9,35 +9,26 @@ namespace Pica.Desktop.Services;
 internal sealed class PicaDesktopStateService : IPicaDesktopStateService
 {
     private const int StateFileBufferSize = 4096;
-    private const string StateDirectoryName = "State";
-    private const string StateFileName = "desktop.json";
-
-    private static readonly JsonSerializerOptions SerializerOptions =
-        new(JsonSerializerDefaults.Web)
-        {
-            WriteIndented = true
-        };
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true
+    };
 
     private readonly SemaphoreSlim _stateLock = new(1, 1);
     private readonly string _stateFilePath;
     private readonly ILogger<PicaDesktopStateService> _logger;
-    private PicaDesktopState? _currentState;
 
-    public PicaDesktopStateService(
-        ILogger<PicaDesktopStateService> logger)
-        : this(CreateDefaultStateFilePath(), logger)
+    public PicaDesktopStateService(ILogger<PicaDesktopStateService> logger)
+        : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            PicaProtocolConstants.ApplicationName, "State", "desktop.json"), logger)
     {
     }
 
-    internal PicaDesktopStateService(
-        string stateFilePath,
-        ILogger<PicaDesktopStateService> logger)
+    internal PicaDesktopStateService(string stateFilePath, ILogger<PicaDesktopStateService> logger)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stateFilePath);
-        ArgumentNullException.ThrowIfNull(logger);
-
         _stateFilePath = stateFilePath;
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<PicaDesktopState> LoadAsync(CancellationToken ct)
@@ -46,45 +37,7 @@ internal sealed class PicaDesktopStateService : IPicaDesktopStateService
 
         try
         {
-            if (_currentState is not null)
-            {
-                _logger.LogDebug("Returning cached Pica desktop state");
-                return _currentState.CreateCopy();
-            }
-
-            FileStream? openedStream = await OpenReadStreamAsync(
-                _stateFilePath,
-                ct).ConfigureAwait(false);
-
-            if (openedStream is null)
-            {
-                _currentState = new PicaDesktopState();
-                _logger.LogInformation(
-                    "Pica desktop state does not exist; using defaults");
-                return _currentState.CreateCopy();
-            }
-
-            await using FileStream stream = openedStream;
-            PicaDesktopState? state = await JsonSerializer
-                .DeserializeAsync<PicaDesktopState>(
-                    stream,
-                    SerializerOptions,
-                    ct)
-                .ConfigureAwait(false);
-            _currentState = (state ?? new PicaDesktopState())
-                .CreateNormalizedCopy();
-            _logger.LogInformation(
-                "Loaded and normalized Pica desktop state");
-
-            return _currentState.CreateCopy();
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Pica desktop state is invalid; using defaults");
-            _currentState = new PicaDesktopState();
-            return _currentState.CreateCopy();
+            return await ReadAsync(ct).ConfigureAwait(false);
         }
         finally
         {
@@ -92,38 +45,72 @@ internal sealed class PicaDesktopStateService : IPicaDesktopStateService
         }
     }
 
-    public async Task SaveAsync(
-        PicaDesktopState state,
-        CancellationToken ct)
+    public async Task SaveAsync(PicaDesktopState state, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(state);
+        await UpdateAsync(current =>
+        {
+            current.BackgroundIdleTimeoutSeconds = state.BackgroundIdleTimeoutSeconds;
+            current.IsClipboardShortcutEnabled = state.IsClipboardShortcutEnabled;
+            current.IsFullscreenClipboardShortcutEnabled = state.IsFullscreenClipboardShortcutEnabled;
+            current.ClipboardShortcut = state.ClipboardShortcut;
+        }, ct).ConfigureAwait(false);
+    }
+
+    public async Task UpdateAsync(Action<PicaDesktopState> update, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        await UpdateAsync((state, _) =>
+        {
+            update(state);
+            return Task.CompletedTask;
+        }, () => Task.CompletedTask, ct).ConfigureAwait(false);
+    }
+
+    public async Task UpdateAsync(Func<PicaDesktopState, CancellationToken, Task> update, Func<Task> rollback, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        ArgumentNullException.ThrowIfNull(rollback);
         await _stateLock.WaitAsync(ct).ConfigureAwait(false);
+        string temporaryPath = _stateFilePath + ".tmp";
 
         try
         {
-            PicaDesktopState normalizedState =
-                state.CreateNormalizedCopy();
-            string? directoryPath = Path.GetDirectoryName(
-                _stateFilePath);
+            string directory = Path.GetDirectoryName(_stateFilePath)
+                ?? throw new InvalidOperationException("The Pica desktop state directory is unavailable.");
+            Directory.CreateDirectory(directory);
+            await using FileStream ownership = await AcquireFileLockAsync(ct).ConfigureAwait(false);
+            PicaDesktopState current = await ReadAsync(ct).ConfigureAwait(false);
 
-            if (string.IsNullOrWhiteSpace(directoryPath))
+            try
             {
-                throw new InvalidOperationException(
-                    "The Pica desktop state directory could not be determined.");
-            }
+                await update(current, ct).ConfigureAwait(false);
 
-            await using FileStream stream = await OpenWriteStreamAsync(
-                _stateFilePath,
-                directoryPath,
-                ct).ConfigureAwait(false);
-            await JsonSerializer.SerializeAsync(
-                stream,
-                normalizedState,
-                SerializerOptions,
-                ct).ConfigureAwait(false);
-            _currentState = normalizedState;
-            _logger.LogInformation(
-                "Saved Pica desktop background idle timeout");
+                await using (FileStream stream = new(temporaryPath, FileMode.Create, FileAccess.Write,
+                    FileShare.None, StateFileBufferSize, FileOptions.Asynchronous))
+                {
+                    await JsonSerializer.SerializeAsync(stream, current.CreateNormalizedCopy(), SerializerOptions, ct)
+                        .ConfigureAwait(false);
+                    await stream.FlushAsync(ct).ConfigureAwait(false);
+                }
+
+                ct.ThrowIfCancellationRequested();
+                File.Move(temporaryPath, _stateFilePath, overwrite: true);
+            }
+            catch (Exception changeException)
+            {
+                try
+                {
+                    await rollback().ConfigureAwait(false);
+                }
+                catch (Exception rollbackException)
+                {
+                    throw new AggregateException("Pica could not restore settings after a failed change.",
+                        changeException, rollbackException);
+                }
+
+                throw;
+            }
         }
         finally
         {
@@ -131,59 +118,50 @@ internal sealed class PicaDesktopStateService : IPicaDesktopStateService
         }
     }
 
-    private static string CreateDefaultStateFilePath()
+    private async Task<PicaDesktopState> ReadAsync(CancellationToken ct)
     {
-        string localApplicationData = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData);
+        try
+        {
+            await using FileStream stream = new(_stateFilePath, FileMode.Open, FileAccess.Read,
+                FileShare.Read | FileShare.Delete, StateFileBufferSize, FileOptions.Asynchronous);
+            PicaDesktopState? state = await JsonSerializer.DeserializeAsync<PicaDesktopState>(
+                stream, SerializerOptions, ct).ConfigureAwait(false);
 
-        return Path.Combine(
-            localApplicationData,
-            PicaProtocolConstants.ApplicationName,
-            StateDirectoryName,
-            StateFileName);
+            return (state ?? new PicaDesktopState()).CreateNormalizedCopy();
+        }
+        catch (FileNotFoundException)
+        {
+            return new PicaDesktopState();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new PicaDesktopState();
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Pica desktop state is invalid; using defaults");
+            return new PicaDesktopState();
+        }
     }
 
-    private static Task<FileStream?> OpenReadStreamAsync(
-        string filePath,
-        CancellationToken ct)
+    private async Task<FileStream> AcquireFileLockAsync(CancellationToken ct)
     {
-        return Task.Run(
-            () =>
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+
+        while (true)
+        {
+            timeout.Token.ThrowIfCancellationRequested();
+
+            try
             {
-                if (!File.Exists(filePath))
-                {
-                    return null;
-                }
-
-                return new FileStream(
-                    filePath,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.Read,
-                    StateFileBufferSize,
-                    FileOptions.Asynchronous);
-            },
-            ct);
-    }
-
-    private static Task<FileStream> OpenWriteStreamAsync(
-        string filePath,
-        string directoryPath,
-        CancellationToken ct)
-    {
-        return Task.Run(
-            () =>
+                return new FileStream(_stateFilePath + ".lock", FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException ex) when ((ex.HResult & 0xFFFF) is 32 or 33)
             {
-                Directory.CreateDirectory(directoryPath);
-
-                return new FileStream(
-                    filePath,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.None,
-                    StateFileBufferSize,
-                    FileOptions.Asynchronous);
-            },
-            ct);
+                await Task.Delay(TimeSpan.FromMilliseconds(20), timeout.Token).ConfigureAwait(false);
+            }
+        }
     }
 }

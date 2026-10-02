@@ -7,11 +7,13 @@ internal sealed class ViewerClipboardFactory
     private readonly ClipboardImagePreparer _imagePreparer;
     private readonly ClipboardFlushCoordinator _flushCoordinator;
     private readonly ILogger<AvaloniaClipboardDataWriter> _dataWriterLogger;
+    private readonly IClipboardImageReader _reader;
 
     public ViewerClipboardFactory(
         ClipboardImagePreparer imagePreparer,
         ClipboardFlushCoordinator flushCoordinator,
-        ILogger<AvaloniaClipboardDataWriter> dataWriterLogger)
+        ILogger<AvaloniaClipboardDataWriter> dataWriterLogger,
+        IClipboardImageReader reader)
     {
         _imagePreparer = imagePreparer
             ?? throw new ArgumentNullException(nameof(imagePreparer));
@@ -19,6 +21,7 @@ internal sealed class ViewerClipboardFactory
             ?? throw new ArgumentNullException(nameof(flushCoordinator));
         _dataWriterLogger = dataWriterLogger
             ?? throw new ArgumentNullException(nameof(dataWriterLogger));
+        _reader = reader ?? throw new ArgumentNullException(nameof(reader));
     }
 
     internal ViewerClipboardServices Create(
@@ -31,7 +34,8 @@ internal sealed class ViewerClipboardFactory
         IPlatformClipboardImageWriter platformWriter =
             PlatformClipboardImageWriterFactory.Create(
                 dataWriter,
-                _imagePreparer);
+                _imagePreparer,
+                platformContext);
         ClipboardImageWriter writer = new(
             dataWriter,
             platformWriter);
@@ -40,6 +44,7 @@ internal sealed class ViewerClipboardFactory
         return new ViewerClipboardServices(
             writer,
             dataWriter,
-            registration);
+            registration,
+            _reader);
     }
 }

@@ -24,6 +24,11 @@ internal class ClipboardDispatchProxy : DispatchProxy
             ?? throw new InvalidOperationException(
                 "The clipboard proxy has not been initialized.");
 
+        if (method.Name == "TryGetDataAsync")
+        {
+            return Task.FromResult(owner.Data);
+        }
+
         if (string.Equals(
                 method.Name,
                 "SetDataAsync",

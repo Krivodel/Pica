@@ -24,13 +24,31 @@ internal sealed class FullResolutionImageLoader :
         CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
-        ImageDecoderSelection decoderSelection =
-            _decoderResolver.Resolve(fullPath);
+        ImageDecoderSelection decoderSelection = _decoderResolver.Resolve(fullPath);
         byte[] data = await File.ReadAllBytesAsync(
             fullPath,
             ct).ConfigureAwait(false);
 
-        if (!IsoBmffMixedContentSupport.IsSupportedFile(fullPath))
+        return await LoadContentAsync(data, fullPath, decoderSelection, ct).ConfigureAwait(false);
+    }
+
+    internal async Task<DecodedImageContent> LoadAsync(
+        byte[] data,
+        string fileName,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ImageDecoderSelection decoderSelection = _decoderResolver.Resolve(fileName);
+
+        return await LoadContentAsync(data, fileName, decoderSelection, ct).ConfigureAwait(false);
+    }
+
+    private async Task<DecodedImageContent> LoadContentAsync(byte[] data, string fileName,
+        ImageDecoderSelection decoderSelection, CancellationToken ct)
+    {
+
+        if (!IsoBmffMixedContentSupport.IsSupportedFile(fileName))
         {
             DecodedImage image = await DecodeBytesAsync(
                 data,

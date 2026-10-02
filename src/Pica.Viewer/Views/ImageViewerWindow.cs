@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -20,6 +21,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
 {
     public Task CloseCleanupCompletion =>
         _closeCleanupCompletionSource.Task;
+    public bool IsRecordingSetting => ViewerSettingRecording.IsActive(this);
 
     internal ViewerWindowMode CurrentWindowMode => _windowMode.Mode;
     internal bool IsSaving => _isSaving;
@@ -27,6 +29,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     internal event EventHandler? ReadyForLoading;
 
     private const string AppIconAssetUri = "avares://Pica.Viewer/Assets/AppIcon.ico";
+    private const string ErrorStylesAssetUri = "avares://Pica.Viewer/Resources/ViewerErrorStyles.axaml";
     private const double MinimumWindowWidth = 300d;
     private const double TitleLogoSize = 28d;
 
@@ -84,11 +87,26 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private ImageViewerWindow()
     {
+        Uri errorStyles = new(ErrorStylesAssetUri);
+        Styles.Add(new StyleInclude(errorStyles) { Source = errorStyles });
     }
 
     public void CloseForApplicationExit()
     {
         Close();
+    }
+
+    public async Task PasteFromClipboardAsync(CancellationToken ct)
+    {
+        Task pasteTask = await Dispatcher.InvokeAsync(
+            () => IsRecordingSetting ? Task.CompletedTask : _actionController.PasteFromClipboardAsync(ct),
+            Avalonia.Threading.DispatcherPriority.Normal, ct);
+        await pasteTask;
+    }
+
+    public void SetClipboardShortcut(IViewerClipboardShortcut? shortcut)
+    {
+        _keyboardInput.SetClipboardShortcut(shortcut);
     }
 
     internal static ImageViewerWindow Create(
@@ -234,6 +252,11 @@ public sealed partial class ImageViewerWindow : SukiWindow
             && (_interaction is not null))
         {
             _interaction.WindowMode.HandleWindowStateChanged();
+        }
+        else if ((change.Property == ViewerSettingRecording.IsActiveProperty)
+            && (change.NewValue is false) && (_interaction is not null))
+        {
+            _interaction.KeyboardInput.ResetModifiersAfterRecording();
         }
     }
 
@@ -463,7 +486,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
         AddHandler(
             KeyDownEvent,
             _keyboardInput.OnPreviewKeyDown,
-            RoutingStrategies.Tunnel);
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         KeyDown += _keyboardInput.OnKeyDown;
         KeyUp += _keyboardInput.OnKeyUp;
         PositionChanged += OnWindowPositionChanged;

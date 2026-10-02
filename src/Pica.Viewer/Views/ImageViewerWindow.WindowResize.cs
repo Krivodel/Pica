@@ -69,7 +69,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
             AlternateActionModifierPolicy.IsActive(
                 e.KeyModifiers);
 
-        if (_selection.IsActive
+        if (!Session.IsClipboardImageActive
+            && _selection.IsActive
             && !Session.IsChannelModeActive
             && !isContentNavigationRequested)
         {
@@ -92,7 +93,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
             AlternateActionModifierPolicy.IsActive(
                 e.KeyModifiers);
 
-        if (_selection.IsActive
+        if (!Session.IsClipboardImageActive
+            && _selection.IsActive
             && !Session.IsChannelModeActive
             && !isContentNavigationRequested)
         {

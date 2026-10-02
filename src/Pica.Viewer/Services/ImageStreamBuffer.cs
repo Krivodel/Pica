@@ -2,7 +2,32 @@ namespace Pica.Viewer.Services;
 
 internal static class ImageStreamBuffer
 {
-    private const int CopyBufferSize = 81920;
+    internal const int CopyBufferSize = 81920;
+
+    internal static async Task<byte[]> ReadAllBytesAsync(Stream input, int maxBytes, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
+        using MemoryStream output = new();
+        byte[] buffer = new byte[CopyBufferSize];
+
+        while (true)
+        {
+            int count = await input.ReadAsync(buffer, ct).ConfigureAwait(false);
+
+            if (count == 0)
+            {
+                return output.ToArray();
+            }
+
+            if (output.Length + count > maxBytes)
+            {
+                throw new InvalidDataException("The image content exceeds the input size limit.");
+            }
+
+            output.Write(buffer, 0, count);
+        }
+    }
 
     internal static MemoryStream CopyToMemory(
         Stream sourceStream,

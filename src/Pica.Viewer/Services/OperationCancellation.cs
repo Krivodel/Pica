@@ -13,8 +13,15 @@ internal sealed class OperationCancellation
     private bool _isDisposed;
 
     internal OperationCancellation()
+        : this(CancellationToken.None)
     {
-        _source = new CancellationTokenSource();
+    }
+
+    internal OperationCancellation(CancellationToken ct)
+    {
+        _source = ct.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(ct)
+            : new CancellationTokenSource();
         Token = _source.Token;
     }
 

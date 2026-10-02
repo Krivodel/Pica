@@ -1,8 +1,11 @@
 using Avalonia;
 using Velopack;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 using Pica.Desktop.Services;
 using Pica.Desktop.Services.Background;
+using Pica.Desktop.Services.Logging;
 
 namespace Pica.Desktop;
 
@@ -19,8 +22,43 @@ internal static class Program
     {
         PicaLaunchContext launchContext = new(
             WindowsForegroundWindowCapture.Capture());
-        VelopackApp.Build().Run();
+        VelopackApp velopack = VelopackApp.Build();
+
+        if (OperatingSystem.IsWindows())
+        {
+            velopack.OnBeforeUninstallFastCallback(_ => PicaClipboardShortcutRegistration.RemoveShortcuts());
+        }
+
+        velopack.Run();
+
+        if (OperatingSystem.IsWindows() && (args.Length == 1) && (args[0] == PicaLaunchArguments.ClipboardAgentArgument))
+        {
+            ServiceCollection services = new();
+            services.AddPicaFileLogging();
+            services.AddSingleton<IPicaDesktopStateService, PicaDesktopStateService>();
+            services.AddSingleton<PicaClipboardAgent>();
+            services.AddSingleton<PicaClipboardShortcutRegistration>();
+            await using ServiceProvider provider = services.BuildServiceProvider();
+
+            try
+            {
+                await provider.GetRequiredService<PicaClipboardAgent>().RunAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                provider.GetRequiredService<ILogger<PicaClipboardAgent>>().LogError(ex, "Pica clipboard agent stopped");
+            }
+
+            return;
+        }
+
         PicaBackgroundActivationClient activationClient = new();
+
+        if (OperatingSystem.IsWindows() && PicaLaunchArguments.IsClipboard(args)
+            && (WindowsPicaActivationLocator.FindLastActive() is { } endpoint))
+        {
+            activationClient = new PicaBackgroundActivationClient(endpoint);
+        }
 
         try
         {

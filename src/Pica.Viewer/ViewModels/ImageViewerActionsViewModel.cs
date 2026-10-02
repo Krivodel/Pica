@@ -24,6 +24,7 @@ internal sealed partial class ImageViewerActionsViewModel :
     private readonly IPlatformFileActions _platformFileActions;
     private readonly IViewModelErrorHandler _errorHandler;
     private readonly ILogger<ImageViewerActionsViewModel> _logger;
+    private readonly IViewerClipboardPasteService? _clipboardPaste;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CopyCurrentCommand))]
     [NotifyCanExecuteChangedFor(nameof(DispatchCurrentCommand))]
@@ -47,7 +48,8 @@ internal sealed partial class ImageViewerActionsViewModel :
         ImageViewerSession session,
         IPlatformFileActions platformFileActions,
         IViewModelErrorHandler errorHandler,
-        ILogger<ImageViewerActionsViewModel> logger)
+        ILogger<ImageViewerActionsViewModel> logger,
+        IViewerClipboardPasteService? clipboardPaste = null)
     {
         _imageCommands = imageCommands
             ?? throw new ArgumentNullException(nameof(imageCommands));
@@ -59,6 +61,7 @@ internal sealed partial class ImageViewerActionsViewModel :
         _errorHandler = errorHandler
             ?? throw new ArgumentNullException(nameof(errorHandler));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _clipboardPaste = clipboardPaste;
         _imageCommands.PreparedSelectionSaved += OnPreparedSelectionSaved;
     }
 
@@ -70,6 +73,36 @@ internal sealed partial class ImageViewerActionsViewModel :
         SaveCurrentCommand.Cancel();
         SaveSelectionCommand.Cancel();
         RevealInFolderCommand.Cancel();
+        _clipboardPaste?.Dispose();
+    }
+
+    internal async Task PasteFromClipboardAsync(CancellationToken ct)
+    {
+        if (_clipboardPaste is null)
+        {
+            return;
+        }
+
+        BeginOperation();
+
+        try
+        {
+            ErrorMessage = null;
+            await _clipboardPaste.PasteAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _errorHandler.Log(ex, nameof(PasteFromClipboardAsync));
+            ErrorMessage = _errorHandler.GetUserMessage(ex);
+        }
+        finally
+        {
+            EndOperation();
+        }
     }
 
     internal async Task<PreparedClipboardImage?> PrepareSelectionImageAsync(

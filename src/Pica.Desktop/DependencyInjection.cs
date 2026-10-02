@@ -19,6 +19,11 @@ public static class DependencyInjection
 
         services.AddSingleton<PicaStartupRequestFactory>();
         services.AddSingleton<PicaDesktopViewerWindowFactory>();
+        services.AddSingleton<PicaClipboardShortcutService>();
+        services.AddSingleton<PicaClipboardShortcutRegistration>();
+        services.AddSingleton<PicaClipboardAgent>();
+        services.AddSingleton<IPicaShortcutRecorder, WindowsShortcutRecorder>();
+        services.AddSingleton<IViewerSettingContributionProvider, PicaClipboardShortcutSettingContributionProvider>();
         services.AddSingleton<
             IPicaDesktopStateService,
             PicaDesktopStateService>();

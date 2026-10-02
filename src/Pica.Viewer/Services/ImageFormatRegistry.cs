@@ -124,6 +124,11 @@ public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderRes
             .Select(format => format.Key)
             .ToArray();
 
+    public IReadOnlyList<string> GetSupportedExtensions()
+    {
+        return FormatsByExtension.Keys.ToArray();
+    }
+
     public IReadOnlyList<string> GetWritableExtensions()
     {
         return WritableExtensions;

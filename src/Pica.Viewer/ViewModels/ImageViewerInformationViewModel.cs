@@ -126,12 +126,14 @@ internal sealed partial class ImageViewerInformationViewModel :
 
         if (options.ShowModificationDate
             && refreshMetadata
-            && _presentation.IsCurrentImageFileBacked)
+            && _presentation.IsCurrentImageFileBacked
+            && !string.IsNullOrWhiteSpace(informationItem.FilePath))
         {
             StartMetadataLoad(informationItem);
         }
         else if (!options.ShowModificationDate
-            || !_presentation.IsCurrentImageFileBacked)
+            || !_presentation.IsCurrentImageFileBacked
+            || string.IsNullOrWhiteSpace(informationItem.FilePath))
         {
             CancelMetadataLoad();
             ClearLoadedMetadata();
@@ -286,7 +288,7 @@ internal sealed partial class ImageViewerInformationViewModel :
 
         if (string.Equals(
                 e.PropertyName,
-                nameof(ImageViewerSession.SelectedIndex),
+                nameof(ImageViewerSession.SelectedItem),
                 StringComparison.Ordinal)
             || string.Equals(
                 e.PropertyName,

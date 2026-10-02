@@ -71,6 +71,43 @@ public sealed class PicaDesktopStateServiceTests
         state.BackgroundIdleTimeoutSeconds.Should().Be(60);
     }
 
+    [Fact]
+    public async Task UpdateAsync_FromIndependentReaders_PreservesOtherSettingsAndReloadsChanges()
+    {
+        using PicaTemporaryDirectory directory = new();
+        PicaDesktopStateService first = CreateService(directory);
+        PicaDesktopStateService second = CreateService(directory);
+        await first.LoadAsync(CancellationToken.None);
+        PicaClipboardShortcutGesture gesture = new(0x56, PicaShortcutModifiers.Control | PicaShortcutModifiers.Alt);
+
+        await Task.WhenAll(
+            first.UpdateAsync(state => state.ClipboardShortcut = gesture, CancellationToken.None),
+            second.UpdateAsync(state => state.BackgroundIdleTimeoutSeconds = 300, CancellationToken.None));
+        PicaDesktopState actual = await first.LoadAsync(CancellationToken.None);
+
+        actual.ClipboardShortcut.Should().Be(gesture);
+        actual.BackgroundIdleTimeoutSeconds.Should().Be(300);
+        actual.IsClipboardShortcutEnabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenCanceledDuringWrite_KeepsPreviouslySavedState()
+    {
+        using PicaTemporaryDirectory directory = new();
+        PicaDesktopStateService service = CreateService(directory);
+        await service.UpdateAsync(state => state.BackgroundIdleTimeoutSeconds = 300, CancellationToken.None);
+        using CancellationTokenSource cancellation = new();
+
+        Func<Task> change = () => service.UpdateAsync(state =>
+        {
+            state.BackgroundIdleTimeoutSeconds = 0;
+            cancellation.Cancel();
+        }, cancellation.Token);
+
+        await change.Should().ThrowAsync<OperationCanceledException>();
+        (await service.LoadAsync(CancellationToken.None)).BackgroundIdleTimeoutSeconds.Should().Be(300);
+    }
+
     private static PicaDesktopStateService CreateService(
         PicaTemporaryDirectory temporaryDirectory)
     {

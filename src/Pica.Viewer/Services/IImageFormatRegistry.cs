@@ -4,6 +4,8 @@ namespace Pica.Viewer.Services;
 
 public interface IImageFormatRegistry
 {
+    IReadOnlyList<string> GetSupportedExtensions();
+
     IReadOnlyList<string> GetWritableExtensions();
 
     MagickFormat? GetMultiFrameReadFormat(string fileName);

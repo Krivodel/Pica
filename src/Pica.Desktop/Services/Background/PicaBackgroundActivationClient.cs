@@ -90,6 +90,11 @@ internal sealed class PicaBackgroundActivationClient
                 ex);
         }
 
+        if (OperatingSystem.IsWindows() && WindowsShortcutNative.GetNamedPipeServerProcessId(pipe.SafePipeHandle, out int processId))
+        {
+            WindowsShortcutNative.AllowSetForegroundWindow(processId);
+        }
+
         PicaBackgroundActivationRequest request = new(
             arguments.ToArray(),
             sourceWindowHandle);

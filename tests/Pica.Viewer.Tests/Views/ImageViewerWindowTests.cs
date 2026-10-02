@@ -19,6 +19,7 @@ using SkiaSharp;
 using Xunit;
 
 using Pica.Protocol;
+using Pica.Viewer.Controls;
 using Pica.Tests.Common;
 using Pica.Viewer.Resources;
 using Pica.Viewer.Services;
@@ -35,6 +36,7 @@ public sealed class ImageViewerWindowTests
     private const int SourceImageWidth = 640;
     private const int SourceImageHeight = 480;
     private const int TestTimeoutSeconds = 10;
+    private const int ClipboardNavigationTestTimeoutSeconds = 30;
 
     private static readonly SemaphoreSlim SessionLock = new(1, 1);
     private static readonly Guid ItemId =
@@ -45,6 +47,39 @@ public sealed class ImageViewerWindowTests
         return AppBuilder
             .Configure<ViewerTestApplication>()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions());
+    }
+
+    [Fact]
+    public async Task ShowError_InViewerSettingsWithApplicationTheme_DisplaysRedText()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+            ViewerSettingErrorControl error = new(_ => "Это сочетание уже занято.", NullLogger.Instance);
+            error.Classes.Add("viewer-menu-text");
+            Border panel = new() { Child = error };
+            panel.Classes.Add("modal-glass-panel");
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+            Grid layer = view.FindControl<Grid>("ViewerDynamicLayerControl")
+                ?? throw new InvalidOperationException("The viewer layer must be created.");
+            layer.Children.Add(panel);
+
+            try
+            {
+                window.Show();
+
+                error.ShowError(new IOException("Private error"));
+
+                SolidColorBrush foreground = error.Foreground.Should().BeOfType<SolidColorBrush>().Subject;
+                foreground.Color.Should().Be(Color.Parse("#FFE5484D"));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     }
 
     [Fact]
@@ -922,6 +957,185 @@ public sealed class ImageViewerWindowTests
     }
 
     [Fact]
+    public async Task PasteFromClipboardAsync_WithRepeatedPastesAndNavigationControls_RestoresOriginalAndResetsPlacement()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(typeof(SkiaViewerTestSession), SessionLock, async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            string originalPath = await CreateImageAsync(directory.DirectoryPath);
+            PicaImageItem original = new(ItemId, originalPath, "original.png");
+            PicaViewerRequest request = new(new PicaImageItem[] { original }, ItemId);
+            DelegateClipboardImageReader reader = new()
+            {
+                Read = _ => Task.FromResult<IReadOnlyList<ClipboardImageInput>>(
+                    new ClipboardImageInput[] { ClipboardImageInput.FromBitmap(CreateBitmap(SourceImageWidth, SourceImageHeight)) })
+            };
+            ImageViewerState viewerState = new()
+            {
+                IsFastLoadingEnabled = false,
+                IsPanningInertiaEnabled = false,
+                PreserveZoomAndPositionOnNavigation = true,
+                ResizeBehavior = WindowResizeBehavior.Free
+            };
+            ImageViewerWindow window = CreateWindow(request, viewerState,
+                new RecordingImageChannelBitmapLoader(), clipboardReader: reader);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+            ImageViewerSessionViewModel session = view.DataContext as ImageViewerSessionViewModel
+                ?? throw new InvalidOperationException("The viewer session must be bound.");
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(ClipboardNavigationTestTimeoutSeconds));
+            Key[] navigationKeys = [Key.Left, Key.Right, Key.A, Key.D];
+            RawInputModifiers[] modifiers = [RawInputModifiers.None, RawInputModifiers.Control, RawInputModifiers.Shift];
+
+            try
+            {
+                window.Show();
+                await WaitForImageSourceAsync(view, source => source.PixelSize == new PixelSize(SourceImageWidth, SourceImageHeight), timeout.Token);
+                await Task.Delay(250, timeout.Token);
+                double fittedWidth = view.Image.Width;
+                double centeredLeft = Canvas.GetLeft(view.Image);
+                double centeredTop = Canvas.GetTop(view.Image);
+                Button zoomIn = view.FindControl<Button>("ZoomInButton")
+                    ?? throw new InvalidOperationException("The zoom button must exist.");
+                zoomIn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Task.Delay(250, timeout.Token);
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                view.Image.Width.Should().BeGreaterThan(fittedWidth);
+                Point panStart = new(window.Bounds.Width / 2d, window.Bounds.Height / 2d);
+                window.MouseDown(panStart, MouseButton.Left, RawInputModifiers.None);
+                window.MouseMove(new Point(panStart.X + 80d, panStart.Y + 40d), RawInputModifiers.LeftMouseButton);
+                window.MouseUp(new Point(panStart.X + 80d, panStart.Y + 40d), MouseButton.Left, RawInputModifiers.None);
+
+                foreach (Key key in navigationKeys)
+                {
+                    foreach (RawInputModifiers modifier in modifiers)
+                    {
+                        window.KeyPress(Key.V, RawInputModifiers.Control, PhysicalKey.V, null);
+                        await WaitForImageSourceAsync(view, _ => session.IsClipboardImageActive, timeout.Token);
+                        Bitmap firstPaste = view.Image.Source as Bitmap
+                            ?? throw new InvalidOperationException("The pasted bitmap must be displayed.");
+                        window.KeyPress(Key.V, RawInputModifiers.Control | RawInputModifiers.Shift, PhysicalKey.V, null);
+                        await WaitForImageSourceAsync(view, source => !ReferenceEquals(source, firstPaste), timeout.Token);
+                        Bitmap secondPaste = view.Image.Source as Bitmap
+                            ?? throw new InvalidOperationException("The second pasted bitmap must be displayed.");
+                        window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
+                        window.KeyPress(key, modifier, PhysicalKey.None, null);
+                        await WaitForImageSourceAsync(view, source => !ReferenceEquals(source, secondPaste), timeout.Token);
+
+                        session.SelectedItem.Should().BeSameAs(original);
+                        session.IsClipboardImageActive.Should().BeFalse();
+                        session.IsMainImageModeActive.Should().BeTrue();
+                        await Task.Delay(250, timeout.Token);
+                        view.Image.Width.Should().BeApproximately(fittedWidth, 0.001d);
+                        Canvas.GetLeft(view.Image).Should().BeApproximately(centeredLeft, 0.001d);
+                        Canvas.GetTop(view.Image).Should().BeApproximately(centeredTop, 0.001d);
+                    }
+                }
+
+                foreach (Border navigationArea in new Border[] { view.LeftNavigationArea, view.RightNavigationArea })
+                {
+                    await window.PasteFromClipboardAsync(timeout.Token);
+                    Bitmap pasted = view.Image.Source as Bitmap
+                        ?? throw new InvalidOperationException("The pasted bitmap must be displayed.");
+                    Point click = view.ViewerArea.TranslatePoint(
+                        new Point(ReferenceEquals(navigationArea, view.LeftNavigationArea)
+                            ? 1d : view.ViewerArea.Bounds.Width - 1d, view.ViewerArea.Bounds.Height / 2d), window)
+                        ?? throw new InvalidOperationException("The navigation area must be arranged.");
+                    window.MouseMove(new Point(window.Bounds.Width / 2d, window.Bounds.Height / 2d), RawInputModifiers.None);
+                    window.MouseMove(click, RawInputModifiers.None);
+                    await Task.Delay(250, timeout.Token);
+                    window.UpdateLayout();
+                    navigationArea.IsHitTestVisible.Should().BeTrue();
+                    window.MouseDown(click, MouseButton.Left, RawInputModifiers.None);
+                    window.MouseUp(click, MouseButton.Left, RawInputModifiers.None);
+                    await WaitForImageSourceAsync(view, source => !ReferenceEquals(source, pasted), timeout.Token);
+
+                    session.SelectedItem.Should().BeSameAs(original);
+                    session.IsClipboardImageActive.Should().BeFalse();
+                }
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(Key.F8, PhysicalKey.F8, KeyModifiers.None, RawInputModifiers.None)]
+    [InlineData(Key.V, PhysicalKey.V, KeyModifiers.Control | KeyModifiers.Alt, RawInputModifiers.Control | RawInputModifiers.Alt)]
+    [InlineData(Key.F, PhysicalKey.F, KeyModifiers.Control | KeyModifiers.Alt, RawInputModifiers.Control | RawInputModifiers.Alt)]
+    [InlineData(Key.C, PhysicalKey.C, KeyModifiers.Control | KeyModifiers.Alt, RawInputModifiers.Control | RawInputModifiers.Alt)]
+    public async Task SetClipboardShortcut_WithFocusedControlRecordingAndReassignment_UsesLatestGestureAndControlV(
+        Key key, PhysicalKey physicalKey, KeyModifiers modifiers, RawInputModifiers rawModifiers)
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(typeof(SkiaViewerTestSession), SessionLock, async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            string path = await CreateImageAsync(directory.DirectoryPath);
+            PicaImageItem original = new(ItemId, path, "original.png");
+            PicaViewerRequest request = new(new PicaImageItem[] { original }, ItemId);
+            int reads = 0;
+            DelegateClipboardImageReader reader = new()
+            {
+                Read = _ =>
+                {
+                    reads++;
+                    return Task.FromResult<IReadOnlyList<ClipboardImageInput>>(
+                        new ClipboardImageInput[] { ClipboardImageInput.FromBitmap(CreateBitmap(SourceImageWidth, SourceImageHeight)) });
+                }
+            };
+            ImageViewerWindow window = CreateWindow(request, new ImageViewerState { IsFastLoadingEnabled = false },
+                new RecordingImageChannelBitmapLoader(), clipboardReader: reader);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer must expose its view.");
+            ImageViewerSessionViewModel session = view.DataContext as ImageViewerSessionViewModel
+                ?? throw new InvalidOperationException("The viewer must expose its session.");
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(ClipboardNavigationTestTimeoutSeconds));
+
+            try
+            {
+                window.Show();
+                await WaitForImageSourceAsync(view, source => source.PixelSize == new PixelSize(SourceImageWidth, SourceImageHeight), timeout.Token);
+                window.SetClipboardShortcut(new ConfiguredViewerClipboardShortcut(key, modifiers));
+                view.ViewerArea.Focusable = true;
+                view.ViewerArea.AddHandler(InputElement.KeyDownEvent, (_, args) => args.Handled = true,
+                    RoutingStrategies.Tunnel);
+                view.ViewerArea.Focus().Should().BeTrue();
+                window.SetValue(Pica.Viewer.Controls.ViewerSettingRecording.IsActiveProperty, true);
+                window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
+                window.KeyPress(key, rawModifiers, physicalKey, null);
+                window.KeyPress(Key.V, RawInputModifiers.Control, PhysicalKey.V, null);
+                await window.PasteFromClipboardAsync(timeout.Token);
+                reads.Should().Be(0);
+                session.IsMainImageModeActive.Should().BeTrue();
+                window.ClearValue(Pica.Viewer.Controls.ViewerSettingRecording.IsActiveProperty);
+                window.KeyPress(key, rawModifiers, physicalKey, null);
+                await WaitForImageSourceAsync(view, _ => session.IsClipboardImageActive, timeout.Token);
+                Bitmap firstPaste = view.Image.Source as Bitmap
+                    ?? throw new InvalidOperationException("The pasted bitmap must be shown.");
+                window.SetClipboardShortcut(new ConfiguredViewerClipboardShortcut(Key.F9));
+                window.KeyPress(key, rawModifiers, physicalKey, null);
+                reads.Should().Be(1);
+                window.KeyPress(Key.F9, RawInputModifiers.None, PhysicalKey.F9, null);
+                await WaitForImageSourceAsync(view, source => !ReferenceEquals(source, firstPaste), timeout.Token);
+                Bitmap secondPaste = view.Image.Source as Bitmap
+                    ?? throw new InvalidOperationException("The next pasted bitmap must be shown.");
+                window.KeyPress(Key.V, RawInputModifiers.Control, PhysicalKey.V, null);
+                await WaitForImageSourceAsync(view, source => !ReferenceEquals(source, secondPaste), timeout.Token);
+
+                reads.Should().Be(3);
+                session.IsClipboardImageActive.Should().BeTrue();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public async Task ModifiedNavigationKeys_WithDifferentStillImageSizes_NavigateAndResetImageLayout()
     {
         await DispatchAsync(async () =>
@@ -1629,7 +1843,8 @@ public sealed class ImageViewerWindowTests
         ImageViewerState state,
         IImageChannelBitmapLoader channelBitmapLoader,
         IPlatformFileActions? platformFileActions = null,
-        RecordingViewerActionDispatcher? actionDispatcher = null)
+        RecordingViewerActionDispatcher? actionDispatcher = null,
+        IClipboardImageReader? clipboardReader = null)
     {
         ImageFormatRegistry formatRegistry = new();
 
@@ -1644,7 +1859,8 @@ public sealed class ImageViewerWindowTests
                 formatRegistry,
                 MultiFrameImageDecoderTestFactory.Create()),
             platformFileActions,
-            actionDispatcher);
+            actionDispatcher,
+            clipboardReader);
     }
 
     private static ImageViewerWindow CreateWindow(
@@ -1654,7 +1870,8 @@ public sealed class ImageViewerWindowTests
         IImagePreviewLoader previewLoader,
         IFullResolutionImageLoader fullResolutionLoader,
         IPlatformFileActions? platformFileActions = null,
-        RecordingViewerActionDispatcher? actionDispatcher = null)
+        RecordingViewerActionDispatcher? actionDispatcher = null,
+        IClipboardImageReader? clipboardReader = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(state);
@@ -1669,7 +1886,8 @@ public sealed class ImageViewerWindowTests
             channelBitmapLoader,
             previewLoader,
             fullResolutionLoader,
-            platformFileActions);
+            platformFileActions,
+            clipboardReader);
 
         return composer.Create(
             request,
@@ -1704,7 +1922,8 @@ public sealed class ImageViewerWindowTests
         IImageChannelBitmapLoader channelBitmapLoader,
         IImagePreviewLoader? previewLoader = null,
         IFullResolutionImageLoader? fullResolutionLoader = null,
-        IPlatformFileActions? platformFileActions = null)
+        IPlatformFileActions? platformFileActions = null,
+        IClipboardImageReader? clipboardReader = null)
     {
         ArgumentNullException.ThrowIfNull(stateService);
         ArgumentNullException.ThrowIfNull(uiDispatcher);
@@ -1739,7 +1958,8 @@ public sealed class ImageViewerWindowTests
         ViewerClipboardFactory clipboardFactory = new(
             clipboardImagePreparer,
             flushCoordinator,
-            NullLogger<AvaloniaClipboardDataWriter>.Instance);
+            NullLogger<AvaloniaClipboardDataWriter>.Instance,
+            clipboardReader ?? new DelegateClipboardImageReader());
         ImageViewerInteractionFactory interactionFactory = new(
             clipboardFactory,
             formatRegistry,
@@ -1750,7 +1970,10 @@ public sealed class ImageViewerWindowTests
             errorHandler,
             NullLogger<ImageViewerActionsViewModel>.Instance,
             NullLogger<ImageViewerOpenWithViewModel>.Instance,
-            NullLogger<TemporaryImageFileStore>.Instance);
+            NullLogger<TemporaryImageFileStore>.Instance,
+            new FullResolutionImageLoader(formatRegistry, MultiFrameImageDecoderTestFactory.Create()),
+            new ClipboardImageFormatCatalog(formatRegistry),
+            NullLogger<ViewerClipboardPasteService>.Instance);
         ImageViewerWindowComposer composer = new(
             presentationFactory,
             settingsFactory,

@@ -17,6 +17,8 @@ internal sealed partial class ImageViewerSessionViewModel :
     internal IReadOnlyList<PicaActionDefinition> Actions => _session.Actions;
     internal PicaImageItem? SelectedItem => _session.SelectedItem;
     internal int SelectedIndex => _session.SelectedIndex;
+    internal bool IsClipboardImageActive => _session.IsClipboardImageActive;
+    internal long SourceResetVersion => _session.SourceResetVersion;
     internal int PreferredNavigationDirection =>
         _session.PreferredNavigationDirection;
     internal bool IsChannelModeActive => _session.IsChannelModeActive;

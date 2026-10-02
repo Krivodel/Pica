@@ -75,7 +75,7 @@ public sealed class DependencyInjectionTests
                 .GetServices<IViewerSettingContributionProvider>()
                 .ToList();
 
-        contributions.Should().ContainSingle()
+        contributions.Should().ContainSingle(contribution => contribution is PicaBackgroundIdleSettingContributionProvider)
             .Which.Should().BeOfType<
                 PicaBackgroundIdleSettingContributionProvider>();
     }

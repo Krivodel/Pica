@@ -4,6 +4,8 @@
                      Color="{StaticResource ViewerBackgroundColor}" />
     <SolidColorBrush x:Key="ViewerDestructiveIconBrush"
                      Color="{StaticResource ViewerDestructiveIconColor}" />
+    <SolidColorBrush x:Key="ViewerErrorForegroundBrush"
+                     Color="{StaticResource ViewerErrorForegroundColor}" />
     <SolidColorBrush x:Key="ViewerFloatingMenuBrush"
                      Color="{StaticResource ViewerFloatingMenuColor}" />
     <SolidColorBrush x:Key="ViewerInformationPanelBrush"

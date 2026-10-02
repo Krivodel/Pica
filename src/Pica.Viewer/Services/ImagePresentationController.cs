@@ -166,7 +166,7 @@ internal sealed class ImagePresentationController :
         DecodedImageContent content)
     {
         ArgumentNullException.ThrowIfNull(item);
-        ArgumentException.ThrowIfNullOrWhiteSpace(fullPath);
+        ArgumentNullException.ThrowIfNull(fullPath);
         ArgumentNullException.ThrowIfNull(content);
         Bitmap? previewBitmap = displayedPreview?.Bitmap;
         bool wasPreviewDisplayed = (previewBitmap is not null)
@@ -174,7 +174,7 @@ internal sealed class ImagePresentationController :
         PixelSize previousPixelSize =
             previewBitmap?.PixelSize ?? new PixelSize();
         PicaImageItem displayedItem = item with { FilePath = fullPath };
-        ReplaceFullResolutionContent(displayedItem, content);
+        ReplaceFullResolutionContent(displayedItem, content, isFileBacked: !string.IsNullOrEmpty(fullPath));
         DecodedImage image = content.Groups[
             content.InitialGroupIndex].GetRequiredImage();
         Bitmap initialFrameBitmap = GetRequiredFrame(

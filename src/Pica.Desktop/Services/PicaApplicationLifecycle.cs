@@ -145,6 +145,12 @@ internal sealed class PicaApplicationLifecycle : IDisposable
             : Array.Empty<string>();
         _canWaitInBackground = _hostConnection is null;
         ShowMainWindow(desktopLifetime, window);
+
+        if ((_hostConnection is null) && PicaLaunchArguments.IsClipboard(restartArguments))
+        {
+            await window.PasteFromClipboardAsync(ct);
+        }
+
         _updateCoordinator.StartMonitoring(
             window,
             update => RequestUpdateRestartAsync(

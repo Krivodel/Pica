@@ -144,6 +144,32 @@ internal sealed class ImageLoadCoordinator :
         return _isFullResolutionReady;
     }
 
+    internal void ApplyClipboardImage(PicaImageItem item, DecodedImageContent content)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(content);
+        ThrowIfDisposed();
+        GetRequiredInitialFrameBitmap(content);
+        CancelPendingWork();
+        _session.SetClipboardImage(item);
+        _presentationSink.BeginImageLoad(item);
+        _presentationSink.ApplyFullResolution(item, item.FilePath, null, content);
+        _isFullResolutionReady = true;
+    }
+
+    internal void ApplyClipboardImage(PicaImageItem item, IPicaImageBitmapLease lease)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(lease);
+        ThrowIfDisposed();
+        bool hasAlpha = HasAlpha(lease.Bitmap);
+        CancelPendingWork();
+        _session.SetClipboardImage(item);
+        _presentationSink.BeginImageLoad(item);
+        _presentationSink.ApplyFullResolution(item, lease, false, hasAlpha);
+        _isFullResolutionReady = true;
+    }
+
     private static Bitmap GetRequiredInitialFrameBitmap(
         DecodedImageContent content)
     {
@@ -781,8 +807,8 @@ internal sealed class ImageLoadCoordinator :
 
         if (string.Equals(
             e.PropertyName,
-            nameof(ImageViewerSession.SelectedIndex),
-            StringComparison.Ordinal))
+            nameof(ImageViewerSession.SelectedItem),
+            StringComparison.Ordinal) && !_session.IsClipboardImageActive)
         {
             LoadSelectedImage();
         }

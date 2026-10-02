@@ -1,6 +1,7 @@
 using System.Reflection;
 
 using Avalonia.Input.Platform;
+using Avalonia.Input;
 
 namespace Pica.Viewer.Tests.TestDoubles;
 
@@ -8,6 +9,7 @@ internal sealed class RecordingClipboard
 {
     internal IClipboard Clipboard { get; }
     internal bool? SetDataHasUiThreadAccess { get; private set; }
+    internal IAsyncDataTransfer? Data { get; set; }
 
     internal RecordingClipboard()
     {

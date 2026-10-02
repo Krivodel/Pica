@@ -4,16 +4,19 @@ internal static class PlatformClipboardImageWriterFactory
 {
     public static IPlatformClipboardImageWriter Create(
         AvaloniaClipboardDataWriter clipboardDataWriter,
-        ClipboardImagePreparer imagePreparer)
+        ClipboardImagePreparer imagePreparer,
+        ViewerWindowPlatformContext platformContext)
     {
         ArgumentNullException.ThrowIfNull(clipboardDataWriter);
         ArgumentNullException.ThrowIfNull(imagePreparer);
+        ArgumentNullException.ThrowIfNull(platformContext);
 
         if (OperatingSystem.IsWindows())
         {
             return new WindowsPlatformClipboardImageWriter(
                 clipboardDataWriter,
-                imagePreparer);
+                imagePreparer,
+                platformContext);
         }
 
         string pngFormat = OperatingSystem.IsMacOS()

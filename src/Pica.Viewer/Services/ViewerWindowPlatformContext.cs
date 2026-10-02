@@ -42,4 +42,18 @@ internal sealed class ViewerWindowPlatformContext
 
         return Task.FromResult(clipboard);
     }
+
+    internal async Task<nint> GetWindowHandleAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        if (_topLevel is null)
+        {
+            return nint.Zero;
+        }
+
+        return await _topLevel.Dispatcher.InvokeAsync(
+            () => _topLevel.TryGetPlatformHandle()?.Handle ?? nint.Zero,
+            Avalonia.Threading.DispatcherPriority.Normal, ct);
+    }
 }

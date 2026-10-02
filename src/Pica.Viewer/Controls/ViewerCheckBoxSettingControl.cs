@@ -1,15 +1,20 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
 
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 
 namespace Pica.Viewer.Controls;
 
 internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
 {
-    internal override Control Control => CheckBox;
+    internal override Control Control => _panel ?? (Control)CheckBox;
     internal CheckBox CheckBox { get; }
+    internal TextBlock? ErrorText => _error;
+    internal StackPanel? DependentSettingsPanel => _dependentPanel;
     internal bool IsEnabled
     {
         get => CheckBox.IsEnabled;
@@ -17,6 +22,10 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
     }
 
     private readonly IAsyncRelayCommand<bool> _changedCommand;
+    private readonly ILogger? _logger;
+    private readonly StackPanel? _panel;
+    private readonly ViewerSettingErrorControl? _error;
+    private readonly StackPanel? _dependentPanel;
     private bool _isChangingValue;
     private bool _currentValue;
 
@@ -25,7 +34,11 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
         bool initialValue,
         IAsyncRelayCommand<bool> changedCommand,
         bool isEnabled = true,
-        double topSpacing = 0d)
+        double topSpacing = 0d,
+        ILogger? logger = null,
+        Func<Exception, string>? getErrorMessage = null,
+        bool wrapContent = false,
+        IReadOnlyList<ViewerSettingControl>? dependentSettings = null)
         : base(null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
@@ -33,6 +46,7 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
         _changedCommand = changedCommand
             ?? throw new ArgumentNullException(nameof(changedCommand));
         _currentValue = initialValue;
+        _logger = logger;
 
         CheckBox = new CheckBox
         {
@@ -42,6 +56,41 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
             Margin = new Thickness(0d, topSpacing, 0d, 0d)
         };
         CheckBox.IsCheckedChanged += OnIsCheckedChanged;
+
+        if (wrapContent)
+        {
+            CheckBox.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+            CheckBox.Content = new TextBlock { Text = content, TextWrapping = TextWrapping.Wrap };
+        }
+
+        if (getErrorMessage is not null)
+        {
+            _error = new ViewerSettingErrorControl(getErrorMessage,
+                logger ?? throw new ArgumentNullException(nameof(logger)));
+        }
+
+        if (dependentSettings is { Count: > 0 })
+        {
+            _dependentPanel = ViewerSettingsPanel.CreateContent(dependentSettings, false);
+            _dependentPanel.IsVisible = initialValue;
+            _dependentPanel.Margin = new Thickness(0d, ErrorSpacing, 0d, 0d);
+        }
+
+        if ((_error is not null) || (_dependentPanel is not null))
+        {
+            _panel = new StackPanel { Spacing = ErrorSpacing };
+            _panel.Children.Add(CheckBox);
+
+            if (_error is not null)
+            {
+                _panel.Children.Add(_error);
+            }
+
+            if (_dependentPanel is not null)
+            {
+                _panel.Children.Add(_dependentPanel);
+            }
+        }
     }
 
     internal void SetValue(bool value)
@@ -52,6 +101,11 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
         try
         {
             CheckBox.IsChecked = value;
+
+            if (_dependentPanel is not null)
+            {
+                _dependentPanel.IsVisible = value;
+            }
         }
         finally
         {
@@ -77,7 +131,35 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
             return;
         }
 
-        _currentValue = isChecked;
-        await _changedCommand.ExecuteAsync(isChecked);
+        bool wasEnabled = CheckBox.IsEnabled;
+        CheckBox.IsEnabled = false;
+
+        try
+        {
+            _error?.ClearError();
+            await _changedCommand.ExecuteAsync(isChecked);
+            SetValue(isChecked);
+        }
+        catch (OperationCanceledException)
+        {
+            SetValue(_currentValue);
+        }
+        catch (Exception ex) when (_logger is not null)
+        {
+            if (_error is not null)
+            {
+                _error.ShowError(ex);
+            }
+            else
+            {
+                _logger.LogError(ex, "Pica could not change a checkbox setting");
+            }
+
+            SetValue(_currentValue);
+        }
+        finally
+        {
+            CheckBox.IsEnabled = wasEnabled;
+        }
     }
 }

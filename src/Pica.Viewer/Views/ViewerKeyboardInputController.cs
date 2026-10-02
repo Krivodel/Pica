@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Input;
 
 using Pica.Viewer.Services;
+using Pica.Viewer.Controls;
 using Pica.Viewer.ViewModels;
 
 namespace Pica.Viewer.Views;
@@ -34,6 +35,7 @@ internal sealed class ViewerKeyboardInputController
     private readonly ViewerSettingsPanelController _settingsPanel;
     private readonly ViewerPointerInputController _pointerInput;
     private readonly Action _close;
+    private IViewerClipboardShortcut? _clipboardShortcut;
     private KeyModifiers _activeKeyModifiers;
 
     internal ViewerKeyboardInputController(
@@ -72,13 +74,43 @@ internal sealed class ViewerKeyboardInputController
         _close = close ?? throw new ArgumentNullException(nameof(close));
     }
 
-    internal void OnPreviewKeyDown(
+    internal void SetClipboardShortcut(IViewerClipboardShortcut? shortcut)
+    {
+        _clipboardShortcut = shortcut;
+    }
+
+    internal void ResetModifiersAfterRecording()
+    {
+        _activeKeyModifiers = KeyModifiers.None;
+        _chromeVisibility.SetControlModifierActive(false);
+        _chromeVisibility.Update(_pointerInput.LastPointerPosition);
+    }
+
+    internal async void OnPreviewKeyDown(
         object? sender,
         KeyEventArgs e)
     {
         _ = sender;
 
-        if (e.Key != Key.Tab)
+        if (ViewerSettingRecording.IsActive(Avalonia.Controls.TopLevel.GetTopLevel(_view.SettingsPanel)))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        ViewerKeyboardAction action = ViewerKeyboardShortcutPolicy.Resolve(e.Key, e.PhysicalKey, e.KeyModifiers);
+
+        if ((action == ViewerKeyboardAction.Paste)
+            || (_clipboardShortcut?.Matches(e.Key, e.PhysicalKey, e.KeyModifiers) == true))
+        {
+            e.Handled = true;
+
+            await _actions.PasteFromClipboardAsync(CancellationToken.None);
+
+            return;
+        }
+
+        if (action != ViewerKeyboardAction.ToggleImageMode)
         {
             return;
         }
@@ -97,11 +129,13 @@ internal sealed class ViewerKeyboardInputController
     {
         _ = sender;
 
-        if (_actions.IsRunning)
+        if (_actions.IsRunning || ViewerSettingRecording.IsActive(Avalonia.Controls.TopLevel.GetTopLevel(_view.SettingsPanel)))
         {
             e.Handled = true;
             return;
         }
+
+        ViewerKeyboardAction action = ViewerKeyboardShortcutPolicy.Resolve(e.Key, e.PhysicalKey, e.KeyModifiers);
 
         _activeKeyModifiers = e.KeyModifiers;
         bool isControlModifierActive =
@@ -116,9 +150,16 @@ internal sealed class ViewerKeyboardInputController
             _chromeVisibility.HideControls();
         }
 
-        if (e.Key == Key.Escape)
+        if (action == ViewerKeyboardAction.Escape)
         {
             HandleEscape(e);
+            return;
+        }
+
+        if (_session.IsClipboardImageActive && ViewerKeyboardShortcutPolicy.TryGetNavigationDirection(e.Key, out int returnDirection))
+        {
+            Navigate(returnDirection, e.KeyModifiers);
+            e.Handled = true;
             return;
         }
 
@@ -132,21 +173,21 @@ internal sealed class ViewerKeyboardInputController
             return;
         }
 
-        if (e.Key == Key.F)
+        if (action == ViewerKeyboardAction.ToggleFiltering)
         {
             _settings.ToggleFilteringCommand.Execute(null);
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.T)
+        if (action == ViewerKeyboardAction.ToggleBackground)
         {
             _settings.ToggleCheckerboardBackgroundCommand.Execute(null);
             e.Handled = true;
             return;
         }
 
-        if (TryGetFrameNavigationDirection(
+        if (ViewerKeyboardShortcutPolicy.TryGetFrameNavigationDirection(
             e.Key,
             e.PhysicalKey,
             out int frameNavigationDirection))
@@ -163,12 +204,12 @@ internal sealed class ViewerKeyboardInputController
             return;
         }
 
-        if (e.Key == Key.Space)
+        if (action == ViewerKeyboardAction.ResetViewport)
         {
             _viewport.BeginResetScaleAndCenterAnimation();
             e.Handled = true;
         }
-        else if (TryGetNavigationDirection(
+        else if (ViewerKeyboardShortcutPolicy.TryGetNavigationDirection(
             e.Key,
             out int navigationDirection))
         {
@@ -177,9 +218,7 @@ internal sealed class ViewerKeyboardInputController
                 e.KeyModifiers);
             e.Handled = true;
         }
-        else if ((e.Key == Key.C)
-            && ViewerInputModifiers.IsControlPressed(
-                e.KeyModifiers))
+        else if (action == ViewerKeyboardAction.Copy)
         {
             await _actions.CopyCurrentWithFeedbackAsync(
                 CancellationToken.None);
@@ -192,6 +231,12 @@ internal sealed class ViewerKeyboardInputController
         KeyEventArgs e)
     {
         _ = sender;
+
+        if (ViewerSettingRecording.IsActive(Avalonia.Controls.TopLevel.GetTopLevel(_view.SettingsPanel)))
+        {
+            e.Handled = true;
+            return;
+        }
 
         _activeKeyModifiers = e.KeyModifiers;
         bool isControlModifierActive =
@@ -208,49 +253,6 @@ internal sealed class ViewerKeyboardInputController
 
         _chromeVisibility.Update(
             _pointerInput.LastPointerPosition);
-    }
-
-    private static bool TryGetNavigationDirection(
-        Key key,
-        out int direction)
-    {
-        if ((key == Key.Left) || (key == Key.A))
-        {
-            direction = -1;
-            return true;
-        }
-
-        if ((key == Key.Right) || (key == Key.D))
-        {
-            direction = 1;
-            return true;
-        }
-
-        direction = 0;
-        return false;
-    }
-
-    private static bool TryGetFrameNavigationDirection(
-        Key key,
-        PhysicalKey physicalKey,
-        out int direction)
-    {
-        if ((key == Key.OemComma)
-            || (physicalKey == PhysicalKey.Comma))
-        {
-            direction = -1;
-            return true;
-        }
-
-        if ((key == Key.OemPeriod)
-            || (physicalKey == PhysicalKey.Period))
-        {
-            direction = 1;
-            return true;
-        }
-
-        direction = 0;
-        return false;
     }
 
     private int GetEffectiveZoomSpeed(
@@ -320,7 +322,7 @@ internal sealed class ViewerKeyboardInputController
         else if ((_session.IsChannelModeActive
                 || AlternateActionModifierPolicy.IsActive(
                     e.KeyModifiers))
-            && TryGetNavigationDirection(
+            && ViewerKeyboardShortcutPolicy.TryGetNavigationDirection(
                 e.Key,
                 out int channelDirection))
         {

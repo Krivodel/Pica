@@ -9,8 +9,17 @@ internal sealed record PicaBackgroundActivationEndpoint(
     string PipeName,
     string AvailabilityMutexName)
 {
+    internal int? ProcessId { get; init; }
+
     public static PicaBackgroundActivationEndpoint Default { get; } =
         CreateDefault();
+
+    internal static PicaBackgroundActivationEndpoint ForProcess(int processId)
+    {
+        string pipeName = $"{Default.PipeName}.{processId}";
+
+        return new PicaBackgroundActivationEndpoint(pipeName, $"{pipeName}.Available") { ProcessId = processId };
+    }
 
     private static PicaBackgroundActivationEndpoint CreateDefault()
     {

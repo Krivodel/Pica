@@ -2,9 +2,9 @@ using Avalonia.Media.Imaging;
 
 namespace Pica.Viewer.Services;
 
-internal sealed class ImagePresentationBitmapLease : IDisposable
+internal sealed class ImagePresentationBitmapLease : IPicaImageBitmapLease
 {
-    internal Bitmap Bitmap { get; }
+    public Bitmap Bitmap { get; }
 
     private Action<Bitmap>? _release;
 

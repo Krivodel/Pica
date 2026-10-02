@@ -3,6 +3,7 @@ namespace Pica.Viewer.Services;
 internal sealed class ViewerClipboardServices : IDisposable
 {
     internal IViewerClipboardWriter Writer { get; }
+    internal IClipboardImageReader Reader { get; }
 
     private readonly AvaloniaClipboardDataWriter _dataWriter;
     private readonly IDisposable _flushRegistration;
@@ -10,9 +11,11 @@ internal sealed class ViewerClipboardServices : IDisposable
     internal ViewerClipboardServices(
         IViewerClipboardWriter writer,
         AvaloniaClipboardDataWriter dataWriter,
-        IDisposable flushRegistration)
+        IDisposable flushRegistration,
+        IClipboardImageReader reader)
     {
         Writer = writer ?? throw new ArgumentNullException(nameof(writer));
+        Reader = reader ?? throw new ArgumentNullException(nameof(reader));
         _dataWriter = dataWriter
             ?? throw new ArgumentNullException(nameof(dataWriter));
         _flushRegistration = flushRegistration

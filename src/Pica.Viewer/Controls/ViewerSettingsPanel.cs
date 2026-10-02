@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 
 namespace Pica.Viewer.Controls;
@@ -19,21 +20,29 @@ internal sealed class ViewerSettingsPanel : Border
         MaxWidth = MaximumPanelWidth;
         Padding = new Thickness(16d);
         Classes.Add("modal-glass-panel");
-        Child = CreateContent(settingControls);
+        Child = new ScrollViewer
+        {
+            Content = CreateContent(settingControls, true),
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
-    private static StackPanel CreateContent(IReadOnlyList<ViewerSettingControl> settingControls)
+    internal static StackPanel CreateContent(IReadOnlyList<ViewerSettingControl> settingControls, bool includeTitle)
     {
         StackPanel content = new()
         {
             Spacing = SectionSpacing
         };
-        content.Children.Add(new TextBlock
+        if (includeTitle)
         {
-            FontSize = 17d,
-            FontWeight = FontWeight.SemiBold,
-            Text = "Настройки"
-        });
+            content.Children.Add(new TextBlock
+            {
+                FontSize = 17d,
+                FontWeight = FontWeight.SemiBold,
+                Text = "Настройки"
+            });
+        }
 
         foreach (ViewerSettingControl settingControl in settingControls)
         {
