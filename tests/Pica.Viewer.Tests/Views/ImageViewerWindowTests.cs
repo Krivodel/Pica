@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Chrome;
+using Avalonia.Controls.Templates;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -13,6 +14,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FluentAssertions;
 using SkiaSharp;
@@ -163,6 +165,257 @@ public sealed class ImageViewerWindowTests
                     .Should()
                     .Be(ViewerWindowMode.FullScreen);
                 window.WindowState.Should().Be(WindowState.FullScreen);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(WindowResizeBehavior.Free, -1)]
+    [InlineData(WindowResizeBehavior.Free, 0)]
+    [InlineData(WindowResizeBehavior.Free, 1)]
+    [InlineData(WindowResizeBehavior.FitWhenWindowed, -1)]
+    [InlineData(WindowResizeBehavior.FitWhenWindowed, 0)]
+    [InlineData(WindowResizeBehavior.FitWhenWindowed, 1)]
+    [InlineData(WindowResizeBehavior.AlwaysFitImage, -1)]
+    [InlineData(WindowResizeBehavior.AlwaysFitImage, 0)]
+    [InlineData(WindowResizeBehavior.AlwaysFitImage, 1)]
+    public async Task Resize_AtTopOfTitleBar_PreservesSizingBehaviorAndOppositeEdges(
+        WindowResizeBehavior resizeBehavior,
+        int horizontalDirection)
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+            ImageViewerState state = CreateWindowedState();
+            state.IsFastLoadingEnabled = false;
+            state.ResizeBehavior = resizeBehavior;
+            ImageViewerWindow window = await CreateLoadedWindowAsync(directory.DirectoryPath, state, timeout.Token);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+            const double EdgeInset = 1d;
+            const double HorizontalDrag = 20d;
+            const double VerticalDrag = 30d;
+
+            try
+            {
+                PixelPoint initialPosition = window.Position;
+                Size initialSize = window.ClientSize;
+                double titleBarHeight = initialSize.Height - view.ViewerArea.Bounds.Height;
+                double startX = horizontalDirection switch
+                {
+                    < 0 => EdgeInset,
+                    > 0 => initialSize.Width - EdgeInset,
+                    _ => initialSize.Width / 2d
+                };
+                Point start = new(startX, EdgeInset);
+                Point end = new(start.X + (horizontalDirection * HorizontalDrag), start.Y + VerticalDrag);
+                window.MouseMove(start, RawInputModifiers.None);
+
+                window.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
+                window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+                window.MouseUp(end, MouseButton.Left, RawInputModifiers.None);
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+
+                window.CurrentWindowMode.Should().Be(ViewerWindowMode.Windowed);
+                window.ClientSize.Height.Should().BeApproximately(initialSize.Height - VerticalDrag, 1d);
+                window.Position.Y.Should().Be(initialPosition.Y + (int)VerticalDrag);
+                (window.Position.Y + window.ClientSize.Height).Should().BeApproximately(
+                    initialPosition.Y + initialSize.Height, 1d);
+
+                if (horizontalDirection < 0)
+                {
+                    (window.Position.X + window.ClientSize.Width).Should().BeApproximately(
+                        initialPosition.X + initialSize.Width, 1d);
+                }
+                else
+                {
+                    window.Position.X.Should().Be(initialPosition.X);
+                }
+
+                if (resizeBehavior == WindowResizeBehavior.AlwaysFitImage)
+                {
+                    double expectedWidth = (window.ClientSize.Height - titleBarHeight)
+                        * SourceImageWidth / SourceImageHeight;
+                    window.ClientSize.Width.Should().BeApproximately(expectedWidth, 1d);
+                }
+                else
+                {
+                    window.ClientSize.Width.Should().BeApproximately(
+                        initialSize.Width + (Math.Abs(horizontalDirection) * HorizontalDrag), 1d);
+                }
+
+                view.Image.Width.Should().BeApproximately(
+                    Math.Min(view.ViewerArea.Bounds.Width,
+                        view.ViewerArea.Bounds.Height * SourceImageWidth / SourceImageHeight), 1d);
+                view.Image.Height.Should().BeApproximately(view.Image.Width * SourceImageHeight / SourceImageWidth, 1d);
+                double releasedHeight = window.Height;
+                window.MouseMove(new Point(end.X, end.Y + VerticalDrag), RawInputModifiers.None);
+                window.Height.Should().Be(releasedHeight);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(640d, 480d)]
+    [InlineData(900d, 700d)]
+    public async Task WindowResizeOverlay_InWindowedMode_CoversWindowEdgesAndLeavesTitleBarInteractive(
+        double width,
+        double height)
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerState state = CreateWindowedState();
+            state.ResizeBehavior = WindowResizeBehavior.Free;
+            state.WindowWidth = width;
+            state.WindowHeight = height;
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), state, new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+            const double EdgeInset = 17d;
+            const double CornerInset = 35d;
+            const double CornerEdgeInset = 1d;
+
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                await window.Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                Size size = window.ClientSize;
+                double titleBarHeight = size.Height - view.ViewerArea.Bounds.Height;
+                (Point Position, WindowSizingEdges Edges)[] resizePoints =
+                [
+                    (new Point(EdgeInset, size.Height / 2d), WindowSizingEdges.Left),
+                    (new Point(size.Width - EdgeInset, size.Height / 2d), WindowSizingEdges.Right),
+                    (new Point(size.Width / 2d, EdgeInset), WindowSizingEdges.Top),
+                    (new Point(size.Width / 2d, size.Height - EdgeInset), WindowSizingEdges.Bottom),
+                    (new Point(CornerInset, CornerEdgeInset), WindowSizingEdges.TopLeft),
+                    (new Point(size.Width - CornerInset, CornerEdgeInset), WindowSizingEdges.TopRight),
+                    (new Point(CornerInset, size.Height - CornerEdgeInset), WindowSizingEdges.BottomLeft),
+                    (new Point(size.Width - CornerInset, size.Height - CornerEdgeInset), WindowSizingEdges.BottomRight),
+                    (new Point(CornerEdgeInset, CornerInset), WindowSizingEdges.TopLeft),
+                    (new Point(size.Width - CornerEdgeInset, CornerInset), WindowSizingEdges.TopRight),
+                    (new Point(CornerEdgeInset, size.Height - CornerInset), WindowSizingEdges.BottomLeft),
+                    (new Point(size.Width - CornerEdgeInset, size.Height - CornerInset), WindowSizingEdges.BottomRight)
+                ];
+
+                foreach ((Point position, WindowSizingEdges edges) in resizePoints)
+                {
+                    AssertResizeEdge(window, position, edges);
+                }
+
+                Visual titleBarHit = window.InputHitTest(new Point(size.Width / 2d, titleBarHeight / 2d))
+                    .Should().BeAssignableTo<Visual>().Subject;
+                titleBarHit.GetVisualAncestors().Should().NotContain(view.WindowResizeOverlay);
+
+                foreach (Control button in window.GetVisualDescendants().OfType<Button>()
+                    .Where(button => button.Name is "PART_CloseButton" or "PART_MinimizeButton" or "PART_PinButton")
+                    .Cast<Control>().Concat(window.RightWindowTitleBarControls))
+                {
+                    Point[] buttonPoints =
+                    [
+                        new Point(button.Bounds.Width / 2d, button.Bounds.Height / 2d),
+                        new Point(button.Bounds.Width / 2d, CornerEdgeInset),
+                        new Point(CornerEdgeInset, button.Bounds.Height / 2d),
+                        new Point(button.Bounds.Width - CornerEdgeInset, button.Bounds.Height / 2d),
+                        new Point(button.Bounds.Width / 2d, button.Bounds.Height - CornerEdgeInset)
+                    ];
+
+                    foreach (Point buttonPoint in buttonPoints)
+                    {
+                        Point point = button.TranslatePoint(buttonPoint, window)
+                            ?? throw new InvalidOperationException("The title bar button must be attached to the window.");
+                        Visual hit = window.InputHitTest(point).Should().BeAssignableTo<Visual>().Subject;
+                        hit.GetVisualAncestors().Prepend(hit).Should().Contain(button);
+                    }
+                }
+
+                Control settingsButton = window.RightWindowTitleBarControls.Single();
+                Point settingsCenter = settingsButton.TranslatePoint(
+                    new Point(settingsButton.Bounds.Width / 2d, settingsButton.Bounds.Height / 2d), window)
+                    ?? throw new InvalidOperationException("The settings button must be attached to the window.");
+                window.MouseDown(settingsCenter, MouseButton.Left, RawInputModifiers.None);
+                window.MouseUp(settingsCenter, MouseButton.Left, RawInputModifiers.None);
+                view.SettingsPanel.IsVisible.Should().BeTrue();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task WindowResizeOverlay_AfterFullScreenRoundTrip_RestoresWindowEdges()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+
+            try
+            {
+                window.Show();
+
+                window.WindowState = WindowState.FullScreen;
+                window.UpdateLayout();
+
+                view.WindowResizeOverlay.IsVisible.Should().BeFalse();
+                Visual fullScreenHit = window.InputHitTest(new Point(window.ClientSize.Width / 2d, 1d))
+                    .Should().BeAssignableTo<Visual>().Subject;
+                fullScreenHit.GetVisualAncestors().Should().NotContain(view.WindowResizeOverlay);
+
+                window.WindowState = WindowState.Normal;
+                window.UpdateLayout();
+
+                view.WindowResizeOverlay.IsVisible.Should().BeTrue();
+                AssertResizeEdge(window, new Point(window.ClientSize.Width / 2d, 1d), WindowSizingEdges.Top);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task WindowResizeOverlay_AfterTemplateReapplied_ReusesSingleOverlay()
+    {
+        await DispatchAsync(() =>
+        {
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+
+            try
+            {
+                window.Show();
+                IControlTemplate template = window.Template
+                    ?? throw new InvalidOperationException("The window template must be applied.");
+                Panel originalParent = view.WindowResizeOverlay.Parent.Should().BeAssignableTo<Panel>().Subject;
+
+                window.Template = null;
+                window.ApplyTemplate();
+                window.Template = template;
+                window.ApplyTemplate();
+                window.UpdateLayout();
+
+                originalParent.Children.Should().NotContain(view.WindowResizeOverlay);
+                window.GetVisualDescendants().Should().ContainSingle(visual => ReferenceEquals(visual, view.WindowResizeOverlay));
+                AssertResizeEdge(window, new Point(window.ClientSize.Width / 2d, 1d), WindowSizingEdges.Top);
             }
             finally
             {
@@ -1766,6 +2019,8 @@ public sealed class ImageViewerWindowTests
             view.Image.Source.Should().BeNull();
             view.DataContext.Should().BeNull();
             window.Content.Should().BeNull();
+            view.WindowResizeOverlay.Parent.Should().BeNull();
+            view.WindowResizeOverlay.GetVisualParent().Should().BeNull();
             window.LogoContent.Should().BeNull();
             window.RightWindowTitleBarControls.Should().BeEmpty();
             window.Hosts.Should().BeEmpty();
@@ -1789,11 +2044,53 @@ public sealed class ImageViewerWindowTests
         windowReference.IsAlive.Should().BeFalse();
     }
 
+    private static void AssertResizeEdge(ImageViewerWindow window, Point position, WindowSizingEdges edges)
+    {
+        Border border = window.InputHitTest(position).Should().BeAssignableTo<Border>().Subject;
+        border.Tag.Should().Be(edges);
+    }
+
     private static PicaViewerRequest CreateEmptyRequest()
     {
         return new PicaViewerRequest(
             new List<PicaImageItem>(),
             Guid.Empty);
+    }
+
+    private static async Task<ImageViewerWindow> CreateLoadedWindowAsync(
+        string directoryPath,
+        ImageViewerState state,
+        CancellationToken ct)
+    {
+        string imagePath = await CreateImageAsync(directoryPath);
+        PicaViewerRequest request = new(new List<PicaImageItem>
+        {
+            new(ItemId, imagePath, "image.png")
+        }, ItemId);
+        ControlledFullResolutionImageLoader loader = new(new List<string> { imagePath });
+        ImageViewerWindow window = CreateWindow(request, state, new RecordingImageChannelBitmapLoader(),
+            new ImagePreviewLoader(new ImageFormatRegistry(), NullLogger<ImagePreviewLoader>.Instance), loader);
+        ImageViewerView view = window.Content as ImageViewerView
+            ?? throw new InvalidOperationException("The viewer content must be created.");
+
+        try
+        {
+            window.Show();
+            await loader.WaitUntilStartedAsync(imagePath, ct);
+            Bitmap bitmap = CreateBitmap(SourceImageWidth, SourceImageHeight);
+            loader.Complete(imagePath, bitmap);
+            await WaitForImageSourceAsync(view, bitmap, ct);
+            window.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            await window.Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+
+            return window;
+        }
+        catch (Exception)
+        {
+            window.Close();
+            throw;
+        }
     }
 
     private static ImageViewerState CreateWindowedState()

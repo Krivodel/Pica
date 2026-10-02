@@ -1,14 +1,47 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using SukiUI.Controls;
 
+using Pica.Viewer.Controls;
 using Pica.Viewer.Services;
 
 namespace Pica.Viewer.Views;
 
 public sealed partial class ImageViewerWindow : SukiWindow
 {
+    private static void DetachWindowResizeOverlay(ImageViewerView view)
+    {
+        if (view.WindowResizeOverlay.Parent is Panel parent)
+        {
+            parent.Children.Remove(view.WindowResizeOverlay);
+        }
+    }
+
+    private void AttachWindowResizeOverlay(TemplateAppliedEventArgs e)
+    {
+        Panel windowRoot = e.NameScope.Find<Panel>("PART_Root")
+            ?? throw new InvalidOperationException(
+                "The Suki window root template part is missing.");
+        Grid overlay = View.WindowResizeOverlay;
+        Control[] inputExclusions = (_titleBarControl?.GetVisualDescendants() ?? Enumerable.Empty<Visual>())
+            .OfType<Button>()
+            .Cast<Control>()
+            .Concat(RightWindowTitleBarControls)
+            .Distinct()
+            .ToArray();
+
+        foreach (ViewerWindowResizeBorderControl border in overlay.Children.OfType<ViewerWindowResizeBorderControl>())
+        {
+            border.InputExclusions = inputExclusions;
+        }
+
+        DetachWindowResizeOverlay(View);
+        windowRoot.Children.Add(overlay);
+    }
+
     private void OnWindowPositionChanged(
         object? sender,
         PixelPointEventArgs e)

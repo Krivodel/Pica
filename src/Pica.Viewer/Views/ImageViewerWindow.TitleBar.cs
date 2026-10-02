@@ -43,6 +43,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _titleBarCloseButton.IsEnabled = !_isSaving;
         _titleBarMinimizeButton.IsEnabled = !_isSaving;
         _titleBarPinButton.IsEnabled = !_isSaving;
+        AttachWindowResizeOverlay(e);
         DisableNativeTitleBarRoles(_titleBarControl);
         AddHandler(
             PointerPressedEvent,

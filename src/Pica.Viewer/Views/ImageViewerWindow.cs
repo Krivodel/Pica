@@ -282,6 +282,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
         {
             view.Image.Source = null;
             view.DataContext = null;
+            DetachWindowResizeOverlay(view);
         }
 
         if (LogoContent is Image logo)
