@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Chrome;
 using Avalonia.Controls.Primitives;
@@ -16,6 +17,11 @@ public sealed partial class ImageViewerWindow : SukiWindow
 {
     internal bool IsTitleBarOverlayEnabled => _autoHideWindowTitleBar;
 
+    private const int TitleBarRevealDurationMilliseconds = 200;
+    private const int TitleBarHideDurationMilliseconds = 120;
+
+    private static readonly QuinticEaseIn TitleBarRevealEasing = new();
+
     private readonly ImageDoubleClickTracker _titleBarDoubleClickTracker =
         new();
     private readonly List<Visual> _titleBarRoleVisuals = [];
@@ -27,28 +33,18 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private Button? _titleBarPinButton;
     private Point? _titleBarPointerPosition;
     private bool _autoHideWindowTitleBar;
+    private long _titleBarOpacityAnimationId;
 
     internal void SetTitleBarAutoHide(bool autoHideWindowTitleBar)
     {
         _autoHideWindowTitleBar = autoHideWindowTitleBar;
         UpdateTitleBarLayout();
-        UpdateTitleBarVisibility();
+        UpdateTitleBarVisibility(animate: false);
     }
 
     internal void UpdateTitleBarVisibility()
     {
-        if (_titleBarControl is null)
-        {
-            return;
-        }
-
-        bool isPointerOverTitleBar = _titleBarPointerPosition is Point pointerPosition
-            && this.TranslatePoint(pointerPosition, _titleBarControl) is Point titleBarPosition
-            && new Rect(_titleBarControl.Bounds.Size).Contains(titleBarPosition);
-        bool isVisible = IsTitleBarVisible
-            && (!_autoHideWindowTitleBar || isPointerOverTitleBar);
-        _titleBarControl.Opacity = isVisible ? 1d : 0d;
-        _titleBarControl.IsHitTestVisible = isVisible;
+        UpdateTitleBarVisibility(animate: _autoHideWindowTitleBar && IsTitleBarVisible);
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -79,6 +75,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _titleBarOverlayParent = e.NameScope.Find<Panel>("PART_Root")
             ?? throw new InvalidOperationException(
                 "The Suki window root template part is missing.");
+        _titleBarControl.Opacity = 0d;
+        _titleBarControl.IsHitTestVisible = false;
         UpdateTitleBarLayout();
         UpdateTitleBarVisibility();
         AttachWindowResizeOverlay(e);
@@ -98,8 +96,56 @@ public sealed partial class ImageViewerWindow : SukiWindow
         PointerExited += OnTitleBarPointerExited;
     }
 
+    private void UpdateTitleBarVisibility(bool animate)
+    {
+        if (_titleBarControl is null)
+        {
+            return;
+        }
+
+        bool isPointerOverTitleBar = _titleBarPointerPosition is Point pointerPosition
+            && this.TranslatePoint(pointerPosition, _titleBarControl) is Point titleBarPosition
+            && new Rect(_titleBarControl.Bounds.Size).Contains(titleBarPosition);
+        bool isVisible = IsTitleBarVisible
+            && (!_autoHideWindowTitleBar || isPointerOverTitleBar);
+        Control titleBar = _titleBarControl;
+
+        if (animate && (titleBar.IsHitTestVisible == isVisible))
+        {
+            return;
+        }
+
+        long animationId = ++_titleBarOpacityAnimationId;
+        titleBar.IsHitTestVisible = isVisible;
+        double targetOpacity = isVisible ? 1d : 0d;
+        double startingOpacity = titleBar.Opacity;
+
+        if (!animate || (startingOpacity == targetOpacity))
+        {
+            titleBar.Opacity = targetOpacity;
+            return;
+        }
+
+        TimeSpan duration = TimeSpan.FromMilliseconds(isVisible
+            ? TitleBarRevealDurationMilliseconds
+            : TitleBarHideDurationMilliseconds);
+        Interaction.AnimationRunner.Start(
+            duration,
+            () => animationId == _titleBarOpacityAnimationId,
+            progress =>
+            {
+                double easedProgress = isVisible
+                    ? TitleBarRevealEasing.Ease(progress)
+                    : ViewerFrameAnimationRunner.EaseOutCubic(progress);
+                titleBar.Opacity = startingOpacity
+                    + ((targetOpacity - startingOpacity) * easedProgress);
+            });
+    }
+
     private void DetachTitleBarInteraction()
     {
+        _titleBarOpacityAnimationId++;
+
         if (_titleBarControl is not null)
         {
             RemoveHandler(

@@ -253,8 +253,8 @@ public sealed class ImageViewerWindowTests
                     window.MouseMove(position, RawInputModifiers.None);
                     window.UpdateLayout();
 
-                    titleBar.Opacity.Should().Be(position == titleBarCenter ? 1d : 0d);
                     titleBar.IsHitTestVisible.Should().Be(position == titleBarCenter);
+                    await WaitForOpacityAsync(titleBar, position == titleBarCenter ? 1d : 0d, timeout.Token);
                     view.ViewerArea.Bounds.Should().Be(viewportBounds);
                     window.ClientSize.Should().Be(clientSize);
                     new Rect(Canvas.GetLeft(view.Image), Canvas.GetTop(view.Image),
@@ -263,8 +263,71 @@ public sealed class ImageViewerWindowTests
 
                 window.MouseMove(titleBarCenter, RawInputModifiers.None);
                 window.MouseMove(new Point(-1d, -1d), RawInputModifiers.None);
-                titleBar.Opacity.Should().Be(0d);
                 titleBar.IsHitTestVisible.Should().BeFalse();
+                await WaitForOpacityAsync(titleBar, 0d, timeout.Token);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task TitleBarAutoHide_WithBriefPointerPassAndReentry_FadesWithoutFlashingOrRestartingOnMovement()
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                Control titleBar = window.GetVisualDescendants().OfType<Control>()
+                    .Single(control => control.Name == "PART_TitleBar");
+                Point titleBarCenter = new(window.ClientSize.Width / 2d, titleBar.Bounds.Height / 2d);
+                Point imageCenter = new(window.ClientSize.Width / 2d, window.ClientSize.Height / 2d);
+
+                window.MouseMove(titleBarCenter, RawInputModifiers.None);
+
+                titleBar.Opacity.Should().BeApproximately(0d, 0.001d);
+                titleBar.IsHitTestVisible.Should().BeTrue();
+                await Task.Delay(50, timeout.Token);
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                titleBar.Opacity.Should().BeInRange(0d, 0.02d);
+                double initialOpacity = titleBar.Opacity;
+
+                window.MouseMove(imageCenter, RawInputModifiers.None);
+
+                titleBar.Opacity.Should().BeApproximately(initialOpacity, 0.001d);
+                titleBar.IsHitTestVisible.Should().BeFalse();
+                await WaitForOpacityAsync(titleBar, 0d, timeout.Token);
+                await Task.Delay(450, timeout.Token);
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                titleBar.Opacity.Should().Be(0d);
+
+                window.MouseMove(titleBarCenter, RawInputModifiers.None);
+                await Task.Delay(125, timeout.Token);
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                double partialOpacity = titleBar.Opacity;
+                partialOpacity.Should().BeInRange(0.01d, 0.9d);
+                window.MouseMove(imageCenter, RawInputModifiers.None);
+                titleBar.Opacity.Should().BeInRange(0.01d, 0.9d);
+                window.MouseMove(titleBarCenter, RawInputModifiers.None);
+                titleBar.Opacity.Should().BeInRange(0.01d, 0.9d);
+
+                for (int moveIndex = 0; moveIndex < 6; moveIndex++)
+                {
+                    await Task.Delay(50, timeout.Token);
+                    window.MouseMove(titleBarCenter + new Vector(moveIndex, 0d), RawInputModifiers.None);
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                }
+
+                titleBar.Opacity.Should().Be(1d);
+                titleBar.IsHitTestVisible.Should().BeTrue();
             }
             finally
             {
@@ -328,6 +391,7 @@ public sealed class ImageViewerWindowTests
                 new RecordingImageChannelBitmapLoader());
             ImageViewerView view = window.Content as ImageViewerView
                 ?? throw new InvalidOperationException("The viewer content must be created.");
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
 
             try
             {
@@ -357,15 +421,20 @@ public sealed class ImageViewerWindowTests
                 view.ViewerArea.Bounds.Size.Should().Be(clientSize);
 
                 window.MouseMove(new Point(clientSize.Width / 2d, titleBar.Bounds.Height / 2d), RawInputModifiers.None);
-                titleBar.Opacity.Should().Be(1d);
+                titleBar.Opacity.Should().BeApproximately(0d, 0.001d);
+                titleBar.IsHitTestVisible.Should().BeTrue();
                 window.WindowState = WindowState.FullScreen;
                 window.UpdateLayout();
                 titleBar.IsVisible.Should().BeFalse();
+                await Task.Delay(450, timeout.Token);
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                titleBar.Opacity.Should().Be(0d);
                 window.WindowState = WindowState.Normal;
                 window.UpdateLayout();
                 window.MouseMove(new Point(window.ClientSize.Width / 2d, window.ClientSize.Height / 2d), RawInputModifiers.None);
                 titleBar.IsVisible.Should().BeTrue();
-                titleBar.Opacity.Should().Be(0d);
+                titleBar.IsHitTestVisible.Should().BeFalse();
+                await WaitForOpacityAsync(titleBar, 0d, timeout.Token);
                 view.ViewerArea.Bounds.Size.Should().Be(window.ClientSize);
             }
             finally
@@ -871,12 +940,13 @@ public sealed class ImageViewerWindowTests
     [Fact]
     public async Task WindowResizeOverlay_AfterTemplateReapplied_ReusesSingleOverlay()
     {
-        await DispatchAsync(() =>
+        await DispatchAsync(async () =>
         {
             ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
                 new RecordingImageChannelBitmapLoader());
             ImageViewerView view = window.Content as ImageViewerView
                 ?? throw new InvalidOperationException("The viewer content must be created.");
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
 
             try
             {
@@ -884,6 +954,7 @@ public sealed class ImageViewerWindowTests
                 IControlTemplate template = window.Template
                     ?? throw new InvalidOperationException("The window template must be applied.");
                 Panel originalParent = view.WindowResizeOverlay.Parent.Should().BeAssignableTo<Panel>().Subject;
+                window.MouseMove(new Point(window.ClientSize.Width / 2d, 20d), RawInputModifiers.None);
 
                 window.Template = null;
                 window.ApplyTemplate();
@@ -896,6 +967,7 @@ public sealed class ImageViewerWindowTests
                 Control titleBar = window.GetVisualDescendants().OfType<Control>()
                     .Single(control => control.Name == "PART_TitleBar");
                 window.MouseMove(new Point(window.ClientSize.Width / 2d, titleBar.Bounds.Height / 2d), RawInputModifiers.None);
+                await WaitForOpacityAsync(titleBar, 1d, timeout.Token);
                 titleBar.Opacity.Should().Be(1d);
                 view.ViewerArea.Bounds.Size.Should().Be(window.ClientSize);
                 AssertResizeEdge(window, new Point(window.ClientSize.Width / 2d, 1d), WindowSizingEdges.Top);
@@ -2610,6 +2682,15 @@ public sealed class ImageViewerWindowTests
         return view.ViewerArea.TranslatePoint(
             new Point(view.ViewerArea.Bounds.Width / 2d, positionY), window)
             ?? throw new InvalidOperationException("The viewer area must be attached to the window.");
+    }
+
+    private static async Task WaitForOpacityAsync(Control control, double expectedOpacity, CancellationToken ct)
+    {
+        while (control.Opacity != expectedOpacity)
+        {
+            await Task.Delay(20, ct);
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        }
     }
 
     private static CheckBox GetTitleBarAutoHideSetting(
