@@ -7,9 +7,9 @@ using Pica.Viewer.ViewModels;
 
 namespace Pica.Desktop.Services.FileAssociations;
 
-internal sealed class PicaFileAssociationDialog
+internal sealed class PicaFileAssociationDialog : IPicaStartupPrompt
 {
-    internal Task Completion => _operation ?? Task.CompletedTask;
+    public Task Completion => _operation ?? Task.CompletedTask;
 
     private readonly IPicaFileAssociationService _service;
     private readonly IPicaDesktopStateService _stateService;
@@ -28,10 +28,10 @@ internal sealed class PicaFileAssociationDialog
     {
         ArgumentNullException.ThrowIfNull(owner);
 
-        return ShowAsync(owner, DesktopUiStrings.Close, ct);
+        return ShowAsync(owner, DesktopUiStrings.Cancel, ct);
     }
 
-    internal async Task ShowFirstRunAsync(Window owner, CancellationToken ct)
+    public async Task ShowIfNeededAsync(Window owner, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(owner);
         PicaDesktopState state = await _stateService.LoadAsync(ct);
@@ -63,20 +63,7 @@ internal sealed class PicaFileAssociationDialog
         FileAssociationsViewModel viewModel = new(_service, _errorHandler, closeButtonText);
         FileAssociationsWindow window = new(viewModel);
 
-        if (owner.Screens.ScreenFromWindow(owner) is { } screen)
-        {
-            double availableWidth = screen.WorkingArea.Width / screen.Scaling;
-            double availableHeight = screen.WorkingArea.Height / screen.Scaling;
-            window.MinWidth = Math.Min(window.MinWidth, availableWidth);
-            window.MinHeight = Math.Min(window.MinHeight, availableHeight);
-            window.MaxWidth = availableWidth;
-            window.MaxHeight = availableHeight;
-            window.Width = Math.Min(window.Width, availableWidth);
-            window.Height = Math.Min(window.Height, availableHeight);
-        }
-
-        using CancellationTokenRegistration cancellation = ct.Register(() => window.Dispatcher.Post(window.Close));
-        Task dialog = window.ShowDialog(owner);
+        Task dialog = DesktopDialogPresenter.ShowAsync(window, owner, ct);
 
         try
         {
@@ -90,6 +77,11 @@ internal sealed class PicaFileAssociationDialog
             if (viewModel.ApplyCommand.ExecutionTask is { } apply)
             {
                 await apply;
+            }
+
+            if (viewModel.CloseCommand.ExecutionTask is { } closing)
+            {
+                await closing;
             }
 
             if (window.IsVisible)

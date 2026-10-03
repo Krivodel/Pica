@@ -55,6 +55,7 @@ public sealed class PicaClipboardShortcutRegistrationTests
         await client.ApplyAsync(new PicaClipboardAgentRequest(PicaClipboardAgentOperation.SetEnabled, IsEnabled: false), CancellationToken.None);
         File.Exists(explorerPath).Should().BeFalse();
         (await stateService.LoadAsync(CancellationToken.None)).ClipboardShortcut.Should().Be(second);
+        (await stateService.LoadAsync(CancellationToken.None)).HasSeenClipboardShortcutPrompt.Should().BeTrue();
     }
 
     [Fact]

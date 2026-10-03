@@ -9,7 +9,7 @@ namespace Pica.Desktop.Tests.Services;
 public sealed class PicaInstallationTests
 {
     [Fact]
-    public void RecordFirstRun_SilentInstall_StoresMarkerOutsideVersionDirectory()
+    public void ResolveExecutablePath_VersionDirectoryWithLauncher_UsesStableExecutable()
     {
         using PicaTemporaryDirectory directory = new();
         string stableExecutable = Path.Combine(directory.DirectoryPath, "Pica.exe");
@@ -18,14 +18,9 @@ public sealed class PicaInstallationTests
         File.WriteAllText(stableExecutable, "Stable launcher");
         string executable = Path.Combine(currentDirectory, "Pica.exe");
 
-        PicaInstallation.RecordFirstRun(executable);
-        string marker = PicaInstallation.GetFirstRunMarkerPath(executable);
-        Directory.Delete(currentDirectory);
-        Directory.CreateDirectory(currentDirectory);
+        string resolved = PicaInstallation.ResolveExecutablePath(executable);
 
-        File.Exists(marker).Should().BeTrue();
-        Path.GetDirectoryName(marker).Should().Be(directory.DirectoryPath);
-        PicaInstallation.ResolveExecutablePath(executable).Should().Be(stableExecutable);
+        resolved.Should().Be(stableExecutable);
     }
 
     [Fact]
@@ -37,6 +32,5 @@ public sealed class PicaInstallationTests
         string resolved = PicaInstallation.ResolveExecutablePath(executable);
 
         resolved.Should().Be(executable);
-        File.Exists(PicaInstallation.GetFirstRunMarkerPath(executable)).Should().BeFalse();
     }
 }

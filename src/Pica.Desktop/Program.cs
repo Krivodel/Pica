@@ -23,12 +23,10 @@ internal static class Program
     {
         PicaLaunchContext launchContext = new(
             WindowsForegroundWindowCapture.Capture());
-        VelopackApp velopack = VelopackApp.Build()
-            .OnFirstRun(_ => launchContext = launchContext with { CanOfferFileAssociations = true });
+        VelopackApp velopack = VelopackApp.Build();
 
         if (OperatingSystem.IsWindows())
         {
-            velopack.OnAfterInstallFastCallback(_ => PicaInstallation.RecordFirstRun(PicaInstallation.ExecutablePath));
             velopack.OnBeforeUninstallFastCallback(_ =>
             {
                 PicaClipboardShortcutRegistration.RemoveShortcuts();
@@ -41,11 +39,6 @@ internal static class Program
         }
 
         velopack.Run();
-
-        if (OperatingSystem.IsWindows() && PicaInstallation.HasFirstRunMarker)
-        {
-            launchContext = launchContext with { CanOfferFileAssociations = true };
-        }
 
         if (OperatingSystem.IsWindows() && (args.Length == 1) && (args[0] == PicaLaunchArguments.ClipboardAgentArgument))
         {

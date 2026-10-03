@@ -81,6 +81,7 @@ public sealed class ViewerRecordedSettingControlTests
             control.RecordButton.Focus();
             Task recording = control.RecordAsync(nint.Zero, CancellationToken.None);
             ViewerSettingRecording.IsActive(window).Should().BeTrue();
+            control.Completion.IsCompleted.Should().BeFalse();
             control.RecordButton.Content.Should().Be("Нажми сочетание клавиш");
 
             switch (reason)
@@ -100,6 +101,7 @@ public sealed class ViewerRecordedSettingControlTests
             }
 
             await recording;
+            await control.Completion;
 
             applied.Should().BeFalse();
             control.ValueText.Text.Should().Be("old");

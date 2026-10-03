@@ -108,6 +108,46 @@ public sealed class PicaDesktopStateServiceTests
         (await service.LoadAsync(CancellationToken.None)).BackgroundIdleTimeoutSeconds.Should().Be(300);
     }
 
+    [Fact]
+    public async Task SaveAsync_DismissedPrompts_RemainDismissedAfterRestart()
+    {
+        using PicaTemporaryDirectory directory = new();
+        PicaDesktopStateService service = CreateService(directory);
+        PicaDesktopState state = new()
+        {
+            HasSeenFileAssociationsPrompt = true,
+            HasSeenClipboardShortcutPrompt = true
+        };
+
+        await service.SaveAsync(state, CancellationToken.None);
+        PicaDesktopState restored = await CreateService(directory).LoadAsync(CancellationToken.None);
+
+        restored.HasSeenFileAssociationsPrompt.Should().BeTrue();
+        restored.HasSeenClipboardShortcutPrompt.Should().BeTrue();
+        restored.IsClipboardShortcutEnabled.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LoadAsync_PreviousVersionState_OffersOnlyNeverEnabledClipboardShortcut(bool enabled)
+    {
+        using PicaTemporaryDirectory directory = new();
+        await File.WriteAllTextAsync(CreateStateFilePath(directory),
+            $$"""{"isClipboardShortcutEnabled": {{enabled.ToString().ToLowerInvariant()}}, "backgroundIdleTimeoutSeconds": 300}""",
+            CancellationToken.None);
+        PicaDesktopStateService service = CreateService(directory);
+
+        PicaDesktopState state = await service.LoadAsync(CancellationToken.None);
+        await service.UpdateAsync(saved => saved.IsClipboardShortcutEnabled = false, CancellationToken.None);
+        PicaDesktopState restarted = await CreateService(directory).LoadAsync(CancellationToken.None);
+
+        state.HasSeenClipboardShortcutPrompt.Should().Be(enabled);
+        restarted.HasSeenClipboardShortcutPrompt.Should().Be(enabled);
+        restarted.HasSeenFileAssociationsPrompt.Should().BeFalse();
+        restarted.BackgroundIdleTimeoutSeconds.Should().Be(300);
+    }
+
     private static PicaDesktopStateService CreateService(
         PicaTemporaryDirectory temporaryDirectory)
     {

@@ -3,7 +3,6 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.Logging;
 
 using Pica.Desktop.Services.Background;
-using Pica.Desktop.Services.FileAssociations;
 using Pica.Desktop.Services.Updates;
 using Pica.Desktop.Views;
 using Pica.Viewer.Services;
@@ -22,7 +21,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
     private readonly IClipboardImageWriter _clipboardImageWriter;
     private readonly ApplicationUpdateCoordinator _updateCoordinator;
     private readonly IApplicationUpdateService _updateService;
-    private readonly PicaFileAssociationDialog? _fileAssociationDialog;
+    private readonly IReadOnlyList<IPicaStartupPrompt> _startupPrompts;
     private readonly ILogger<PicaApplicationLifecycle> _logger;
     private IClassicDesktopStyleApplicationLifetime? _desktopLifetime;
     private PicaHostConnection? _hostConnection;
@@ -44,7 +43,7 @@ internal sealed class PicaApplicationLifecycle : IDisposable
         IClipboardImageWriter clipboardImageWriter,
         ApplicationUpdateCoordinator updateCoordinator,
         IApplicationUpdateService updateService,
-        IEnumerable<PicaFileAssociationDialog> fileAssociationDialogs,
+        IEnumerable<IPicaStartupPrompt> startupPrompts,
         ILogger<PicaApplicationLifecycle> logger)
     {
         _startupRequestFactory = startupRequestFactory
@@ -63,8 +62,8 @@ internal sealed class PicaApplicationLifecycle : IDisposable
             ?? throw new ArgumentNullException(nameof(updateCoordinator));
         _updateService = updateService
             ?? throw new ArgumentNullException(nameof(updateService));
-        ArgumentNullException.ThrowIfNull(fileAssociationDialogs);
-        _fileAssociationDialog = fileAssociationDialogs.SingleOrDefault();
+        ArgumentNullException.ThrowIfNull(startupPrompts);
+        _startupPrompts = startupPrompts.ToArray();
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -97,22 +96,6 @@ internal sealed class PicaApplicationLifecycle : IDisposable
                 startupRequest,
                 arguments,
                 startupCancellationSource.Token);
-
-            if (launchContext.CanOfferFileAssociations && _hostConnection is null
-                && _fileAssociationDialog is not null && desktopLifetime.MainWindow is { IsVisible: true } owner)
-            {
-                try
-                {
-                    await _fileAssociationDialog.ShowFirstRunAsync(owner, startupCancellationSource.Token);
-                }
-                catch (OperationCanceledException) when (startupCancellationSource.IsCancellationRequested)
-                {
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Pica could not show the first-run file association menu");
-                }
-            }
         }
         catch (OperationCanceledException)
             when (startupCancellationSource.IsCancellationRequested)
@@ -182,6 +165,30 @@ internal sealed class PicaApplicationLifecycle : IDisposable
         _logger.LogInformation(
             "Pica viewer window opened with {ItemCount} images",
             startupRequest.ViewerRequest.Items.Count);
+
+        if (_hostConnection is null)
+        {
+            foreach (IPicaStartupPrompt prompt in _startupPrompts)
+            {
+                if (!window.IsVisible)
+                {
+                    break;
+                }
+
+                try
+                {
+                    await prompt.ShowIfNeededAsync(window, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Pica could not show startup prompt {PromptType}", prompt.GetType().Name);
+                }
+            }
+        }
     }
 
     private void ShowMainWindow(
@@ -225,18 +232,18 @@ internal sealed class PicaApplicationLifecycle : IDisposable
     {
         ArgumentNullException.ThrowIfNull(closeCleanupCompletion);
 
-        if (_fileAssociationDialog is not null)
+        foreach (IPicaStartupPrompt prompt in _startupPrompts)
         {
             try
             {
-                await _fileAssociationDialog.Completion;
+                await prompt.Completion;
             }
             catch (OperationCanceledException)
             {
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Pica could not finish file association menu cleanup");
+                _logger.LogWarning(ex, "Pica could not finish startup prompt {PromptType} cleanup", prompt.GetType().Name);
             }
         }
 

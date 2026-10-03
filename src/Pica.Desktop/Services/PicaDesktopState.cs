@@ -6,6 +6,7 @@ internal sealed class PicaDesktopState
     public bool IsFullscreenClipboardShortcutEnabled { get; set; }
     public PicaClipboardShortcutGesture ClipboardShortcut { get; set; } = PicaClipboardShortcutGesture.Default;
     public bool HasSeenFileAssociationsPrompt { get; set; }
+    public bool HasSeenClipboardShortcutPrompt { get; set; }
     public Dictionary<string, string?> PreviousFileAssociations { get; set; } =
         new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
     public int BackgroundIdleTimeoutSeconds { get; set; } =
@@ -29,6 +30,7 @@ internal sealed class PicaDesktopState
     internal PicaDesktopState CreateNormalizedCopy()
     {
         PicaDesktopState normalizedState = CreateCopy();
+        normalizedState.HasSeenClipboardShortcutPrompt |= IsClipboardShortcutEnabled;
         normalizedState.ClipboardShortcut = ClipboardShortcut is { IsSupported: true }
             ? ClipboardShortcut : PicaClipboardShortcutGesture.Default;
         normalizedState.BackgroundIdleTimeoutSeconds =

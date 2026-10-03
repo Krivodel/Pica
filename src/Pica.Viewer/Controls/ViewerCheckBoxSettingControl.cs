@@ -15,6 +15,9 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
     internal CheckBox CheckBox { get; }
     internal TextBlock? ErrorText => _error;
     internal StackPanel? DependentSettingsPanel => _dependentPanel;
+    internal override Task Completion => Task.WhenAll(
+        _dependentSettings.Select(setting => setting.Completion)
+            .Append(_changeCompletion));
     internal bool IsEnabled
     {
         get => CheckBox.IsEnabled;
@@ -26,8 +29,11 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
     private readonly StackPanel? _panel;
     private readonly ViewerSettingErrorControl? _error;
     private readonly StackPanel? _dependentPanel;
+    private readonly IReadOnlyList<ViewerSettingControl> _dependentSettings;
+    private readonly Func<bool>? _getCurrentValue;
     private bool _isChangingValue;
     private bool _currentValue;
+    private Task _changeCompletion = Task.CompletedTask;
 
     internal ViewerCheckBoxSettingControl(
         string content,
@@ -38,7 +44,8 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
         ILogger? logger = null,
         Func<Exception, string>? getErrorMessage = null,
         bool wrapContent = false,
-        IReadOnlyList<ViewerSettingControl>? dependentSettings = null)
+        IReadOnlyList<ViewerSettingControl>? dependentSettings = null,
+        Func<bool>? getCurrentValue = null)
         : base(null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
@@ -47,6 +54,8 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
             ?? throw new ArgumentNullException(nameof(changedCommand));
         _currentValue = initialValue;
         _logger = logger;
+        _dependentSettings = dependentSettings ?? Array.Empty<ViewerSettingControl>();
+        _getCurrentValue = getCurrentValue;
 
         CheckBox = new CheckBox
         {
@@ -71,7 +80,7 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
 
         if (dependentSettings is { Count: > 0 })
         {
-            _dependentPanel = ViewerSettingsPanel.CreateContent(dependentSettings, false);
+            _dependentPanel = ViewerSettingsContentControl.CreateContent(dependentSettings, false);
             _dependentPanel.IsVisible = initialValue;
             _dependentPanel.Margin = new Thickness(0d, ErrorSpacing, 0d, 0d);
         }
@@ -113,6 +122,19 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
         }
     }
 
+    internal override void RefreshValue()
+    {
+        if ((_getCurrentValue is not null) && !_changedCommand.IsRunning)
+        {
+            SetValue(_getCurrentValue());
+        }
+
+        foreach (ViewerSettingControl setting in _dependentSettings)
+        {
+            setting.RefreshValue();
+        }
+    }
+
     private async void OnIsCheckedChanged(object? sender, RoutedEventArgs e)
     {
         _ = sender;
@@ -133,6 +155,8 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
 
         bool wasEnabled = CheckBox.IsEnabled;
         CheckBox.IsEnabled = false;
+        TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _changeCompletion = completion.Task;
 
         try
         {
@@ -160,6 +184,7 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
         finally
         {
             CheckBox.IsEnabled = wasEnabled;
+            completion.TrySetResult();
         }
     }
 }

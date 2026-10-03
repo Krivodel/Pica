@@ -86,9 +86,6 @@
                        IsVisible="{Binding HasErrorMessage}"
                        TextWrapping="Wrap"
                        Text="{Binding ErrorMessage}" />
-            <TextBlock IsVisible="{Binding HasStatusMessage}"
-                       TextWrapping="Wrap"
-                       Text="{Binding StatusMessage}" />
         </StackPanel>
 
         <StackPanel Grid.Row="5"

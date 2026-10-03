@@ -9,6 +9,7 @@ internal sealed class FakeFileAssociationService : IPicaFileAssociationService
     internal IReadOnlyList<string> Selected { get; set; } = new string[] { ".png" };
     internal Exception? Failure { get; set; }
     internal Func<CancellationToken, Task>? Applying { get; set; }
+    internal Func<CancellationToken, Task>? Dismissing { get; set; }
 
     public Task RegisterAsync(CancellationToken ct)
     {
@@ -38,6 +39,6 @@ internal sealed class FakeFileAssociationService : IPicaFileAssociationService
 
     public Task DismissPromptAsync(CancellationToken ct)
     {
-        return Task.CompletedTask;
+        return Dismissing?.Invoke(ct) ?? Task.CompletedTask;
     }
 }

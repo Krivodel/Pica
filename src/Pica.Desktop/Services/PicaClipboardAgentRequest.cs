@@ -19,6 +19,7 @@ internal sealed record PicaClipboardAgentRequest(
                 break;
             case PicaClipboardAgentOperation.SetEnabled:
                 state.IsClipboardShortcutEnabled = IsEnabled;
+                state.HasSeenClipboardShortcutPrompt |= IsEnabled;
                 break;
             case PicaClipboardAgentOperation.SetFullscreenEnabled:
                 state.IsFullscreenClipboardShortcutEnabled = IsEnabled;

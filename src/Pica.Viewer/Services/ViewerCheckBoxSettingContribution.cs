@@ -15,6 +15,7 @@ public sealed class ViewerCheckBoxSettingContribution : ViewerSettingContributio
     private readonly ILogger _logger;
     private readonly Func<Exception, string>? _getErrorMessage;
     private readonly bool _wrapContent;
+    private readonly Func<bool>? _getCurrentValue;
 
     public ViewerCheckBoxSettingContribution(
         string label,
@@ -23,7 +24,8 @@ public sealed class ViewerCheckBoxSettingContribution : ViewerSettingContributio
         ILogger logger,
         Func<Exception, string>? getErrorMessage = null,
         bool wrapContent = false,
-        IReadOnlyList<ViewerSettingContribution>? dependentSettings = null)
+        IReadOnlyList<ViewerSettingContribution>? dependentSettings = null,
+        Func<bool>? getCurrentValue = null)
         : base(label)
     {
         InitialValue = initialValue;
@@ -32,6 +34,7 @@ public sealed class ViewerCheckBoxSettingContribution : ViewerSettingContributio
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _getErrorMessage = getErrorMessage;
         _wrapContent = wrapContent;
+        _getCurrentValue = getCurrentValue;
     }
 
     public async Task ApplyAsync(bool value, CancellationToken ct)
@@ -45,6 +48,7 @@ public sealed class ViewerCheckBoxSettingContribution : ViewerSettingContributio
 
         return new ViewerCheckBoxSettingControl(Label, InitialValue, command,
             logger: _logger, getErrorMessage: _getErrorMessage, wrapContent: _wrapContent,
-            dependentSettings: DependentSettings.Select(setting => setting.CreateControl()).ToArray());
+            dependentSettings: DependentSettings.Select(setting => setting.CreateControl()).ToArray(),
+            getCurrentValue: _getCurrentValue);
     }
 }

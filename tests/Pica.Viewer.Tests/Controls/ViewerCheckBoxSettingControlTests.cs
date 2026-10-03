@@ -52,6 +52,7 @@ public sealed class ViewerCheckBoxSettingControlTests
             control.CheckBox.IsChecked = !initialValue;
 
             control.CheckBox.IsEnabled.Should().BeFalse();
+            control.Completion.IsCompleted.Should().BeFalse();
             control.DependentSettingsPanel?.IsVisible.Should().Be(initialValue);
 
             switch (outcome)
@@ -68,12 +69,45 @@ public sealed class ViewerCheckBoxSettingControlTests
             }
 
             await reenabled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await control.Completion;
 
             bool expectedValue = outcome is "success" ? !initialValue : initialValue;
             control.CheckBox.IsEnabled.Should().BeTrue();
             control.CheckBox.IsChecked.Should().Be(expectedValue);
             control.DependentSettingsPanel?.IsVisible.Should().Be(expectedValue);
             control.ErrorText?.IsVisible.Should().Be(outcome is "failure");
+        });
+    }
+
+    [Fact]
+    public async Task RefreshValue_ExternalChange_UpdatesCheckboxAndDependentSettingsWithoutExecutingCommands()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(typeof(ViewerCheckBoxSettingControlTests), SessionLock, () =>
+        {
+            bool current = false;
+            int changes = 0;
+            ViewerCheckBoxSettingContribution dependent = new("Fullscreen", false, (_, _) =>
+            {
+                changes++;
+                return Task.CompletedTask;
+            }, NullLogger.Instance, getCurrentValue: () => current);
+            ViewerCheckBoxSettingContribution contribution = new("Global paste", false, (_, _) =>
+            {
+                changes++;
+                return Task.CompletedTask;
+            }, NullLogger.Instance, dependentSettings: new ViewerSettingContribution[] { dependent },
+                getCurrentValue: () => current);
+            ViewerCheckBoxSettingControl control = (ViewerCheckBoxSettingControl)contribution.CreateControl();
+            current = true;
+
+            control.RefreshValue();
+
+            control.CheckBox.IsChecked.Should().BeTrue();
+            StackPanel panel = control.DependentSettingsPanel
+                ?? throw new InvalidOperationException("Missing dependent controls.");
+            panel.IsVisible.Should().BeTrue();
+            panel.Children[0].Should().BeOfType<CheckBox>().Which.IsChecked.Should().BeTrue();
+            changes.Should().Be(0);
         });
     }
 

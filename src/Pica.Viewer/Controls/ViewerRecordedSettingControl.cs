@@ -17,6 +17,7 @@ internal sealed class ViewerRecordedSettingControl<TValue> : ViewerSettingContro
     internal Button RecordButton { get; }
     internal TextBlock ValueText { get; }
     internal TextBlock ErrorText => _error;
+    internal override Task Completion => _recordingCompletion;
 
     private const double RowSpacing = 8d;
     private const string ChangeButtonText = "Изменить";
@@ -32,6 +33,7 @@ internal sealed class ViewerRecordedSettingControl<TValue> : ViewerSettingContro
     private TopLevel? _owner;
     private TValue _currentValue;
     private bool _isApplying;
+    private Task _recordingCompletion = Task.CompletedTask;
 
     internal ViewerRecordedSettingControl(
         string label,
@@ -86,6 +88,8 @@ internal sealed class ViewerRecordedSettingControl<TValue> : ViewerSettingContro
         }
 
         using CancellationTokenSource recording = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _recordingCompletion = completion.Task;
         _recording = recording;
         _owner?.SetValue(ViewerSettingRecording.IsActiveProperty, true);
         RecordButton.Content = RecordingButtonText;
@@ -115,11 +119,12 @@ internal sealed class ViewerRecordedSettingControl<TValue> : ViewerSettingContro
             _isApplying = false;
             RecordButton.Content = ChangeButtonText;
             RecordButton.IsEnabled = true;
+            completion.TrySetResult();
             RefreshValue();
         }
     }
 
-    private void RefreshValue()
+    internal override void RefreshValue()
     {
         if ((_getCurrentValue is not null) && (_recording is null))
         {

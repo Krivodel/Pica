@@ -24,7 +24,9 @@ public static class DependencyInjection
         services.AddSingleton<PicaClipboardShortcutRegistration>();
         services.AddSingleton<PicaClipboardAgent>();
         services.AddSingleton<IPicaShortcutRecorder, WindowsShortcutRecorder>();
-        services.AddSingleton<IViewerSettingContributionProvider, PicaClipboardShortcutSettingContributionProvider>();
+        services.AddSingleton<PicaClipboardShortcutSettingContributionProvider>();
+        services.AddSingleton<IViewerSettingContributionProvider>(provider =>
+            provider.GetRequiredService<PicaClipboardShortcutSettingContributionProvider>());
         services.AddSingleton<
             IPicaDesktopStateService,
             PicaDesktopStateService>();
@@ -51,6 +53,8 @@ public static class DependencyInjection
             services.AddSingleton<IPicaFileAssociationStore, WindowsFileAssociationStore>();
             services.AddSingleton<IPicaFileAssociationService, PicaFileAssociationService>();
             services.AddSingleton<PicaFileAssociationDialog>();
+            services.AddSingleton<IPicaStartupPrompt>(provider => provider.GetRequiredService<PicaFileAssociationDialog>());
+            services.AddSingleton<IPicaStartupPrompt, PicaClipboardShortcutDialog>();
             services.AddSingleton<IViewerSettingContributionProvider, PicaFileAssociationSettingContributionProvider>();
         }
 

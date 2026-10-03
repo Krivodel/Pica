@@ -6,11 +6,16 @@ internal abstract class ViewerSettingControl
 {
     internal string? Label { get; }
     internal abstract Control Control { get; }
+    internal virtual Task Completion => Task.CompletedTask;
 
     protected const double ErrorSpacing = 4d;
 
     protected ViewerSettingControl(string? label)
     {
         Label = label;
+    }
+
+    internal virtual void RefreshValue()
+    {
     }
 }

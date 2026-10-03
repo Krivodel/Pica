@@ -55,6 +55,7 @@ internal sealed class PicaDesktopStateService : IPicaDesktopStateService
             current.IsFullscreenClipboardShortcutEnabled = state.IsFullscreenClipboardShortcutEnabled;
             current.ClipboardShortcut = state.ClipboardShortcut;
             current.HasSeenFileAssociationsPrompt = state.HasSeenFileAssociationsPrompt;
+            current.HasSeenClipboardShortcutPrompt = state.HasSeenClipboardShortcutPrompt;
             current.PreviousFileAssociations = state.CreateCopy().PreviousFileAssociations;
         }, ct).ConfigureAwait(false);
     }

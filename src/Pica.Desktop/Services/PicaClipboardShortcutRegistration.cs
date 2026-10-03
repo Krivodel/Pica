@@ -120,6 +120,7 @@ internal sealed class PicaClipboardShortcutRegistration
                 state.IsClipboardShortcutEnabled = next.IsClipboardShortcutEnabled;
                 state.IsFullscreenClipboardShortcutEnabled = next.IsFullscreenClipboardShortcutEnabled;
                 state.ClipboardShortcut = next.ClipboardShortcut;
+                state.HasSeenClipboardShortcutPrompt = next.HasSeenClipboardShortcutPrompt;
                 applied = true;
             }, async () =>
             {

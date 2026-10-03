@@ -15,15 +15,13 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
     public string SelectionSummary => string.Format(DesktopUiStrings.FileAssociationsSelectionSummaryFormat,
         Formats.Count(format => format.IsSelected), Formats.Count);
     public bool HasErrorMessage => !string.IsNullOrWhiteSpace(ErrorMessage);
-    public bool HasStatusMessage => !string.IsNullOrWhiteSpace(StatusMessage);
     public bool HasMatchingFormats => Formats.Any(format => format.MatchesFilter);
-    public string CloseButtonText => HasStatusMessage ? DesktopUiStrings.Close : _initialCloseButtonText;
+    public string CloseButtonText { get; }
 
     public event EventHandler? CloseRequested;
 
     private readonly IPicaFileAssociationService _service;
     private readonly IViewModelErrorHandler _errorHandler;
-    private readonly string _initialCloseButtonText;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ApplyCommand))]
     [NotifyCanExecuteChangedFor(nameof(SelectAllCommand))]
@@ -34,10 +32,6 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasErrorMessage))]
     private string? _errorMessage;
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasStatusMessage))]
-    [NotifyPropertyChangedFor(nameof(CloseButtonText))]
-    private string? _statusMessage;
-    [ObservableProperty]
     private string? _filterText = "";
     private bool _isInitialized;
 
@@ -46,7 +40,7 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _errorHandler = errorHandler ?? throw new ArgumentNullException(nameof(errorHandler));
-        _initialCloseButtonText = closeButtonText ?? throw new ArgumentNullException(nameof(closeButtonText));
+        CloseButtonText = closeButtonText ?? throw new ArgumentNullException(nameof(closeButtonText));
         Formats = Array.AsReadOnly(service.SupportedExtensions
             .Select(extension => new FileAssociationFormatViewModel(extension, OnSelectionChanged)).ToArray());
     }
@@ -55,6 +49,7 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
     {
         LoadCommand.Cancel();
         ApplyCommand.Cancel();
+        CloseCommand.Cancel();
     }
 
     private bool CanChangeSelection()
@@ -103,13 +98,14 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
     {
         IsLoading = true;
         ErrorMessage = null;
-        StatusMessage = null;
         string[] selection = Formats.Where(format => format.IsSelected).Select(format => format.Extension).ToArray();
+        bool isApplied = false;
 
         try
         {
             await _service.ApplyAsync(selection, ct);
-            StatusMessage = DesktopUiStrings.FileAssociationsApplied;
+            ct.ThrowIfCancellationRequested();
+            isApplied = true;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -121,6 +117,11 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+
+        if (isApplied)
+        {
+            CloseRequested?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -143,9 +144,34 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanChangeSelection))]
-    private void Close()
+    private async Task CloseAsync(CancellationToken ct)
     {
-        CloseRequested?.Invoke(this, EventArgs.Empty);
+        IsLoading = true;
+        ErrorMessage = null;
+        bool isSaved = false;
+
+        try
+        {
+            await _service.DismissPromptAsync(ct);
+            isSaved = true;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            _errorHandler.Log(ex, nameof(CloseAsync));
+            ErrorMessage = DesktopUiStrings.PreferenceChoiceFailed;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+
+        if (isSaved)
+        {
+            CloseRequested?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void ReportError(Exception exception, string operation)
@@ -161,7 +187,6 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
 
     private void OnSelectionChanged()
     {
-        StatusMessage = null;
         OnPropertyChanged(nameof(SelectionSummary));
     }
 

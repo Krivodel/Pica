@@ -70,7 +70,7 @@ public sealed class PicaFileAssociationDialogTests
     }
 
     [Fact]
-    public async Task ShowFirstRunAsync_SkippedOffer_DoesNotOfferAgainAndCanReopenFromSettings()
+    public async Task ShowIfNeededAsync_SkippedOffer_DoesNotOfferAgainAndCanReopenFromSettings()
     {
         await HeadlessTestSessionDispatcher.DispatchAsync(typeof(PicaFileAssociationDialogTests), SessionLock, async () =>
         {
@@ -85,7 +85,7 @@ public sealed class PicaFileAssociationDialogTests
             try
             {
                 owner.Show();
-                Task firstRun = dialog.ShowFirstRunAsync(owner, CancellationToken.None);
+                Task firstRun = dialog.ShowIfNeededAsync(owner, CancellationToken.None);
                 FileAssociationsWindow offer = await WaitForDialogAsync(owner);
                 FileAssociationsViewModel firstViewModel = offer.DataContext as FileAssociationsViewModel
                     ?? throw new InvalidOperationException("Missing offer view model.");
@@ -94,7 +94,7 @@ public sealed class PicaFileAssociationDialogTests
 
                 offer.Close();
                 await firstRun;
-                await dialog.ShowFirstRunAsync(owner, CancellationToken.None);
+                await dialog.ShowIfNeededAsync(owner, CancellationToken.None);
 
                 owner.OwnedWindows.Should().BeEmpty();
                 store.Writes.Should().BeEmpty();
@@ -105,10 +105,58 @@ public sealed class PicaFileAssociationDialogTests
                     ?? throw new InvalidOperationException("Missing settings view model.");
 
                 settingsViewModel.Formats.Should().OnlyContain(format => !format.IsSelected);
-                settingsViewModel.CloseButtonText.Should().Be("Закрыть");
+                settingsViewModel.CloseButtonText.Should().Be("Отмена");
 
                 reopened.Close();
                 await reopening;
+            }
+            finally
+            {
+                owner.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ApplyCommand_FailedThenSuccessfulApply_KeepsMenuOpenUntilSuccessAndAutomaticallyCloses(bool startupOffer)
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(typeof(PicaFileAssociationDialogTests), SessionLock, async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            PicaDesktopStateService stateService = new(Path.Combine(directory.DirectoryPath, "desktop.json"),
+                NullLogger<PicaDesktopStateService>.Instance);
+            FakeFileAssociationService service = new();
+            PicaFileAssociationDialog dialog = new(service, stateService, new RecordingViewModelErrorHandler());
+            Window owner = new();
+
+            try
+            {
+                owner.Show();
+                Task showing = startupOffer
+                    ? dialog.ShowIfNeededAsync(owner, CancellationToken.None)
+                    : dialog.ShowAsync(owner, CancellationToken.None);
+                FileAssociationsWindow window = await WaitForDialogAsync(owner);
+                FileAssociationsViewModel viewModel = window.DataContext as FileAssociationsViewModel
+                    ?? throw new InvalidOperationException("Missing formats view model.");
+                viewModel.CloseButtonText.Should().Be(startupOffer ? "Не сейчас" : "Отмена");
+                viewModel.SelectAllCommand.Execute(null);
+                service.Failure = new NotSupportedException("Test association rejection");
+
+                await viewModel.ApplyCommand.ExecuteAsync(null);
+
+                window.IsVisible.Should().BeTrue();
+                viewModel.HasErrorMessage.Should().BeTrue();
+
+                service.Failure = null;
+                await viewModel.ApplyCommand.ExecuteAsync(null);
+                await showing.WaitAsync(TimeSpan.FromSeconds(5));
+
+                window.IsVisible.Should().BeFalse();
+                owner.OwnedWindows.Should().BeEmpty();
+                service.Selected.Should().BeEquivalentTo(service.SupportedExtensions);
+                dialog.Completion.IsCompleted.Should().BeTrue();
             }
             finally
             {

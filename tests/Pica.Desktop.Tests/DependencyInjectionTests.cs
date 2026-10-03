@@ -6,6 +6,7 @@ using FluentAssertions;
 using Xunit;
 
 using Pica.Desktop.Services;
+using Pica.Desktop.Services.FileAssociations;
 using Pica.Viewer;
 using Pica.Viewer.Services;
 
@@ -32,6 +33,12 @@ public sealed class DependencyInjectionTests
             provider.GetRequiredService<PicaApplicationLifecycle>();
 
         lifecycle.Should().NotBeNull();
+
+        if (OperatingSystem.IsWindows())
+        {
+            provider.GetServices<IPicaStartupPrompt>().Select(prompt => prompt.GetType())
+                .Should().Equal(typeof(PicaFileAssociationDialog), typeof(PicaClipboardShortcutDialog));
+        }
     }
 
     [Fact]

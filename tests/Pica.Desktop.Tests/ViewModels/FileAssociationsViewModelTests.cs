@@ -23,18 +23,14 @@ public sealed class FileAssociationsViewModelTests
         viewModel.SelectionSummary.Should().Be("Выбрано: 1 из 3");
 
         viewModel.SelectAllCommand.Execute(null);
-        await viewModel.ApplyCommand.ExecuteAsync(null);
 
-        service.Selected.Should().BeEquivalentTo(service.SupportedExtensions);
-        viewModel.StatusMessage.Should().Be(DesktopUiStrings.FileAssociationsApplied);
-        viewModel.CloseButtonText.Should().Be(DesktopUiStrings.Close);
+        viewModel.Formats.Should().OnlyContain(format => format.IsSelected);
 
         viewModel.ClearSelectionCommand.Execute(null);
         viewModel.FilterText = "unknown";
 
         viewModel.HasMatchingFormats.Should().BeFalse();
         viewModel.Formats.Should().OnlyContain(format => !format.IsSelected);
-        viewModel.HasStatusMessage.Should().BeFalse();
 
         viewModel.FilterText = null;
 
@@ -48,6 +44,8 @@ public sealed class FileAssociationsViewModelTests
     {
         FakeFileAssociationService service = new();
         FileAssociationsViewModel viewModel = CreateViewModel(service);
+        bool closed = false;
+        viewModel.CloseRequested += (_, _) => closed = true;
 
         if (operation == "apply")
         {
@@ -66,6 +64,7 @@ public sealed class FileAssociationsViewModelTests
         }
 
         viewModel.ErrorMessage.Should().Be(DesktopUiStrings.FileAssociationsFailed);
+        closed.Should().BeFalse();
         viewModel.HasErrorMessage.Should().BeTrue();
         viewModel.IsLoading.Should().BeFalse();
         viewModel.ApplyCommand.CanExecute(null).Should().Be(operation == "apply");
@@ -82,7 +81,6 @@ public sealed class FileAssociationsViewModelTests
         await viewModel.ApplyCommand.ExecuteAsync(null);
 
         viewModel.ErrorMessage.Should().Be(DesktopUiStrings.FileAssociationsRestoreFailed);
-        viewModel.HasStatusMessage.Should().BeFalse();
     }
 
     [Fact]
@@ -93,6 +91,8 @@ public sealed class FileAssociationsViewModelTests
         await viewModel.LoadCommand.ExecuteAsync(null);
         TaskCompletionSource applying = new(TaskCreationOptions.RunContinuationsAsynchronously);
         service.Applying = ct => applying.Task.WaitAsync(ct);
+        bool closed = false;
+        viewModel.CloseRequested += (_, _) => closed = true;
 
         Task operation = viewModel.ApplyCommand.ExecuteAsync(null);
 
@@ -106,7 +106,74 @@ public sealed class FileAssociationsViewModelTests
 
         viewModel.IsLoading.Should().BeFalse();
         viewModel.HasErrorMessage.Should().BeFalse();
-        viewModel.HasStatusMessage.Should().BeFalse();
+        closed.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ApplyCommand_Success_ClosesOnlyAfterSavingAndFinishingLoading()
+    {
+        TaskCompletionSource saving = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeFileAssociationService service = new() { Applying = _ => saving.Task };
+        FileAssociationsViewModel viewModel = CreateViewModel(service);
+        await viewModel.LoadCommand.ExecuteAsync(null);
+        viewModel.SelectAllCommand.Execute(null);
+        int closes = 0;
+        viewModel.CloseRequested += (_, _) =>
+        {
+            viewModel.IsLoading.Should().BeFalse();
+            service.Selected.Should().BeEquivalentTo(service.SupportedExtensions);
+            closes++;
+        };
+
+        Task applying = viewModel.ApplyCommand.ExecuteAsync(null);
+
+        closes.Should().Be(0);
+
+        saving.SetResult();
+        await applying;
+
+        closes.Should().Be(1);
+        viewModel.HasErrorMessage.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CloseCommand_DismissalPending_ClosesOnlyAfterChoiceIsSaved()
+    {
+        TaskCompletionSource saving = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeFileAssociationService service = new() { Dismissing = _ => saving.Task };
+        FileAssociationsViewModel viewModel = CreateViewModel(service);
+        bool closed = false;
+        viewModel.CloseRequested += (_, _) => closed = true;
+
+        Task closing = viewModel.CloseCommand.ExecuteAsync(null);
+
+        closed.Should().BeFalse();
+        viewModel.IsLoading.Should().BeTrue();
+        viewModel.ApplyCommand.CanExecute(null).Should().BeFalse();
+
+        saving.SetResult();
+        await closing;
+
+        closed.Should().BeTrue();
+        viewModel.IsLoading.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CloseCommand_DismissalFails_KeepsMenuOpenAndShowsSafeError()
+    {
+        FakeFileAssociationService service = new()
+        {
+            Dismissing = _ => Task.FromException(new IOException("Private settings path"))
+        };
+        FileAssociationsViewModel viewModel = CreateViewModel(service);
+        bool closed = false;
+        viewModel.CloseRequested += (_, _) => closed = true;
+
+        await viewModel.CloseCommand.ExecuteAsync(null);
+
+        closed.Should().BeFalse();
+        viewModel.ErrorMessage.Should().Be(DesktopUiStrings.PreferenceChoiceFailed);
+        viewModel.CloseCommand.CanExecute(null).Should().BeTrue();
     }
 
     private static FileAssociationsViewModel CreateViewModel(FakeFileAssociationService service)

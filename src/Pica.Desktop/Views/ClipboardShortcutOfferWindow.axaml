@@ -1,0 +1,50 @@
+<suki:SukiWindow xmlns="https://github.com/avaloniaui"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:resources="using:Pica.Desktop.Resources"
+                 xmlns:suki="using:SukiUI.Controls"
+                 xmlns:vm="using:Pica.Desktop.ViewModels"
+                 x:Class="Pica.Desktop.Views.ClipboardShortcutOfferWindow"
+                 x:DataType="vm:ClipboardShortcutOfferViewModel"
+                 Width="500"
+                 SizeToContent="Height"
+                 CanMaximize="False"
+                 CanMinimize="False"
+                 CanResize="False"
+                 ShowBottomBorder="False"
+                 WindowStartupLocation="CenterOwner"
+                 Title="{x:Static resources:DesktopUiStrings.ClipboardShortcutTitle}">
+    <suki:SukiWindow.Styles>
+        <StyleInclude Source="avares://Pica.Viewer/Resources/ViewerErrorStyles.axaml" />
+    </suki:SukiWindow.Styles>
+
+    <suki:SukiWindow.KeyBindings>
+        <KeyBinding Gesture="Escape"
+                    Command="{Binding DeclineCommand}" />
+    </suki:SukiWindow.KeyBindings>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24"
+                    Spacing="20">
+            <TextBlock TextWrapping="Wrap"
+                       Text="{x:Static resources:DesktopUiStrings.ClipboardShortcutDescription}" />
+            <ContentControl x:Name="SettingsHost"
+                            IsEnabled="{Binding !IsLoading}" />
+            <ProgressBar IsVisible="{Binding IsLoading}"
+                         IsIndeterminate="True" />
+            <TextBlock Classes="viewer-error"
+                       IsVisible="{Binding HasErrorMessage}"
+                       TextWrapping="Wrap"
+                       Text="{Binding ErrorMessage}" />
+            <StackPanel HorizontalAlignment="Right"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                <Button Command="{Binding DeclineCommand}"
+                        Content="{x:Static resources:DesktopUiStrings.NotNow}" />
+                <Button Classes="Flat"
+                        Command="{Binding EnableCommand}"
+                        Content="{x:Static resources:DesktopUiStrings.ClipboardShortcutEnable}" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</suki:SukiWindow>
