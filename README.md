@@ -12,6 +12,7 @@ A convenient image viewer. It can run as a standalone application or be used by 
 - Animation mini-player with seeking support.
 - Viewing individual channels with the same functionality as regular images.
 - Area selection (pixels are taken directly from the image without any modifications).
+- Global paste: open a copied image with a keyboard shortcut even when Pica is closed.
 - Automatic fitting of the window size to the image.
 - Pinning the window on top of other windows.
 - Customizable display of information, such as the name, format, resolution, or modification date.
@@ -41,6 +42,8 @@ A convenient image viewer. It can run as a standalone application or be used by 
 | Select the entire image                                  | `Ctrl + A`                                           |
 | Pan the image while an area selection is active          | Drag with `MMB`                                      |
 | Switch between windowed and fullscreen modes             | Double-click with `LMB`, if enabled in the settings  |
+| View an image from the clipboard                         | `Ctrl + V`                                           |
+| View an image from the clipboard while Pica is closed    | `Ctrl + Shift + V`                                   |
 | Close window or cancel                                   | `Esc`                                                |
 
 # Quick start
