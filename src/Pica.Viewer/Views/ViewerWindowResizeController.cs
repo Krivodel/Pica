@@ -7,8 +7,10 @@ using Pica.Viewer.ViewModels;
 
 namespace Pica.Viewer.Views;
 
-internal sealed class ViewerWindowResizeController
+internal sealed class ViewerWindowResizeController : IDisposable
 {
+    internal bool IsActive => _session is not null;
+
     private readonly ImageViewerWindow _window;
     private readonly ImageViewerView _view;
     private readonly ImageViewerSettingsViewModel _settings;
@@ -16,6 +18,8 @@ internal sealed class ViewerWindowResizeController
     private readonly ViewerWindowModeController _windowMode;
     private readonly ViewerWindowGeometryController _geometry;
     private IWindowResizeSession? _session;
+    private Border? _resizeGrip;
+    private IPointer? _resizePointer;
 
     internal ViewerWindowResizeController(
         ImageViewerWindow window,
@@ -38,6 +42,11 @@ internal sealed class ViewerWindowResizeController
             ?? throw new ArgumentNullException(nameof(geometry));
     }
 
+    public void Dispose()
+    {
+        EndSession();
+    }
+
     internal void OnPointerPressed(
         object? sender,
         PointerPressedEventArgs e)
@@ -50,7 +59,7 @@ internal sealed class ViewerWindowResizeController
                 is not Border
                 {
                     Tag: WindowSizingEdges sizingEdges
-                }))
+                } resizeGrip))
         {
             return;
         }
@@ -89,13 +98,19 @@ internal sealed class ViewerWindowResizeController
         double aspectRatio =
             (double)_viewport.CurrentBitmap.PixelSize.Width
             / _viewport.CurrentBitmap.PixelSize.Height;
+
+        EndSession();
         _session = CreateSession(
             initialRectangle,
             pointerPosition,
             sizingEdges,
             titleBarHeight,
             aspectRatio);
-        e.Pointer.Capture((InputElement)sender);
+        _resizeGrip = resizeGrip;
+        _resizePointer = e.Pointer;
+        resizeGrip.PointerCaptureLost += OnPointerCaptureLost;
+        e.Pointer.Capture(resizeGrip);
+        _window.UpdateTitleBarVisibility();
         e.Handled = true;
     }
 
@@ -128,9 +143,34 @@ internal sealed class ViewerWindowResizeController
             return;
         }
 
-        _session = null;
-        e.Pointer.Capture(null);
+        EndSession();
         e.Handled = true;
+    }
+
+    private void EndSession()
+    {
+        if (_session is null)
+        {
+            return;
+        }
+
+        Border? resizeGrip = _resizeGrip;
+        IPointer? resizePointer = _resizePointer;
+        _session = null;
+        _resizeGrip = null;
+        _resizePointer = null;
+
+        if (resizeGrip is not null)
+        {
+            resizeGrip.PointerCaptureLost -= OnPointerCaptureLost;
+        }
+
+        if ((resizePointer is not null) && (resizePointer.Captured == resizeGrip))
+        {
+            resizePointer.Capture(null);
+        }
+
+        _window.UpdateTitleBarVisibility();
     }
 
     private IWindowResizeSession CreateSession(
@@ -156,5 +196,12 @@ internal sealed class ViewerWindowResizeController
             initialRectangle,
             pointerPosition,
             sizingEdges);
+    }
+
+    private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        EndSession();
     }
 }

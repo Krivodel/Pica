@@ -19,6 +19,11 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private const int TitleBarRevealDurationMilliseconds = 200;
     private const int TitleBarHideDurationMilliseconds = 120;
+    private const uint EnterSizeMoveMessage = 0x0231;
+    private const uint ExitSizeMoveMessage = 0x0232;
+
+    private bool IsWindowGeometryInteractionActive => _isNativeWindowDragActive
+        || (_interaction?.WindowResize.IsActive == true);
 
     private static readonly QuinticEaseIn TitleBarRevealEasing = new();
 
@@ -33,6 +38,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private Button? _titleBarPinButton;
     private Point? _titleBarPointerPosition;
     private bool _autoHideWindowTitleBar;
+    private bool _isNativeWindowDragActive;
     private long _titleBarOpacityAnimationId;
 
     internal void SetTitleBarAutoHide(bool autoHideWindowTitleBar)
@@ -45,6 +51,12 @@ public sealed partial class ImageViewerWindow : SukiWindow
     internal void UpdateTitleBarVisibility()
     {
         UpdateTitleBarVisibility(animate: _autoHideWindowTitleBar && IsTitleBarVisible);
+    }
+
+    internal void SetNativeWindowDragActive(bool isActive)
+    {
+        _isNativeWindowDragActive = isActive;
+        UpdateTitleBarVisibility();
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -94,6 +106,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
             handledEventsToo: true);
         PointerEntered += OnTitleBarPointerMoved;
         PointerExited += OnTitleBarPointerExited;
+        Win32Properties.AddWndProcHookCallback(this, OnTitleBarWindowMessage);
     }
 
     private void UpdateTitleBarVisibility(bool animate)
@@ -107,7 +120,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
             && this.TranslatePoint(pointerPosition, _titleBarControl) is Point titleBarPosition
             && new Rect(_titleBarControl.Bounds.Size).Contains(titleBarPosition);
         bool isVisible = IsTitleBarVisible
-            && (!_autoHideWindowTitleBar || isPointerOverTitleBar);
+            && (!_autoHideWindowTitleBar
+                || (isPointerOverTitleBar && !IsWindowGeometryInteractionActive));
         Control titleBar = _titleBarControl;
 
         if (animate && (titleBar.IsHitTestVisible == isVisible))
@@ -145,6 +159,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
     private void DetachTitleBarInteraction()
     {
         _titleBarOpacityAnimationId++;
+        Win32Properties.RemoveWndProcHookCallback(this, OnTitleBarWindowMessage);
 
         if (_titleBarControl is not null)
         {
@@ -313,5 +328,29 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _ = sender;
         _ = e;
         UpdateTitleBarVisibility();
+    }
+
+    private nint OnTitleBarWindowMessage(
+        nint windowHandle,
+        uint message,
+        nint parameter,
+        nint data,
+        ref bool handled)
+    {
+        _ = windowHandle;
+        _ = parameter;
+        _ = data;
+        _ = handled;
+
+        if (message == EnterSizeMoveMessage)
+        {
+            SetNativeWindowDragActive(true);
+        }
+        else if (message == ExitSizeMoveMessage)
+        {
+            SetNativeWindowDragActive(false);
+        }
+
+        return 0;
     }
 }

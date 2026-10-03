@@ -75,6 +75,7 @@ internal sealed class ImageViewerWindowInteractionComposition :
         Cursor.Dispose();
         FloatingMenus.Dispose();
         Selection.Dispose();
+        WindowResize.Dispose();
         WindowMode.Dispose();
     }
 
