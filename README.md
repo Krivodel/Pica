@@ -17,7 +17,7 @@ A convenient image viewer. It can run as a standalone application or be used by 
 - Pinning the window on top of other windows.
 - Customizable display of information, such as the name, format, resolution, or modification date.
 - Useful context menu items, including a proper "Open with" menu.
-- Full support for formats: `.png`, `.jpeg`, `.webp`, `.bmp`, `.gif`, `.ico`, `.cur`, `.avif`, `.heic`, `.heif`, `.tif`.
+- Full support for formats: `.png`, `.jpeg`, `.webp`, `.bmp`, `.gif`, `.ico`, `.cur`, `.avif`, `.heic`, `.heif`, `.tif`, `.tga`.
 
 ## Controls
 
