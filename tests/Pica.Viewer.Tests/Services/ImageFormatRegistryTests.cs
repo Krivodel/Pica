@@ -19,6 +19,14 @@ public sealed class ImageFormatRegistryTests
         extensions.Should().NotContain(".cur");
     }
 
+    [Fact]
+    public void GetWritableExtensions_WithTgaFormat_IncludesTgaEncoding()
+    {
+        IReadOnlyList<string> extensions = _registry.GetWritableExtensions();
+
+        extensions.Should().Contain(PicaImageFormats.TgaExtension);
+    }
+
     [Theory]
     [InlineData("image.png")]
     [InlineData("image.apng")]
@@ -34,6 +42,8 @@ public sealed class ImageFormatRegistryTests
     [InlineData("image.heif")]
     [InlineData("image.tif")]
     [InlineData("image.tiff")]
+    [InlineData("image.tga")]
+    [InlineData("IMAGE.TGA")]
     [InlineData("IMAGE.AVIF")]
     [InlineData("IMAGE.HEIC")]
     [InlineData("IMAGE.HEIF")]
@@ -51,6 +61,7 @@ public sealed class ImageFormatRegistryTests
     [InlineData("image.heif", PicaImageFormats.HeifContentType)]
     [InlineData("image.tif", PicaImageFormats.TiffContentType)]
     [InlineData("image.tiff", PicaImageFormats.TiffContentType)]
+    [InlineData("image.tga", PicaImageFormats.TgaContentType)]
     public void GetContentType_WithMagickExtension_ReturnsExpectedContentType(
         string fileName,
         string expectedContentType)
@@ -73,6 +84,7 @@ public sealed class ImageFormatRegistryTests
     [InlineData("image.heif", typeof(MagickImageDecoder))]
     [InlineData("image.tif", typeof(MagickImageDecoder))]
     [InlineData("image.tiff", typeof(MagickImageDecoder))]
+    [InlineData("image.tga", typeof(MagickImageDecoder))]
     public void Resolve_WithSupportedExtension_ReturnsExpectedDecoder(
         string fileName,
         Type expectedDecoderType)

@@ -12,6 +12,48 @@ namespace Pica.Viewer.Tests.Services;
 
 public sealed class ClipboardImageReaderTests
 {
+    [Theory]
+    [InlineData(PicaImageFormats.TgaContentType)]
+    [InlineData("public.tga")]
+    public async Task ReadAsync_WithTgaPlatformFormat_ReturnsTgaBytes(string identifier)
+    {
+        byte[] bytes = TgaImageTestData.Create(32, true, 0x20);
+        DataTransfer transfer = new();
+        transfer.Add(DataTransferItem.Create(DataFormat.CreateBytesPlatformFormat(identifier), bytes));
+        RecordingClipboard clipboard = new() { Data = transfer };
+        using ExternalClipboardImageReader external = new();
+        ClipboardImageReader reader = CreateReader(new DelegateClipboardSnapshotReader(), external);
+
+        IReadOnlyList<ClipboardImageInput> inputs = await reader.ReadAsync(clipboard.Clipboard, CancellationToken.None);
+        using ClipboardImageInput input = inputs.Should().ContainSingle().Subject;
+
+        input.FileName.Should().Be("clipboard" + PicaImageFormats.TgaExtension);
+        (await input.ReadAsync(CancellationToken.None)).Should().Equal(bytes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DetectFileName_WithTgaWithoutFooter_RecognizesContent(bool compressed)
+    {
+        byte[] bytes = TgaImageTestData.Create(32, compressed, 0x20);
+        ClipboardImageFormatCatalog formats = new(new ImageFormatRegistry());
+
+        string fileName = formats.DetectFileName(bytes);
+
+        fileName.Should().Be("clipboard" + PicaImageFormats.TgaExtension);
+    }
+
+    [Fact]
+    public void DetectFileName_WithInvalidData_RejectsExplicitFormatFallbacks()
+    {
+        ClipboardImageFormatCatalog formats = new(new ImageFormatRegistry());
+        byte[] bytes = new byte[TgaImageTestData.HeaderLength];
+        Func<string> detect = () => formats.DetectFileName(bytes);
+
+        detect.Should().Throw<InvalidDataException>().WithInnerException<AggregateException>();
+    }
+
     [Fact]
     public async Task ReadAsync_WhenAvaloniaReturnsNoData_UsesIndependentNativeSnapshot()
     {

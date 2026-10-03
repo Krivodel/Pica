@@ -7,11 +7,18 @@ namespace Pica.Viewer.Services;
 
 internal sealed class MagickImageDecoder : IImageDecoder
 {
+    private readonly MagickFormat _readFormat;
+
+    internal MagickImageDecoder(MagickFormat readFormat = MagickFormat.Unknown)
+    {
+        _readFormat = readFormat;
+    }
+
     public PixelSize ReadPixelSize(Stream sourceStream, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(sourceStream);
         ct.ThrowIfCancellationRequested();
-        MagickImageInfo imageInfo = new(sourceStream);
+        MagickImageInfo imageInfo = new(sourceStream, CreateReadSettings());
         ct.ThrowIfCancellationRequested();
         int width = checked((int)imageInfo.Width);
         int height = checked((int)imageInfo.Height);
@@ -29,7 +36,7 @@ internal sealed class MagickImageDecoder : IImageDecoder
     {
         ArgumentNullException.ThrowIfNull(sourceStream);
         ct.ThrowIfCancellationRequested();
-        using MagickImage image = new(sourceStream);
+        using MagickImage image = new(sourceStream, CreateReadSettings());
         ct.ThrowIfCancellationRequested();
 
         return image.HasAlpha;
@@ -118,13 +125,18 @@ internal sealed class MagickImageDecoder : IImageDecoder
             Math.Round(scaledHeight)));
     }
 
-    private static MagickImage ReadImage(
+    private MagickReadSettings CreateReadSettings()
+    {
+        return new MagickReadSettings { Format = _readFormat };
+    }
+
+    private MagickImage ReadImage(
         Stream sourceStream,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(sourceStream);
         ct.ThrowIfCancellationRequested();
-        MagickImage image = new(sourceStream);
+        MagickImage image = new(sourceStream, CreateReadSettings());
 
         try
         {

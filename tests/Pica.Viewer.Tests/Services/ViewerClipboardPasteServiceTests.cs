@@ -24,6 +24,29 @@ public sealed class ViewerClipboardPasteServiceTests
     }
 
     [Theory]
+    [InlineData("image.tga")]
+    [InlineData("image.img")]
+    public async Task PasteAsync_WithTgaBytes_OpensImageWithoutTemporaryFile(string fileName)
+    {
+        await DispatchAsync(async () =>
+        {
+            using ClipboardPasteTestContext context = new(Array.Empty<PicaImageItem>());
+            byte[] bytes = TgaImageTestData.Create(32, true, 0x20);
+            context.Reader.Read = _ => Task.FromResult<IReadOnlyList<ClipboardImageInput>>(
+                new ClipboardImageInput[] { ClipboardImageInput.FromBytes(fileName, bytes) });
+
+            await context.PasteService.PasteAsync(CancellationToken.None);
+            Bitmap bitmap = context.Presentation.DisplayedBitmap
+                ?? throw new InvalidOperationException("The clipboard image must be displayed.");
+
+            context.Session.IsClipboardImageActive.Should().BeTrue();
+            context.Presentation.IsCurrentImageFileBacked.Should().BeFalse();
+            BitmapPixelReader.Read(bitmap, CancellationToken.None).BgraPixels
+                .Should().Equal(TgaImageTestData.GetExpectedPixels(32));
+        });
+    }
+
+    [Theory]
     [InlineData(-1, false)]
     [InlineData(1, false)]
     [InlineData(-1, true)]

@@ -45,7 +45,7 @@ internal sealed class ClipboardImageFormatCatalog
 
     internal string DetectFileName(byte[] bytes)
     {
-        MagickImageInfo info = new(bytes);
+        MagickImageInfo info = ReadImageInfo(bytes);
         string extension = info.Format switch
         {
             MagickFormat.Bmp2 or MagickFormat.Bmp3 or MagickFormat.Dib => ".bmp",
@@ -60,5 +60,35 @@ internal sealed class ClipboardImageFormatCatalog
         }
 
         return $"clipboard{extension}";
+    }
+
+    private MagickImageInfo ReadImageInfo(byte[] bytes)
+    {
+        try
+        {
+            return new MagickImageInfo(bytes);
+        }
+        catch (MagickMissingDelegateErrorException ex)
+        {
+            List<Exception> errors = [ex];
+            IEnumerable<MagickFormat> explicitFormats = _registry.GetSupportedExtensions()
+                .Select(extension => _registry.GetMultiFrameReadFormat("image" + extension))
+                .OfType<MagickFormat>()
+                .Distinct();
+
+            foreach (MagickFormat format in explicitFormats)
+            {
+                try
+                {
+                    return new MagickImageInfo(bytes, new MagickReadSettings { Format = format });
+                }
+                catch (MagickException formatError)
+                {
+                    errors.Add(formatError);
+                }
+            }
+
+            throw new InvalidDataException("The clipboard image format could not be recognized.", new AggregateException(errors));
+        }
     }
 }

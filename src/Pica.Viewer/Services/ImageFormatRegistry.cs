@@ -6,6 +6,7 @@ public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderRes
 {
     private static readonly IImageDecoder DefaultDecoder = new AvaloniaBitmapDecoder();
     private static readonly IImageDecoder MagickDecoder = new MagickImageDecoder();
+    private static readonly IImageDecoder TgaDecoder = new MagickImageDecoder(MagickFormat.Tga);
     private static readonly IImageDecoder IcoDecoder = new IcoImageDecoder();
     private static readonly IReadOnlyDictionary<string, ImageFormatDefinition> FormatsByExtension =
         new Dictionary<string, ImageFormatDefinition>(StringComparer.OrdinalIgnoreCase)
@@ -43,6 +44,11 @@ public sealed class ImageFormatRegistry : IImageFormatRegistry, IImageDecoderRes
                 "image/bmp",
                 DefaultDecoder,
                 ImageFramePresentationModes.None),
+            [PicaImageFormats.TgaExtension] = new(
+                PicaImageFormats.TgaContentType,
+                TgaDecoder,
+                ImageFramePresentationModes.None,
+                MultiFrameReadFormat: MagickFormat.Tga),
             [".gif"] = new(
                 "image/gif",
                 DefaultDecoder,

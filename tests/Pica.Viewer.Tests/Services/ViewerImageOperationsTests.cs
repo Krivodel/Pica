@@ -126,6 +126,29 @@ public sealed class ViewerImageOperationsTests
         });
     }
 
+    [Theory]
+    [InlineData(0x00)]
+    [InlineData(0x30)]
+    public async Task SaveCurrentAsync_WithTgaSourceAndPngDestination_PreservesPixels(byte origin)
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            string path = Path.Combine(directory.DirectoryPath, "source" + PicaImageFormats.TgaExtension);
+            await File.WriteAllBytesAsync(path, TgaImageTestData.Create(32, true, origin));
+            PicaImageItem item = new(Guid.Parse("11111111-1111-1111-1111-111111111111"), path, Path.GetFileName(path));
+            using RecordingStorageProvider storageProvider = new() { SelectedFileName = "converted.png" };
+            ViewerImageOperations operations = CreateOperations(storageProvider.Provider);
+
+            await operations.SaveCurrentAsync(item, CancellationToken.None);
+            using MagickImage image = new(storageProvider.Destination.Content);
+            using IPixelCollection<byte> pixels = image.GetPixels();
+
+            image.Format.Should().Be(MagickFormat.Png);
+            pixels.ToByteArray(PixelMapping.BGRA).Should().Equal(TgaImageTestData.GetExpectedPixels(32));
+        });
+    }
+
     [Fact]
     public async Task SaveBitmapAsync_WithChannelImage_WritesNamedPng()
     {
@@ -206,8 +229,8 @@ public sealed class ViewerImageOperationsTests
         await DispatchAsync(async () =>
         {
             using Bitmap bitmap = BgraBitmapTestData.CreateBitmap();
-            IReadOnlyList<string> extensions =
-                new ImageFormatRegistry().GetWritableExtensions();
+            ImageFormatRegistry formats = new();
+            IReadOnlyList<string> extensions = formats.GetWritableExtensions();
 
             foreach (string extension in extensions)
             {
@@ -230,9 +253,8 @@ public sealed class ViewerImageOperationsTests
                 {
                     MagickReadSettings settings = new()
                     {
-                        Format = extension is ".ico" or ".cur"
-                            ? MagickFormat.Ico
-                            : MagickFormat.Unknown
+                        Format = formats.GetMultiFrameReadFormat("image" + extension)
+                            ?? MagickFormat.Unknown
                     };
                     using MagickImage savedImage = new(content, settings);
                     savedImage.Width.Should().BeGreaterThan(0);

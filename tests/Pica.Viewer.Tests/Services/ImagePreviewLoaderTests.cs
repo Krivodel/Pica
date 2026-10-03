@@ -156,6 +156,28 @@ public sealed class ImagePreviewLoaderTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadAsync_WithTgaSource_DecodesPreviewWithoutCreatingFiles(bool compressed)
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            string path = Path.Combine(directory.DirectoryPath, "image" + PicaImageFormats.TgaExtension);
+            await File.WriteAllBytesAsync(path, TgaImageTestData.Create(32, compressed, 0x20));
+            PicaImageItem item = new(ItemId, path, Path.GetFileName(path));
+            ImagePreviewLoader loader = new(new ImageFormatRegistry(), NullLogger<ImagePreviewLoader>.Instance);
+
+            DecodedImagePreview preview = await loader.LoadAsync(item, CancellationToken.None);
+            using Bitmap bitmap = preview.Bitmap;
+
+            preview.SourcePixelSize.Should().Be(new PixelSize(TgaImageTestData.Width, TgaImageTestData.Height));
+            bitmap.PixelSize.Should().Be(new PixelSize(ImagePreviewLoader.PreviewDecodeWidth, ImagePreviewLoader.PreviewDecodeWidth));
+            Directory.GetFiles(directory.DirectoryPath).Should().ContainSingle().Which.Should().Be(path);
+        });
+    }
+
     [Fact]
     public async Task LoadAsync_WithMultiImageIcon_UsesLargestImageDimensions()
     {

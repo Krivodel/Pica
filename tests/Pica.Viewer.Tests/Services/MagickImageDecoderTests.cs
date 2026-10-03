@@ -8,6 +8,20 @@ namespace Pica.Viewer.Tests.Services;
 
 public sealed class MagickImageDecoderTests
 {
+    [Theory]
+    [InlineData(24, false)]
+    [InlineData(32, true)]
+    public void ReadHasAlpha_WithTga_ReturnsPixelDepthAlpha(int pixelDepth, bool expectedAlpha)
+    {
+        using MemoryStream stream = new(TgaImageTestData.Create(pixelDepth, true, 0x20));
+        IImageDecoder decoder = ((IImageDecoderResolver)new ImageFormatRegistry())
+            .Resolve("image" + PicaImageFormats.TgaExtension).Decoder;
+
+        bool hasAlpha = decoder.ReadHasAlpha(stream, CancellationToken.None);
+
+        hasAlpha.Should().Be(expectedAlpha);
+    }
+
     [Fact]
     public void ReadHasAlpha_WithRgbaTiff_ReturnsTrue()
     {
