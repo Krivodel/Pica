@@ -67,6 +67,62 @@ public sealed class WindowsFileAssociationStoreTests
     }
 
     [Theory]
+    [InlineData("no-command")]
+    [InlineData("delegate")]
+    [InlineData("missing-executable")]
+    public void IsPicaDefault_ProgramWithoutExecutable_PreservesOtherHandlerAndCanReadSnapshot(string registration)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        string suffix = Guid.NewGuid().ToString("N");
+        string programId = "Pica.Tests.Unresolved." + suffix;
+        string programPath = $@"Software\Classes\{programId}";
+        WindowsFileAssociationStore store = new(Registry.CurrentUser, "S-1-5-21-1001", @"F:\Pica\Pica.exe",
+            _ => programId, () => { }, WindowsFileAssociationNative.QueryExecutable);
+        string extension = ".picatest" + suffix;
+        string extensionPath = $@"Software\Classes\{extension}";
+
+        try
+        {
+            using RegistryKey program = Registry.CurrentUser.CreateSubKey(programPath);
+            program.SetValue("", "Image without an executable handler");
+
+            if (registration != "no-command")
+            {
+                using RegistryKey command = program.CreateSubKey(@"shell\open\command");
+
+                if (registration == "delegate")
+                {
+                    command.SetValue("DelegateExecute", "{11111111-1111-1111-1111-111111111111}");
+                }
+                else
+                {
+                    command.SetValue("", $"\"{Path.Combine(Path.GetTempPath(), suffix, "missing.exe")}\" \"%1\"");
+                }
+            }
+
+            using RegistryKey candidates = Registry.CurrentUser.CreateSubKey($@"{extensionPath}\OpenWithProgids");
+            candidates.SetValue(programId, Array.Empty<byte>(), RegistryValueKind.None);
+
+            bool isPica = store.IsPicaDefault(extension);
+            FileAssociationSnapshot snapshot = store.GetSnapshot(extension);
+
+            isPica.Should().BeFalse();
+            snapshot.DefaultProgram.Should().Be(programId);
+            program.GetValue("").Should().Be("Image without an executable handler");
+            candidates.GetValueNames().Should().Equal(programId);
+        }
+        finally
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(programPath, throwOnMissingSubKey: false);
+            Registry.CurrentUser.DeleteSubKeyTree(extensionPath, throwOnMissingSubKey: false);
+        }
+    }
+
+    [Theory]
     [InlineData(".png")]
     [InlineData(".cur")]
     public void RegisterApplication_IsolatedRegistry_QuotesCommandAndPreservesOtherHandlers(string extension)

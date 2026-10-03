@@ -17,6 +17,7 @@ internal static class WindowsFileAssociationNative
     private const string ApplicationProgramsPrefix = @"Applications\";
     private const int NoAssociationResult = unchecked((int)0x80070483);
     private const int FileNotFoundResult = unchecked((int)0x80070002);
+    private const int ApplicationNotFoundResult = unchecked((int)0x800401F5);
 
     internal static string? QueryDefault(string extension)
     {
@@ -53,7 +54,7 @@ internal static class WindowsFileAssociationNative
         StringBuilder buffer = new(MaximumProgramIdLength);
         int result = AssocQueryStringW(flags, associationString, association, null, buffer, ref length);
 
-        if (result is NoAssociationResult or FileNotFoundResult)
+        if (result is NoAssociationResult or FileNotFoundResult or ApplicationNotFoundResult)
         {
             return null;
         }
