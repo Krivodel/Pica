@@ -62,7 +62,7 @@
                 Value="{DynamicResource SukiPrimaryColor0}" />
     </Style>
 
-    <Style Selector="Button.Icon PathIcon">
+    <Style Selector="Button.Icon PathIcon, Button.title-action PathIcon">
         <Setter Property="Width"
                 Value="{StaticResource TitleButtonIconSize}" />
         <Setter Property="Height"

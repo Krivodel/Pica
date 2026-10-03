@@ -7,7 +7,10 @@
                 <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerColors.axaml" />
                 <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerBrushes.axaml" />
                 <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerEffects.axaml" />
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerMetrics.axaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <x:Double x:Key="ViewerTitleBarHeight">58</x:Double>
 
             <ControlTheme x:Key="ViewerTitleBarBackgroundTheme"
                           TargetType="suki:GlassCard">
@@ -19,6 +22,47 @@
             </ControlTheme>
         </ResourceDictionary>
     </Styles.Resources>
+
+    <Style Selector="suki|SukiWindow[IsTitleBarVisible=True] /template/ LayoutTransformControl#PART_TitleBar">
+        <Setter Property="Height"
+                Value="{StaticResource ViewerTitleBarHeight}" />
+        <Setter Property="Margin"
+                Value="0" />
+    </Style>
+
+    <Style Selector="suki|SukiWindow[IsTitleBarVisible=True] /template/ LayoutTransformControl#PART_TitleBar > Panel > DockPanel">
+        <Setter Property="Margin"
+                Value="12,0,0,0" />
+    </Style>
+
+    <Style Selector="suki|SukiWindow[IsTitleBarVisible=True] /template/ LayoutTransformControl#PART_TitleBar > Panel > DockPanel > StackPanel">
+        <Setter Property="Spacing"
+                Value="0" />
+        <Setter Property="VerticalAlignment"
+                Value="Stretch" />
+    </Style>
+
+    <Style Selector="suki|SukiWindow[IsTitleBarVisible=True] /template/ LayoutTransformControl#PART_TitleBar Button">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerToolButtonSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerTitleBarHeight}" />
+        <Setter Property="Margin"
+                Value="0" />
+        <Setter Property="Padding"
+                Value="0" />
+        <Setter Property="CornerRadius"
+                Value="0" />
+        <Setter Property="VerticalContentAlignment"
+                Value="Center" />
+    </Style>
+
+    <Style Selector="suki|SukiWindow[IsTitleBarVisible=True] /template/ Button#PART_MinimizeButton > PathIcon">
+        <Setter Property="Margin"
+                Value="0" />
+        <Setter Property="VerticalAlignment"
+                Value="Center" />
+    </Style>
 
     <Style Selector="suki|SukiWindow /template/ suki|GlassCard#PART_TitleBarBackground">
         <Setter Property="Theme"

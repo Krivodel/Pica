@@ -3,8 +3,10 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Chrome;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -677,14 +679,17 @@ public sealed class ImageViewerWindowTests
     }
 
     [Theory]
-    [InlineData(640d, 480d, false)]
-    [InlineData(900d, 700d, false)]
-    [InlineData(640d, 480d, true)]
-    [InlineData(900d, 700d, true)]
+    [InlineData(300d, 240d, false, 1d)]
+    [InlineData(300d, 240d, true, 1d)]
+    [InlineData(640d, 480d, false, 17d)]
+    [InlineData(900d, 700d, false, 17d)]
+    [InlineData(640d, 480d, true, 17d)]
+    [InlineData(900d, 700d, true, 17d)]
     public async Task WindowResizeOverlay_InWindowedMode_CoversWindowEdgesAndLeavesTitleBarInteractive(
         double width,
         double height,
-        bool autoHide)
+        bool autoHide,
+        double topEdgeInset)
     {
         await DispatchAsync(async () =>
         {
@@ -699,6 +704,7 @@ public sealed class ImageViewerWindowTests
             const double EdgeInset = 17d;
             const double CornerInset = 35d;
             const double CornerEdgeInset = 1d;
+            const double ButtonEdgeInset = 3d;
 
             try
             {
@@ -714,7 +720,7 @@ public sealed class ImageViewerWindowTests
                 [
                     (new Point(EdgeInset, size.Height / 2d), WindowSizingEdges.Left),
                     (new Point(size.Width - EdgeInset, size.Height / 2d), WindowSizingEdges.Right),
-                    (new Point(size.Width / 2d, EdgeInset), WindowSizingEdges.Top),
+                    (new Point(size.Width / 2d, topEdgeInset), WindowSizingEdges.Top),
                     (new Point(size.Width / 2d, size.Height - EdgeInset), WindowSizingEdges.Bottom),
                     (new Point(CornerInset, CornerEdgeInset), WindowSizingEdges.TopLeft),
                     (new Point(size.Width - CornerInset, CornerEdgeInset), WindowSizingEdges.TopRight),
@@ -736,6 +742,43 @@ public sealed class ImageViewerWindowTests
                 Visual titleBarHit = window.InputHitTest(titleBarCenter)
                     .Should().BeAssignableTo<Visual>().Subject;
                 titleBarHit.GetVisualAncestors().Should().NotContain(view.WindowResizeOverlay);
+                Point titleBarOrigin = titleBar.TranslatePoint(default, window)
+                    ?? throw new InvalidOperationException("The title bar must be attached to the window.");
+                titleBarOrigin.Should().Be(default(Point));
+                titleBar.Bounds.Width.Should().BeApproximately(size.Width, 0.01d);
+                Button[] titleBarButtons = titleBar.GetVisualDescendants().OfType<Button>()
+                    .Where(button => button.IsEffectivelyVisible)
+                    .ToArray();
+
+                foreach (Button button in titleBarButtons)
+                {
+                    button.Bounds.Width.Should().BeApproximately(44d, 0.01d);
+                }
+
+                Rect[] buttonBounds = titleBarButtons
+                    .Select(button =>
+                    {
+                        Point origin = button.TranslatePoint(default, window)
+                            ?? throw new InvalidOperationException("The title bar button must be attached to the window.");
+
+                        return new Rect(origin, button.Bounds.Size);
+                    })
+                    .OrderBy(bounds => bounds.Left)
+                    .ToArray();
+                buttonBounds.Should().HaveCount(5);
+
+                for (int i = 0; i < buttonBounds.Length; i++)
+                {
+                    buttonBounds[i].Top.Should().BeApproximately(titleBarOrigin.Y, 0.01d);
+                    buttonBounds[i].Height.Should().BeApproximately(titleBarHeight, 0.01d);
+                    buttonBounds[i].Left.Should().BeGreaterThanOrEqualTo(0d);
+                    buttonBounds[i].Right.Should().BeLessThanOrEqualTo(size.Width);
+
+                    if (i > 0)
+                    {
+                        buttonBounds[i].Left.Should().BeApproximately(buttonBounds[i - 1].Right, 0.01d);
+                    }
+                }
 
                 foreach (Control button in window.GetVisualDescendants().OfType<Button>()
                     .Where(button => button.Name is "PART_CloseButton" or "PART_MinimizeButton" or "PART_PinButton")
@@ -744,9 +787,9 @@ public sealed class ImageViewerWindowTests
                     Point[] buttonPoints =
                     [
                         new Point(button.Bounds.Width / 2d, button.Bounds.Height / 2d),
-                        new Point(button.Bounds.Width / 2d, CornerEdgeInset),
-                        new Point(CornerEdgeInset, button.Bounds.Height / 2d),
-                        new Point(button.Bounds.Width - CornerEdgeInset, button.Bounds.Height / 2d),
+                        new Point(button.Bounds.Width / 2d, ButtonEdgeInset),
+                        new Point(ButtonEdgeInset, button.Bounds.Height / 2d),
+                        new Point(button.Bounds.Width - ButtonEdgeInset, button.Bounds.Height / 2d),
                         new Point(button.Bounds.Width / 2d, button.Bounds.Height - CornerEdgeInset)
                     ];
 
@@ -759,10 +802,26 @@ public sealed class ImageViewerWindowTests
                     }
                 }
 
-                Control settingsButton = window.RightWindowTitleBarControls.Single();
+                Button settingsButton = window.RightWindowTitleBarControls.Single()
+                    .Should().BeOfType<Button>().Subject;
                 Point settingsCenter = settingsButton.TranslatePoint(
                     new Point(settingsButton.Bounds.Width / 2d, settingsButton.Bounds.Height / 2d), window)
                     ?? throw new InvalidOperationException("The settings button must be attached to the window.");
+                Button pinButton = titleBarButtons.Single(button => button.Name == "PART_PinButton");
+                Point pinCenter = pinButton.TranslatePoint(
+                    new Point(pinButton.Bounds.Width / 2d, pinButton.Bounds.Height / 2d), window)
+                    ?? throw new InvalidOperationException("The pin button must be attached to the window.");
+                window.MouseMove(pinCenter, RawInputModifiers.None);
+                IBrush? hoverBackground = pinButton.GetBaseValue(TemplatedControl.BackgroundProperty).Value;
+                window.MouseMove(settingsCenter, RawInputModifiers.None);
+                settingsButton.GetBaseValue(TemplatedControl.BackgroundProperty).Value.Should().Be(hoverBackground);
+                settingsButton.BorderThickness.Should().Be(pinButton.BorderThickness);
+                BrushTransition settingsTransition = settingsButton.Transitions.Should().ContainSingle().Which
+                    .Should().BeOfType<BrushTransition>().Subject;
+                BrushTransition pinTransition = pinButton.Transitions.Should().ContainSingle().Which
+                    .Should().BeOfType<BrushTransition>().Subject;
+                settingsTransition.Property.Should().Be(pinTransition.Property);
+                settingsTransition.Duration.Should().Be(pinTransition.Duration);
                 window.MouseDown(settingsCenter, MouseButton.Left, RawInputModifiers.None);
                 window.MouseUp(settingsCenter, MouseButton.Left, RawInputModifiers.None);
                 view.SettingsPanel.IsVisible.Should().BeTrue();

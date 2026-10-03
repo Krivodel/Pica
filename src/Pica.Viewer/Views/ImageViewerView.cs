@@ -66,8 +66,6 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
 
     private const string MenuForegroundBrushResourceKey = "ViewerMenuForegroundBrush";
     private const string DestructiveIconBrushResourceKey = "ViewerDestructiveIconBrush";
-    private const string FloatingControlShadowEffectResourceKey =
-        "ViewerFloatingControlShadowEffect";
     private const string HiddenControlsOpacityResourceKey =
         "ViewerHiddenControlsOpacity";
     private const string NavigationAreaMinimumWidthResourceKey =
@@ -77,8 +75,6 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         "ViewerVisibleControlsOpacity";
     private const string WindowButtonSizeResourceKey =
         "ViewerWindowButtonSize";
-    private const string WindowIconHostSizeResourceKey =
-        "ViewerWindowIconHostSize";
     private const string CheckerboardDarkColorResourceKey =
         "ViewerCheckerboardDarkColor";
     private const string CheckerboardLightColorResourceKey =
@@ -263,14 +259,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         SelectionFrame = selectionFrame;
         SelectionToolbar = selectionToolbar;
         SelectionOpenWithButton = selectionOpenWithButton;
-        IEffect floatingControlShadow =
-            GetRequiredEffect(FloatingControlShadowEffectResourceKey);
-        double windowIconHostSize =
-            GetRequiredDouble(WindowIconHostSizeResourceKey);
         TitleBarSettingsControls = CreateTitleBarSettingsButton(
-            events.SettingsClicked,
-            floatingControlShadow,
-            windowIconHostSize);
+            events.SettingsClicked);
         Compose();
     }
 
@@ -392,21 +382,16 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     }
 
     private static Avalonia.Controls.Controls CreateTitleBarSettingsButton(
-        EventHandler<RoutedEventArgs> clickHandler,
-        IEffect floatingControlShadow,
-        double windowIconHostSize)
+        EventHandler<RoutedEventArgs> clickHandler)
     {
         PathIcon icon = new();
         icon.Classes.Add(SettingsIconClassName);
         Button button = new()
         {
-            Content = CreateFloatingControlShadowHost(
-                icon,
-                windowIconHostSize,
-                floatingControlShadow),
+            Content = icon,
             Focusable = false
         };
-        button.Classes.Add("Icon");
+        button.Classes.Add("WindowControlsButton");
         button.Classes.Add("title-action");
         button.Click += clickHandler;
         Avalonia.Controls.Controls controls = [button];
@@ -956,25 +941,6 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         return icon;
     }
 
-    private static Grid CreateFloatingControlShadowHost(
-        Control control,
-        double hostSize,
-        IEffect floatingControlShadow)
-    {
-        ArgumentNullException.ThrowIfNull(control);
-        ArgumentNullException.ThrowIfNull(floatingControlShadow);
-        Grid host = new()
-        {
-            Width = hostSize,
-            Height = hostSize,
-            ClipToBounds = false,
-            Effect = floatingControlShadow
-        };
-        host.Children.Add(control);
-
-        return host;
-    }
-
     private static IReadOnlyList<PicaActionDefinition> GetActions(
         IReadOnlyList<PicaActionDefinition> actions,
         PicaActionTargets target)
@@ -1044,23 +1010,6 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         }
 
         return color;
-    }
-
-    private IEffect GetRequiredEffect(string resourceKey)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey);
-
-        if (!this.TryFindResource(
-            resourceKey,
-            ActualThemeVariant,
-            out object? resource)
-            || resource is not IEffect effect)
-        {
-            throw new InvalidOperationException(
-                $"The image viewer is missing its '{resourceKey}' effect.");
-        }
-
-        return effect;
     }
 
     private double GetRequiredDouble(string resourceKey)
