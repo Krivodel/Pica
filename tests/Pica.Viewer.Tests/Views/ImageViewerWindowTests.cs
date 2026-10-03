@@ -210,6 +210,170 @@ public sealed class ImageViewerWindowTests
     }
 
     [Fact]
+    public async Task TitleBarAutoHide_WithPointerEnteringAndLeavingTitleBar_KeepsViewportAndImagePlacement()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(typeof(SkiaViewerTestSession), SessionLock, async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+            ImageViewerState state = CreateWindowedState();
+            state.IsFastLoadingEnabled = false;
+            state.ResizeBehavior = WindowResizeBehavior.Free;
+            ImageViewerWindow window = await CreateLoadedWindowAsync(directory.DirectoryPath, state, timeout.Token);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+
+            try
+            {
+                await Task.Delay(250, timeout.Token);
+                window.UpdateLayout();
+                Control titleBar = window.GetVisualDescendants().OfType<Control>()
+                    .Single(control => control.Name == "PART_TitleBar");
+                Rect viewportBounds = view.ViewerArea.Bounds;
+                Size clientSize = window.ClientSize;
+                view.Image.Width *= 2d;
+                view.Image.Height *= 2d;
+                Canvas.SetLeft(view.Image, 90d);
+                Canvas.SetTop(view.Image, 70d);
+                Rect imagePlacement = new(Canvas.GetLeft(view.Image), Canvas.GetTop(view.Image),
+                    view.Image.Width, view.Image.Height);
+                Point titleBarCenter = titleBar.TranslatePoint(
+                    new Point(titleBar.Bounds.Width / 2d, titleBar.Bounds.Height / 2d), window)
+                    ?? throw new InvalidOperationException("The title bar must be attached to the window.");
+                Point imageCenter = new(clientSize.Width / 2d, clientSize.Height / 2d);
+
+                titleBar.Opacity.Should().Be(0d);
+                titleBar.IsHitTestVisible.Should().BeFalse();
+                viewportBounds.Size.Should().Be(clientSize);
+
+                foreach (Point position in new Point[] { titleBarCenter, imageCenter, titleBarCenter, imageCenter })
+                {
+                    window.MouseMove(position, RawInputModifiers.None);
+                    window.UpdateLayout();
+
+                    titleBar.Opacity.Should().Be(position == titleBarCenter ? 1d : 0d);
+                    titleBar.IsHitTestVisible.Should().Be(position == titleBarCenter);
+                    view.ViewerArea.Bounds.Should().Be(viewportBounds);
+                    window.ClientSize.Should().Be(clientSize);
+                    new Rect(Canvas.GetLeft(view.Image), Canvas.GetTop(view.Image),
+                        view.Image.Width, view.Image.Height).Should().Be(imagePlacement);
+                }
+
+                window.MouseMove(titleBarCenter, RawInputModifiers.None);
+                window.MouseMove(new Point(-1d, -1d), RawInputModifiers.None);
+                titleBar.Opacity.Should().Be(0d);
+                titleBar.IsHitTestVisible.Should().BeFalse();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(WindowResizeBehavior.AlwaysFitImage)]
+    [InlineData(WindowResizeBehavior.FitWhenWindowed)]
+    public async Task TitleBarAutoHide_WhenSettingChangesInFittedWindow_RefitsImageWithoutBlackBars(
+        WindowResizeBehavior resizeBehavior)
+    {
+        await DispatchAsync(async () =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(TestTimeoutSeconds));
+            ImageViewerState state = CreateWindowedState();
+            state.AutoHideWindowTitleBar = false;
+            state.ResizeBehavior = resizeBehavior;
+            state.IsFastLoadingEnabled = false;
+            ImageViewerWindow window = await CreateLoadedWindowAsync(directory.DirectoryPath, state, timeout.Token);
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+
+            try
+            {
+                await Task.Delay(250, timeout.Token);
+                window.UpdateLayout();
+                CheckBox setting = GetTitleBarAutoHideSetting(view, out ViewerSettingsContentControl settingsContent);
+
+                foreach (bool autoHide in new bool[] { true, false, true })
+                {
+                    setting.IsChecked = autoHide;
+                    await settingsContent.Completion;
+                    window.UpdateLayout();
+                    await Task.Delay(250, timeout.Token);
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    window.UpdateLayout();
+
+                    view.ViewerArea.Bounds.Width.Should().BeApproximately(view.Image.Width, 0.01d);
+                    view.ViewerArea.Bounds.Height.Should().BeApproximately(view.Image.Height, 0.01d);
+                    Canvas.GetLeft(view.Image).Should().BeApproximately(0d, 0.01d);
+                    Canvas.GetTop(view.Image).Should().BeApproximately(0d, 0.01d);
+                }
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task TitleBarAutoHide_WhenSettingChangesAndWindowModeChanges_UpdatesChrome()
+    {
+        await DispatchAsync(async () =>
+        {
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content as ImageViewerView
+                ?? throw new InvalidOperationException("The viewer content must be created.");
+
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                Control titleBar = window.GetVisualDescendants().OfType<Control>()
+                    .Single(control => control.Name == "PART_TitleBar");
+                Panel overlayParent = titleBar.Parent.Should().BeAssignableTo<Panel>().Subject;
+                CheckBox setting = GetTitleBarAutoHideSetting(view, out ViewerSettingsContentControl settingsContent);
+                Size clientSize = window.ClientSize;
+
+                setting.IsChecked = false;
+                await settingsContent.Completion;
+                window.UpdateLayout();
+
+                titleBar.Opacity.Should().Be(1d);
+                titleBar.IsHitTestVisible.Should().BeTrue();
+                titleBar.Parent.Should().NotBeSameAs(overlayParent);
+                view.ViewerArea.Bounds.Height.Should().BeLessThan(clientSize.Height);
+
+                setting.IsChecked = true;
+                await settingsContent.Completion;
+                window.UpdateLayout();
+
+                titleBar.Parent.Should().BeSameAs(overlayParent);
+                titleBar.Opacity.Should().Be(0d);
+                view.ViewerArea.Bounds.Size.Should().Be(clientSize);
+
+                window.MouseMove(new Point(clientSize.Width / 2d, titleBar.Bounds.Height / 2d), RawInputModifiers.None);
+                titleBar.Opacity.Should().Be(1d);
+                window.WindowState = WindowState.FullScreen;
+                window.UpdateLayout();
+                titleBar.IsVisible.Should().BeFalse();
+                window.WindowState = WindowState.Normal;
+                window.UpdateLayout();
+                window.MouseMove(new Point(window.ClientSize.Width / 2d, window.ClientSize.Height / 2d), RawInputModifiers.None);
+                titleBar.IsVisible.Should().BeTrue();
+                titleBar.Opacity.Should().Be(0d);
+                view.ViewerArea.Bounds.Size.Should().Be(window.ClientSize);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public async Task TitleBarDoubleClick_InWindowedMode_EntersFullScreenMode()
     {
         await DispatchAsync(() =>
@@ -513,11 +677,14 @@ public sealed class ImageViewerWindowTests
     }
 
     [Theory]
-    [InlineData(640d, 480d)]
-    [InlineData(900d, 700d)]
+    [InlineData(640d, 480d, false)]
+    [InlineData(900d, 700d, false)]
+    [InlineData(640d, 480d, true)]
+    [InlineData(900d, 700d, true)]
     public async Task WindowResizeOverlay_InWindowedMode_CoversWindowEdgesAndLeavesTitleBarInteractive(
         double width,
-        double height)
+        double height,
+        bool autoHide)
     {
         await DispatchAsync(async () =>
         {
@@ -525,6 +692,7 @@ public sealed class ImageViewerWindowTests
             state.ResizeBehavior = WindowResizeBehavior.Free;
             state.WindowWidth = width;
             state.WindowHeight = height;
+            state.AutoHideWindowTitleBar = autoHide;
             ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), state, new RecordingImageChannelBitmapLoader());
             ImageViewerView view = window.Content as ImageViewerView
                 ?? throw new InvalidOperationException("The viewer content must be created.");
@@ -539,7 +707,9 @@ public sealed class ImageViewerWindowTests
                 AvaloniaHeadlessPlatform.ForceRenderTimerTick();
                 await window.Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
                 Size size = window.ClientSize;
-                double titleBarHeight = size.Height - view.ViewerArea.Bounds.Height;
+                Control titleBar = window.GetVisualDescendants().OfType<Control>()
+                    .Single(control => control.Name == "PART_TitleBar");
+                double titleBarHeight = titleBar.Bounds.Height;
                 (Point Position, WindowSizingEdges Edges)[] resizePoints =
                 [
                     (new Point(EdgeInset, size.Height / 2d), WindowSizingEdges.Left),
@@ -561,7 +731,9 @@ public sealed class ImageViewerWindowTests
                     AssertResizeEdge(window, position, edges);
                 }
 
-                Visual titleBarHit = window.InputHitTest(new Point(size.Width / 2d, titleBarHeight / 2d))
+                Point titleBarCenter = new(size.Width / 2d, titleBarHeight / 2d);
+                window.MouseMove(titleBarCenter, RawInputModifiers.None);
+                Visual titleBarHit = window.InputHitTest(titleBarCenter)
                     .Should().BeAssignableTo<Visual>().Subject;
                 titleBarHit.GetVisualAncestors().Should().NotContain(view.WindowResizeOverlay);
 
@@ -662,6 +834,11 @@ public sealed class ImageViewerWindowTests
 
                 originalParent.Children.Should().NotContain(view.WindowResizeOverlay);
                 window.GetVisualDescendants().Should().ContainSingle(visual => ReferenceEquals(visual, view.WindowResizeOverlay));
+                Control titleBar = window.GetVisualDescendants().OfType<Control>()
+                    .Single(control => control.Name == "PART_TitleBar");
+                window.MouseMove(new Point(window.ClientSize.Width / 2d, titleBar.Bounds.Height / 2d), RawInputModifiers.None);
+                titleBar.Opacity.Should().Be(1d);
+                view.ViewerArea.Bounds.Size.Should().Be(window.ClientSize);
                 AssertResizeEdge(window, new Point(window.ClientSize.Width / 2d, 1d), WindowSizingEdges.Top);
             }
             finally
@@ -2361,14 +2538,30 @@ public sealed class ImageViewerWindowTests
         ImageViewerView view = window.Content as ImageViewerView
             ?? throw new InvalidOperationException("The viewer content must be created.");
         double imageTop = Canvas.GetTop(view.Image);
-        imageTop.Should().BeGreaterThan(0d);
+        double titleBarBottom = window.IsTitleBarOverlayEnabled
+            && (window.CurrentWindowMode == ViewerWindowMode.Windowed)
+            ? window.GetVisualDescendants().OfType<Control>()
+                .Single(control => control.Name == "PART_TitleBar").Bounds.Bottom
+            : 0d;
+        imageTop.Should().BeGreaterThan(titleBarBottom);
         double positionY = clickBackground
-            ? imageTop / 2d
+            ? (titleBarBottom + imageTop) / 2d
             : imageTop + (view.Image.Height / 2d);
 
         return view.ViewerArea.TranslatePoint(
             new Point(view.ViewerArea.Bounds.Width / 2d, positionY), window)
             ?? throw new InvalidOperationException("The viewer area must be attached to the window.");
+    }
+
+    private static CheckBox GetTitleBarAutoHideSetting(
+        ImageViewerView view,
+        out ViewerSettingsContentControl settingsContent)
+    {
+        settingsContent = view.SettingsPanel.GetLogicalDescendants()
+            .OfType<ViewerSettingsContentControl>().Single();
+
+        return settingsContent.GetLogicalDescendants().OfType<CheckBox>().Single(checkBox =>
+            checkBox.Content is TextBlock { Text: "Автоматически скрывать заголовок окна" });
     }
 
     private static ImageViewerState CreateWindowedState()
@@ -2387,6 +2580,7 @@ public sealed class ImageViewerWindowTests
         MouseButton button = MouseButton.Left,
         RawInputModifiers modifiers = RawInputModifiers.None)
     {
+        window.MouseMove(position, modifiers);
         window.MouseDown(
             position,
             button,

@@ -12,6 +12,7 @@ internal static class ViewerSettingsDefaults
     public const bool PanningInertiaEnabled = true;
     public const bool PreserveZoomAndPositionOnNavigation = false;
     public const bool RememberWindowPlacement = false;
+    public const bool AutoHideWindowTitleBar = true;
     public const bool ShowImageName = false;
     public const bool ShowImageFormat = true;
     public const bool ShowImageResolution = true;

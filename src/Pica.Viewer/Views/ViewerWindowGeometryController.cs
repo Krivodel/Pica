@@ -55,6 +55,11 @@ internal sealed class ViewerWindowGeometryController
 
     internal double GetWindowedTitleBarHeight()
     {
+        if (_window.IsTitleBarOverlayEnabled)
+        {
+            return 0d;
+        }
+
         double measuredHeight =
             _window.ClientSize.Height
             - _view.ViewerArea.Bounds.Height;

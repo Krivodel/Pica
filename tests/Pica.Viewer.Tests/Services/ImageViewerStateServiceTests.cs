@@ -27,11 +27,38 @@ public sealed class ImageViewerStateServiceTests
         state.ResizeBehavior.Should().Be(WindowResizeBehavior.AlwaysFitImage);
         state.ExpandOnDoubleClick.Should().BeTrue();
         state.RememberWindowPlacement.Should().BeFalse();
+        state.AutoHideWindowTitleBar.Should().BeTrue();
         state.IsFastLoadingEnabled.Should().BeTrue();
         state.ShowImageName.Should().BeFalse();
         state.ShowImageFormat.Should().BeTrue();
         state.ShowImageModificationDate.Should().BeFalse();
         state.ShowImageResolution.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task LoadAsync_WithOlderSettings_EnablesTitleBarAutoHide()
+    {
+        using ImageViewerStateTestContext context = new();
+        await File.WriteAllTextAsync(context.StateFilePath, "{\"showImageName\":true}");
+
+        ImageViewerState state = await context.Service.LoadAsync(CancellationToken.None);
+
+        state.AutoHideWindowTitleBar.Should().BeTrue();
+        state.ShowImageName.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SaveAsync_WithTitleBarAutoHide_RoundTripsSetting(bool autoHide)
+    {
+        using ImageViewerStateTestContext context = new();
+        ImageViewerState state = new() { AutoHideWindowTitleBar = autoHide };
+
+        await context.Service.SaveAsync(state, CancellationToken.None);
+        ImageViewerState restoredState = await context.CreateService().LoadAsync(CancellationToken.None);
+
+        restoredState.AutoHideWindowTitleBar.Should().Be(autoHide);
     }
 
     [Fact]

@@ -98,6 +98,23 @@ public sealed class ImageViewerSettingsViewModelTests
     }
 
     [Fact]
+    public async Task ChangeAutoHideWindowTitleBarCommand_WhenDisabled_UpdatesNotifiesAndSavesState()
+    {
+        using ImageViewerSettingsViewModel viewModel = CreateViewModel(
+            CreateState(), out RecordingImageViewerStateService stateService, out _, out _);
+        List<string?> changedProperties = [];
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+        viewModel.AutoHideWindowTitleBar.Should().BeTrue();
+
+        await viewModel.ChangeAutoHideWindowTitleBarCommand.ExecuteAsync(false);
+
+        viewModel.AutoHideWindowTitleBar.Should().BeFalse();
+        stateService.LastSavedState?.AutoHideWindowTitleBar.Should().BeFalse();
+        changedProperties.Should().Contain(nameof(viewModel.AutoHideWindowTitleBar));
+        viewModel.HasErrorMessage.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ChangeFastLoadingCommand_WithValue_AppliesAndSavesState()
     {
         ImageViewerSettingsViewModel viewModel = CreateViewModel(

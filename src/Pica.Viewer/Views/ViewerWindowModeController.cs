@@ -147,6 +147,16 @@ internal sealed class ViewerWindowModeController : IDisposable
                 _view.ImageInformationText.Text);
     }
 
+    internal void UpdateTitleBarAutoHide()
+    {
+        _window.SetTitleBarAutoHide(_settings.AutoHideWindowTitleBar);
+
+        if (ShouldFitWindowToCurrentImage())
+        {
+            BeginLayoutSettlement();
+        }
+    }
+
     internal void FitWindowToCurrentImage()
     {
         if (_viewport.CurrentBitmap is null)
@@ -257,6 +267,7 @@ internal sealed class ViewerWindowModeController : IDisposable
             mode == ViewerWindowMode.Windowed;
         _window.IsTitleBarVisible = isWindowed;
         _window.ShowTitlebarBackground = isWindowed;
+        _window.UpdateTitleBarVisibility();
         _view.WindowResizeOverlay.IsVisible = isWindowed;
         UpdateInformationPanelVisibility();
         _view.FullscreenSettingsButton.IsVisible = !isWindowed;

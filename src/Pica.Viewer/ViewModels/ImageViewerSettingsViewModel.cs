@@ -23,6 +23,7 @@ internal sealed partial class ImageViewerSettingsViewModel :
         _state.PreserveZoomAndPositionOnNavigation;
     public WindowResizeBehavior ResizeBehavior => _state.ResizeBehavior;
     public bool RememberWindowPlacement => _state.RememberWindowPlacement;
+    public bool AutoHideWindowTitleBar => _state.AutoHideWindowTitleBar;
     public bool ShowImageName => _state.ShowImageName;
     public bool ShowImageFormat => _state.ShowImageFormat;
     public bool ShowImageResolution => _state.ShowImageResolution;
@@ -249,6 +250,21 @@ internal sealed partial class ImageViewerSettingsViewModel :
                 OnPropertyChanged(nameof(RememberWindowPlacement));
             },
             nameof(ChangeRememberWindowPlacementAsync),
+            ct);
+    }
+
+    [RelayCommand]
+    private async Task ChangeAutoHideWindowTitleBarAsync(
+        bool autoHideWindowTitleBar,
+        CancellationToken ct)
+    {
+        await ChangeSettingAsync(
+            () =>
+            {
+                _state.AutoHideWindowTitleBar = autoHideWindowTitleBar;
+                OnPropertyChanged(nameof(AutoHideWindowTitleBar));
+            },
+            nameof(ChangeAutoHideWindowTitleBarAsync),
             ct);
     }
 

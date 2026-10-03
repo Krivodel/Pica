@@ -49,6 +49,11 @@ internal static class ViewerSettingsControlFactory
                 settings.ExpandOnDoubleClick,
                 settings.ChangeExpandOnDoubleClickCommand),
             new ViewerCheckBoxSettingControl(
+                "Автоматически скрывать заголовок окна",
+                settings.AutoHideWindowTitleBar,
+                settings.ChangeAutoHideWindowTitleBarCommand,
+                wrapContent: true),
+            new ViewerCheckBoxSettingControl(
                 "Запоминать положение и размер окна",
                 settings.RememberWindowPlacement,
                 settings.ChangeRememberWindowPlacementCommand)

@@ -15,6 +15,7 @@ public sealed class ImageViewerState
         ViewerSettingsDefaults.PreserveZoomAndPositionOnNavigation;
     public WindowResizeBehavior ResizeBehavior { get; set; } = ViewerSettingsDefaults.ResizeBehavior;
     public bool RememberWindowPlacement { get; set; } = ViewerSettingsDefaults.RememberWindowPlacement;
+    public bool AutoHideWindowTitleBar { get; set; } = ViewerSettingsDefaults.AutoHideWindowTitleBar;
     public bool ShowImageName { get; set; } = ViewerSettingsDefaults.ShowImageName;
     public bool ShowImageFormat { get; set; } = ViewerSettingsDefaults.ShowImageFormat;
     public bool ShowImageResolution { get; set; } = ViewerSettingsDefaults.ShowImageResolution;

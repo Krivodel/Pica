@@ -139,6 +139,15 @@ internal sealed class ViewerSettingsChangeController : IDisposable
 
         if (string.Equals(
             e.PropertyName,
+            nameof(ImageViewerSettingsViewModel.AutoHideWindowTitleBar),
+            StringComparison.Ordinal))
+        {
+            _windowMode.UpdateTitleBarAutoHide();
+            return;
+        }
+
+        if (string.Equals(
+            e.PropertyName,
             nameof(ImageViewerSettingsViewModel.RememberWindowPlacement),
             StringComparison.Ordinal))
         {

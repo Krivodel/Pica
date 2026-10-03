@@ -347,6 +347,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
                 composition.InteractionServices;
             ImageViewerSettingsViewModel settings =
                 settingsServices.Settings;
+            _autoHideWindowTitleBar = settings.AutoHideWindowTitleBar;
             ViewerWindowMode initialWindowMode =
                 settings.RememberWindowPlacement
                 && settings.IsWindowed
