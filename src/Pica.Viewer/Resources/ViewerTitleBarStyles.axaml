@@ -69,6 +69,11 @@
                 Value="{StaticResource ViewerTitleBarBackgroundTheme}" />
     </Style>
 
+    <Style Selector="suki|SukiWindow /template/ ContentPresenter#PART_Logo">
+        <Setter Property="IsHitTestVisible"
+                Value="False" />
+    </Style>
+
     <Style Selector="suki|SukiWindow /template/ TextBlock#PART_TitleTextBlock">
         <Setter Property="Effect"
                 Value="{StaticResource ViewerFloatingControlShadowEffect}" />

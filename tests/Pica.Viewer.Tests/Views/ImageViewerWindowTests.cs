@@ -815,6 +815,14 @@ public sealed class ImageViewerWindowTests
                     ?? throw new InvalidOperationException("The title bar must be attached to the window.");
                 titleBarOrigin.Should().Be(default(Point));
                 titleBar.Bounds.Width.Should().BeApproximately(size.Width, 0.01d);
+                Control logo = titleBar.GetVisualDescendants().OfType<Control>()
+                    .Single(control => control.Name == "PART_Logo");
+                Point logoCenter = logo.TranslatePoint(
+                    new Point(logo.Bounds.Width / 2d, logo.Bounds.Height / 2d), window)
+                    ?? throw new InvalidOperationException("The title bar logo must be attached to the window.");
+                Visual logoHit = window.InputHitTest(logoCenter).Should().BeAssignableTo<Visual>().Subject;
+                logoHit.GetVisualAncestors().Prepend(logoHit).Should().NotContain(logo);
+
                 Button[] titleBarButtons = titleBar.GetVisualDescendants().OfType<Button>()
                     .Where(button => button.IsEffectivelyVisible)
                     .ToArray();
