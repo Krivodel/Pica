@@ -1,0 +1,44 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:suki="using:SukiUI.Controls">
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerColors.axaml" />
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerBrushes.axaml" />
+                <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerEffects.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <ControlTheme x:Key="ViewerTitleBarBackgroundTheme"
+                          TargetType="suki:GlassCard">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Background="{StaticResource ViewerInformationPanelBrush}" />
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
+        </ResourceDictionary>
+    </Styles.Resources>
+
+    <Style Selector="suki|SukiWindow /template/ suki|GlassCard#PART_TitleBarBackground">
+        <Setter Property="Theme"
+                Value="{StaticResource ViewerTitleBarBackgroundTheme}" />
+    </Style>
+
+    <Style Selector="suki|SukiWindow /template/ TextBlock#PART_TitleTextBlock">
+        <Setter Property="Effect"
+                Value="{StaticResource ViewerFloatingControlShadowEffect}" />
+        <Setter Property="Foreground"
+                Value="{StaticResource ViewerMenuForegroundBrush}" />
+    </Style>
+
+    <Style Selector="suki|SukiWindow /template/ LayoutTransformControl#PART_TitleBar Button.WindowControlsButton">
+        <Setter Property="Effect"
+                Value="{StaticResource ViewerFloatingControlShadowEffect}" />
+    </Style>
+
+    <Style Selector="suki|SukiWindow /template/ LayoutTransformControl#PART_TitleBar PathIcon">
+        <Setter Property="Foreground"
+                Value="{StaticResource ViewerMenuForegroundBrush}" />
+    </Style>
+</Styles>

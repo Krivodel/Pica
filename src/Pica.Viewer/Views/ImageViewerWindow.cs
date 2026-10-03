@@ -30,6 +30,7 @@ public sealed partial class ImageViewerWindow : SukiWindow
 
     private const string AppIconAssetUri = "avares://Pica.Viewer/Assets/AppIcon.ico";
     private const string ErrorStylesAssetUri = "avares://Pica.Viewer/Resources/ViewerErrorStyles.axaml";
+    private const string TitleBarStylesAssetUri = "avares://Pica.Viewer/Resources/ViewerTitleBarStyles.axaml";
     private const double MinimumWindowWidth = 300d;
     private const double TitleLogoSize = 28d;
 
@@ -89,6 +90,8 @@ public sealed partial class ImageViewerWindow : SukiWindow
     {
         Uri errorStyles = new(ErrorStylesAssetUri);
         Styles.Add(new StyleInclude(errorStyles) { Source = errorStyles });
+        Uri titleBarStyles = new(TitleBarStylesAssetUri);
+        Styles.Add(new StyleInclude(titleBarStyles) { Source = titleBarStyles });
     }
 
     public void CloseForApplicationExit()
