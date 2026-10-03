@@ -7,4 +7,17 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Headless" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\eng\installer\InstallerProduct.cs"
+             Link="Installer\InstallerProduct.cs" />
+    <Compile Include="..\..\eng\installer\InstallerPathValidator.cs"
+             Link="Installer\InstallerPathValidator.cs" />
+    <Compile Include="..\..\eng\installer\InstallerDirectoryConsent.cs"
+             Link="Installer\InstallerDirectoryConsent.cs" />
+    <Compile Include="..\..\eng\installer\InstallerDestination.cs"
+             Link="Installer\InstallerDestination.cs" />
+    <Compile Include="..\..\eng\installer\VelopackSetupRunner.cs"
+             Link="Installer\VelopackSetupRunner.cs" />
+  </ItemGroup>
 </Project>

@@ -143,37 +143,41 @@ internal sealed class InstallerForm : Form
 
     private async Task InstallAsync()
     {
+        string requestedPath = _installPathTextBox.Text;
         string installPath;
-
-        try
-        {
-            installPath = InstallerPathValidator.NormalizeAndValidate(
-                _installPathTextBox.Text);
-        }
-        catch (ArgumentException ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Installer rejected an invalid installation path.");
-            MessageBox.Show(
-                this,
-                "Укажите полный путь к отдельной папке установки.",
-                InstallerProduct.InstallationWindowTitle,
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
-            return;
-        }
-
-        _installPathTextBox.Text = installPath;
         SetInstallationControlsEnabled(false);
 
         try
         {
-            using TemporarySetupFile temporarySetup = TemporarySetupFile.Create();
+            InstallerDestination destination = await Task.Run(() => InstallerDestination.Inspect(requestedPath));
+            installPath = destination.Path;
+            _installPathTextBox.Text = installPath;
+            InstallerDirectoryConsent consent = InstallerDirectoryConsent.EmptyDirectoryOnly;
+
+            if (destination.HasContents)
+            {
+                DialogResult confirmation = MessageBox.Show(
+                    this,
+                    $"Папка не пустая:\n{destination.Path}\n\nВсе файлы и папки внутри будут удалены.\n\nОчистить папку и установить Pica?",
+                    InstallerProduct.InstallationWindowTitle,
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+
+                if (confirmation != DialogResult.Yes)
+                {
+                    SetInstallationControlsEnabled(true);
+                    return;
+                }
+
+                consent = InstallerDirectoryConsent.ReplaceExistingContents;
+            }
+
             VelopackSetupRunner runner = new();
             await Task.Run(() =>
             {
-                runner.Run(temporarySetup.Path, installPath);
+                using TemporarySetupFile temporarySetup = TemporarySetupFile.Create();
+                runner.Run(temporarySetup.Path, destination, consent);
             });
         }
         catch (OperationCanceledException ex)
@@ -193,6 +197,20 @@ internal sealed class InstallerForm : Form
         catch (UnauthorizedAccessException ex)
         {
             HandleInstallationFailure(ex);
+            return;
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Installer rejected an invalid installation path.");
+            SetInstallationControlsEnabled(true);
+            MessageBox.Show(
+                this,
+                "Укажи полный путь к отдельной папке установки, без ссылок на другие папки.",
+                InstallerProduct.InstallationWindowTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
             return;
         }
         catch (InvalidOperationException ex)

@@ -8,7 +8,7 @@ internal sealed class VelopackSetupRunner
 {
     private const int ElevationCancelledErrorCode = 1223;
 
-    public void Run(string setupPath, string installPath)
+    public void Run(string setupPath, InstallerDestination destination, InstallerDirectoryConsent consent)
     {
         if (string.IsNullOrWhiteSpace(setupPath))
         {
@@ -17,17 +17,17 @@ internal sealed class VelopackSetupRunner
                 nameof(setupPath));
         }
 
-        if (string.IsNullOrWhiteSpace(installPath))
+        if (destination is null)
         {
-            throw new ArgumentException(
-                "Installation path cannot be empty.",
-                nameof(installPath));
+            throw new ArgumentNullException(nameof(destination));
         }
+
+        destination.ValidateForInstall(consent);
 
         ProcessStartInfo startInfo = new ProcessStartInfo
         {
             FileName = setupPath,
-            Arguments = $"--silent --installto \"{installPath}\"",
+            Arguments = $"--silent --installto \"{destination.Path}\"",
             UseShellExecute = true,
             Verb = "runas",
             WindowStyle = ProcessWindowStyle.Hidden
