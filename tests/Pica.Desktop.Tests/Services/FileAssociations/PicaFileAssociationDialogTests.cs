@@ -37,7 +37,7 @@ public sealed class PicaFileAssociationDialogTests
                 NullLogger<PicaDesktopStateService>.Instance);
             TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
             FakeFileAssociationService service = new() { Applying = _ => completion.Task };
-            PicaFileAssociationDialog dialog = new(service, stateService, new RecordingViewModelErrorHandler());
+            PicaFileAssociationDialog dialog = new(service, stateService, new RecordingViewModelErrorHandler(), new ImageFormatRegistry());
             Window owner = new();
 
             try
@@ -79,7 +79,7 @@ public sealed class PicaFileAssociationDialogTests
                 NullLogger<PicaDesktopStateService>.Instance);
             FakeFileAssociationStore store = new();
             PicaFileAssociationService service = new(new ImageFormatRegistry(), store, stateService);
-            PicaFileAssociationDialog dialog = new(service, stateService, new RecordingViewModelErrorHandler());
+            PicaFileAssociationDialog dialog = new(service, stateService, new RecordingViewModelErrorHandler(), new ImageFormatRegistry());
             Window owner = new();
 
             try
@@ -128,7 +128,7 @@ public sealed class PicaFileAssociationDialogTests
             PicaDesktopStateService stateService = new(Path.Combine(directory.DirectoryPath, "desktop.json"),
                 NullLogger<PicaDesktopStateService>.Instance);
             FakeFileAssociationService service = new();
-            PicaFileAssociationDialog dialog = new(service, stateService, new RecordingViewModelErrorHandler());
+            PicaFileAssociationDialog dialog = new(service, stateService, new RecordingViewModelErrorHandler(), new ImageFormatRegistry());
             Window owner = new();
 
             try

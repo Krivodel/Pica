@@ -4,6 +4,7 @@ using Krivodeling.Localization.Avalonia;
 using Pica.Desktop.Resources;
 using Pica.Desktop.ViewModels;
 using Pica.Desktop.Views;
+using Pica.Viewer.Services;
 using Pica.Viewer.ViewModels;
 
 namespace Pica.Desktop.Services.FileAssociations;
@@ -15,14 +16,16 @@ internal sealed class PicaFileAssociationDialog : IPicaStartupPrompt
     private readonly IPicaFileAssociationService _service;
     private readonly IPicaDesktopStateService _stateService;
     private readonly IViewModelErrorHandler _errorHandler;
+    private readonly IImageFormatRegistry _formatRegistry;
     private Task? _operation;
 
     public PicaFileAssociationDialog(IPicaFileAssociationService service, IPicaDesktopStateService stateService,
-        IViewModelErrorHandler errorHandler)
+        IViewModelErrorHandler errorHandler, IImageFormatRegistry formatRegistry)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _stateService = stateService ?? throw new ArgumentNullException(nameof(stateService));
         _errorHandler = errorHandler ?? throw new ArgumentNullException(nameof(errorHandler));
+        _formatRegistry = formatRegistry ?? throw new ArgumentNullException(nameof(formatRegistry));
     }
 
     public Task ShowAsync(Window owner, CancellationToken ct)
@@ -61,7 +64,7 @@ internal sealed class PicaFileAssociationDialog : IPicaStartupPrompt
     private async Task ShowCoreAsync(Window owner, string closeButtonKey, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        FileAssociationsViewModel viewModel = new(_service, _errorHandler,
+        FileAssociationsViewModel viewModel = new(_service, _errorHandler, _formatRegistry,
             LocalizationText.Get(closeButtonKey), closeButtonKey);
         FileAssociationsWindow window = new(viewModel);
 

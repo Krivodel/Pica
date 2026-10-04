@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Krivodeling.Localization.Avalonia;
 using Pica.Desktop.Resources;
 using Pica.Desktop.Services.FileAssociations;
+using Pica.Viewer.Services;
 using Pica.Viewer.ViewModels;
 
 namespace Pica.Desktop.ViewModels;
@@ -13,6 +14,7 @@ namespace Pica.Desktop.ViewModels;
 internal sealed partial class FileAssociationsViewModel : ObservableObject
 {
     public ReadOnlyCollection<FileAssociationFormatViewModel> Formats { get; }
+    public ReadOnlyCollection<FileAssociationFormatGroupViewModel> FormatGroups { get; }
     public string SelectionSummary => string.Format(
         DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsSelectionSummaryFormat),
         Formats.Count(format => format.IsSelected), Formats.Count);
@@ -41,8 +43,9 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
     private bool _isInitialized;
 
     public FileAssociationsViewModel(IPicaFileAssociationService service, IViewModelErrorHandler errorHandler,
-        string? closeButtonText = null, string? closeButtonLocalizationKey = null)
+        IImageFormatRegistry formatRegistry, string? closeButtonText = null, string? closeButtonLocalizationKey = null)
     {
+        ArgumentNullException.ThrowIfNull(formatRegistry);
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _errorHandler = errorHandler ?? throw new ArgumentNullException(nameof(errorHandler));
         _closeButtonText = closeButtonText ?? DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsLater);
@@ -50,6 +53,18 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
             ?? (closeButtonText is null ? PicaDesktopLocalizationKeys.FileAssociationsLater : null);
         Formats = Array.AsReadOnly(service.SupportedExtensions
             .Select(extension => new FileAssociationFormatViewModel(extension, OnSelectionChanged)).ToArray());
+        FormatGroups = Array.AsReadOnly(Formats
+            .GroupBy(format =>
+            {
+                string contentType = formatRegistry.GetContentType(format.Extension);
+
+                return string.Equals(contentType, PicaImageFormats.HeicContentType, StringComparison.OrdinalIgnoreCase)
+                    ? PicaImageFormats.HeifContentType : contentType;
+            }, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new FileAssociationFormatGroupViewModel(Array.AsReadOnly(group
+                .OrderBy(format => format.Extension, StringComparer.OrdinalIgnoreCase).ToArray())))
+            .OrderBy(group => group.Formats[0].Extension, StringComparer.OrdinalIgnoreCase)
+            .ToArray());
     }
 
     internal void RefreshLocalization()

@@ -1,13 +1,13 @@
 <suki:SukiWindow xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:i18n="https://codewf.com"
+                 xmlns:i18n="https://codewf.com"
                  xmlns:resources="using:Pica.Desktop.Resources"
                  xmlns:suki="using:SukiUI.Controls"
                  xmlns:vm="using:Pica.Desktop.ViewModels"
                  x:Class="Pica.Desktop.Views.FileAssociationsWindow"
                  x:DataType="vm:FileAssociationsViewModel"
                  Width="620"
-                 Height="670"
+                 Height="580"
                  MinWidth="460"
                  MinHeight="420"
                  CanMaximize="False"
@@ -56,18 +56,29 @@
         <Grid Grid.Row="3">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                 <ItemsControl IsEnabled="{Binding !IsLoading}"
-                              ItemsSource="{Binding Formats}">
+                              ItemsSource="{Binding FormatGroups}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:FileAssociationFormatViewModel">
-                            <CheckBox Classes="association-format"
-                                      IsVisible="{Binding MatchesFilter}"
-                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                      Content="{Binding Extension}" />
+                        <DataTemplate x:DataType="vm:FileAssociationFormatGroupViewModel">
+                            <ItemsControl ItemsSource="{Binding Formats}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:FileAssociationFormatViewModel">
+                                        <CheckBox Classes="association-format"
+                                                  IsVisible="{Binding MatchesFilter}"
+                                                  Content="{Binding Extension}"
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
