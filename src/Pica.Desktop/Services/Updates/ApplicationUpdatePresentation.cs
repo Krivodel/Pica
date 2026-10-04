@@ -19,13 +19,13 @@ internal sealed class ApplicationUpdatePresentation
 
         Message = string.Format(
             CultureInfo.CurrentCulture,
-            DesktopUiStrings.UpdateAvailableFormat,
+            DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateAvailableFormat),
             version);
     }
 
     public void ShowDownloadProgress(int progress)
     {
-        Message = DesktopUiStrings.UpdateDownloading;
+        Message = DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateDownloading);
         IsProgressVisible = true;
         IsProgressIndeterminate = false;
         DownloadProgress = Math.Clamp(progress, 0, 100);
@@ -35,7 +35,7 @@ internal sealed class ApplicationUpdatePresentation
 
     public void ShowInstalling()
     {
-        Message = DesktopUiStrings.UpdateInstalling;
+        Message = DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateInstalling);
         IsProgressVisible = true;
         IsProgressIndeterminate = true;
         AreActionsEnabled = false;
@@ -44,7 +44,7 @@ internal sealed class ApplicationUpdatePresentation
 
     public void ShowInstallFailure()
     {
-        Message = DesktopUiStrings.UpdateInstallFailed;
+        Message = DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateInstallFailed);
         IsProgressVisible = false;
         IsProgressIndeterminate = false;
         AreActionsEnabled = true;

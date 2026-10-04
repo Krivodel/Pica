@@ -1,19 +1,19 @@
-using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Media;
+using Avalonia;
+using ShapePath = Avalonia.Controls.Shapes.Path;
 
+using Krivodeling.Localization.Avalonia;
 using Pica.Protocol;
 using Pica.Viewer.Controls;
 using Pica.Viewer.Resources;
 using Pica.Viewer.Services;
 using Pica.Viewer.ViewModels;
-
-using ShapePath = Avalonia.Controls.Shapes.Path;
 
 namespace Pica.Viewer.Views;
 
@@ -70,7 +70,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         "ViewerHiddenControlsOpacity";
     private const string NavigationAreaMinimumWidthResourceKey =
         "ViewerNavigationAreaMinimumWidth";
-    private const string SettingsIconClassName = "settings-icon";
+    private const string TitleBarIconClassName = "viewer-title-bar-icon";
     private const string VisibleControlsOpacityResourceKey =
         "ViewerVisibleControlsOpacity";
     private const string WindowButtonSizeResourceKey =
@@ -104,6 +104,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         ArgumentNullException.ThrowIfNull(settingControls);
         ArgumentNullException.ThrowIfNull(events);
 
+        LocalizationText.InitializeIfNeeded(ViewerLocalization.Catalog);
         InitializeComponent();
         DataContext = session;
         HiddenControlsOpacity =
@@ -226,6 +227,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
             "FullscreenSettingsButtonControl");
         WindowModeButton = GetRequiredButton("WindowModeButtonControl");
         CloseButton = GetRequiredButton("CloseButtonControl");
+        PathIcon settingsIcon = GetRequiredPathIcon("SettingsIconControl");
+        settingsIcon.Data = ViewerIconGeometries.Settings;
         PathIcon closeIcon = GetRequiredPathIcon("CloseIconControl");
         closeIcon.Data = ViewerIconGeometries.CloseOrCancel;
         FullscreenSettingsButton.Click += events.SettingsClicked;
@@ -344,7 +347,7 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         }
 
         OpenWithMenuItems.Children.Add(CreateTextMenuButton(
-            "Выбрать другое приложение…",
+            PicaViewerLocalizationKeys.ChooseApplication,
             chooseApplicationClickHandler));
     }
 
@@ -384,8 +387,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
     private static Avalonia.Controls.Controls CreateTitleBarSettingsButton(
         EventHandler<RoutedEventArgs> clickHandler)
     {
-        PathIcon icon = new();
-        icon.Classes.Add(SettingsIconClassName);
+        PathIcon icon = new() { Data = ViewerIconGeometries.Settings };
+        icon.Classes.Add(TitleBarIconClassName);
         Button button = new()
         {
             Content = icon,
@@ -451,16 +454,16 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         actionLabels = new Dictionary<TextBlock, PicaActionDefinition>();
         panel.Classes.Add("viewer-menu-items");
         panel.Children.Add(CreateOutlineMenuButton(
-            "Копировать",
+            PicaViewerLocalizationKeys.Copy,
             ViewerActionIconGeometry.Copy,
             events.ContextCopyClicked));
 
         panel.Children.Add(CreateOutlineMenuButton(
-            ViewerUiStrings.SaveAs,
+            PicaViewerLocalizationKeys.SaveAs,
             ViewerActionIconGeometry.Save,
             events.ContextSaveAsClicked));
         panel.Children.Add(CreateMenuButton(
-            "Выделить область",
+            PicaViewerLocalizationKeys.SelectArea,
             "M6,6 L12,6 L12,8 L8,8 L8,12 L6,12 Z M12,16 L16,16 L16,12 L18,12 L18,18 L12,18 Z",
             events.ContextSelectAreaClicked,
             0d));
@@ -477,11 +480,11 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         }
 
         panel.Children.Add(CreateOutlineMenuButton(
-            "Показать в папке",
+            PicaViewerLocalizationKeys.ShowInFolder,
             ViewerActionIconGeometry.ShowInFolder,
             events.ContextRevealInFolderClicked));
         openWithButton = CreateSubmenuButton(
-            "Открыть с помощью",
+            PicaViewerLocalizationKeys.OpenWith,
             ViewerActionIconGeometry.OpenWith,
             events.ContextOpenWithClicked);
         panel.Children.Add(openWithButton);
@@ -605,7 +608,8 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         EventHandler<RoutedEventArgs> clickHandler,
         double iconRotationDegrees)
     {
-        StackPanel content = CreateMenuButtonContent(text, geometry, iconRotationDegrees);
+        StackPanel content = CreateMenuButtonContent(LocalizationText.Get(text), geometry, iconRotationDegrees);
+        LocalizationBinding.Bind(content.Children.OfType<TextBlock>().Single(), TextBlock.TextProperty, text);
 
         return CreateMenuButton(content, clickHandler);
     }
@@ -634,9 +638,10 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         string geometry,
         EventHandler<RoutedEventArgs> clickHandler)
     {
-        return CreateMenuButton(
-            CreateOutlineMenuButtonContent(text, geometry),
-            clickHandler);
+        StackPanel content = CreateOutlineMenuButtonContent(LocalizationText.Get(text), geometry);
+        LocalizationBinding.Bind(content.Children.OfType<TextBlock>().Single(), TextBlock.TextProperty, text);
+
+        return CreateMenuButton(content, clickHandler);
     }
 
     private static Button CreateSubmenuButton(
@@ -644,9 +649,10 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         string geometry,
         EventHandler<RoutedEventArgs> clickHandler)
     {
-        return CreateSubmenuButton(
-            CreateOutlineMenuButtonContent(text, geometry),
-            clickHandler);
+        StackPanel content = CreateOutlineMenuButtonContent(LocalizationText.Get(text), geometry);
+        LocalizationBinding.Bind(content.Children.OfType<TextBlock>().Single(), TextBlock.TextProperty, text);
+
+        return CreateSubmenuButton(content, clickHandler);
     }
 
     private static Button CreateSubmenuButton(
@@ -692,7 +698,10 @@ internal sealed partial class ImageViewerView : UserControl, IDisposable
         string text,
         EventHandler<RoutedEventArgs> clickHandler)
     {
-        return CreateMenuButton(CreateMenuTextBlock(text), clickHandler);
+        TextBlock label = CreateMenuTextBlock(LocalizationText.Get(text));
+        LocalizationBinding.Bind(label, TextBlock.TextProperty, text);
+
+        return CreateMenuButton(label, clickHandler);
     }
 
     private static Button CreateOpenWithApplicationMenuButton(

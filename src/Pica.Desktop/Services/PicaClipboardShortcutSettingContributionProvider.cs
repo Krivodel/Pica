@@ -34,10 +34,11 @@ internal sealed class PicaClipboardShortcutSettingContributionProvider : IViewer
 
         return new ViewerSettingContribution[]
         {
-            new ViewerCheckBoxSettingContribution(DesktopUiStrings.ClipboardShortcutTitle,
+            new ViewerCheckBoxSettingContribution(DesktopLocalization.Get(PicaDesktopLocalizationKeys.ClipboardShortcutTitle),
                 state.IsClipboardShortcutEnabled, SetEnabledAsync, _logger, GetErrorMessage,
                 dependentSettings: CreateOptions(state),
                 getCurrentValue: () => _shortcutService.CurrentState.IsClipboardShortcutEnabled)
+            { LocalizationKey = PicaDesktopLocalizationKeys.ClipboardShortcutTitle }
         };
     }
 
@@ -48,10 +49,10 @@ internal sealed class PicaClipboardShortcutSettingContributionProvider : IViewer
 
         return failure switch
         {
-            PicaShortcutFailure.Occupied => "Это сочетание уже занято. Выбери другое.",
-            PicaShortcutFailure.ViewerConflict => "Это сочетание уже используется командой Pica. Выбери другое.",
-            PicaShortcutFailure.Unsupported => "Это сочетание не поддерживается. Нажми Ctrl и/или Alt с клавишей либо F1–F24 (кроме F12).",
-            _ => "Не удалось сохранить сочетание."
+            PicaShortcutFailure.Occupied => DesktopLocalization.Get(PicaDesktopLocalizationKeys.ShortcutOccupied),
+            PicaShortcutFailure.ViewerConflict => DesktopLocalization.Get(PicaDesktopLocalizationKeys.ShortcutViewerConflict),
+            PicaShortcutFailure.Unsupported => DesktopLocalization.Get(PicaDesktopLocalizationKeys.ShortcutUnsupported),
+            _ => DesktopLocalization.Get(PicaDesktopLocalizationKeys.ShortcutSaveFailed)
         };
     }
 
@@ -72,12 +73,15 @@ internal sealed class PicaClipboardShortcutSettingContributionProvider : IViewer
     {
         return new ViewerSettingContribution[]
         {
-            new ViewerCheckBoxSettingContribution(DesktopUiStrings.ClipboardShortcutFullscreen,
+            new ViewerCheckBoxSettingContribution(DesktopLocalization.Get(PicaDesktopLocalizationKeys.ClipboardShortcutFullscreen),
                 state.IsFullscreenClipboardShortcutEnabled, SetFullscreenEnabledAsync, _logger, GetErrorMessage,
-                wrapContent: true, getCurrentValue: () => _shortcutService.CurrentState.IsFullscreenClipboardShortcutEnabled),
-            new ViewerRecordedSettingContribution<PicaClipboardShortcutGesture>(DesktopUiStrings.ClipboardShortcutGesture,
+                wrapContent: true, getCurrentValue: () => _shortcutService.CurrentState.IsFullscreenClipboardShortcutEnabled)
+            { LocalizationKey = PicaDesktopLocalizationKeys.ClipboardShortcutFullscreen },
+            new ViewerRecordedSettingContribution<PicaClipboardShortcutGesture>(
+                DesktopLocalization.Get(PicaDesktopLocalizationKeys.ClipboardShortcutGesture),
                 state.ClipboardShortcut, _recorder.RecordAsync, SetGestureAsync, gesture => gesture.Format(),
                 GetErrorMessage, _logger, () => _shortcutService.CurrentState.ClipboardShortcut)
+            { LocalizationKey = PicaDesktopLocalizationKeys.ClipboardShortcutGesture }
         };
     }
 

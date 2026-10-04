@@ -57,6 +57,13 @@
                 Value="Center" />
     </Style>
 
+    <Style Selector="PathIcon.viewer-title-bar-icon">
+        <Setter Property="Width"
+                Value="{StaticResource ViewerTitleBarIconSize}" />
+        <Setter Property="Height"
+                Value="{StaticResource ViewerTitleBarIconSize}" />
+    </Style>
+
     <Style Selector="suki|SukiWindow[IsTitleBarVisible=True] /template/ Button#PART_MinimizeButton > PathIcon">
         <Setter Property="Margin"
                 Value="0" />

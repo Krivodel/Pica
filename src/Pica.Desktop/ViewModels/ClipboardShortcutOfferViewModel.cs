@@ -72,7 +72,7 @@ internal sealed partial class ClipboardShortcutOfferViewModel : ObservableObject
             _errorHandler.Log(ex, nameof(ChooseAsync));
             ErrorMessage = ex is PicaShortcutException
                 ? PicaClipboardShortcutSettingContributionProvider.GetErrorMessage(ex)
-                : DesktopUiStrings.PreferenceChoiceFailed;
+                : DesktopLocalization.Get(PicaDesktopLocalizationKeys.PreferenceChoiceFailed);
         }
         finally
         {

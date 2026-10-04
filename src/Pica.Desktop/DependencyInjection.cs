@@ -19,6 +19,8 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddSingleton<PicaStartupRequestFactory>();
+        services.AddSingleton<PicaLocalizationService>();
+        services.AddSingleton<IViewerSettingContributionProvider, PicaLanguageSettingContributionProvider>();
         services.AddSingleton<PicaDesktopViewerWindowFactory>();
         services.AddSingleton<PicaClipboardShortcutService>();
         services.AddSingleton<PicaClipboardShortcutRegistration>();

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="https://codewf.com"
              xmlns:controls="using:Pica.Viewer.Controls"
              xmlns:resources="using:Pica.Viewer.Resources"
              xmlns:services="using:Pica.Viewer.Services"
@@ -9,7 +10,6 @@
              x:DataType="vm:ImageViewerSessionViewModel">
     <UserControl.Resources>
         <ResourceDictionary>
-            <x:String x:Key="ViewerSavingStatusText">Долгое сохранение…</x:String>
             <ResourceDictionary.MergedDictionaries>
                 <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerColors.axaml" />
                 <MergeResourceInclude Source="avares://Pica.Viewer/Resources/ViewerBrushes.axaml" />
@@ -50,7 +50,7 @@
                            IsHitTestVisible="False"
                            IsVisible="{Binding IsEmpty}"
                            Foreground="{StaticResource ViewerMenuForegroundBrush}"
-                           Text="{x:Static resources:ViewerUiStrings.NoImages}" />
+                           Text="{i18n:I18n {x:Static resources:PicaViewerLocalizationKeys.NoImages}}" />
 
                 <suki:Loading x:Name="AnimationLoadingIndicatorControl"
                               HorizontalAlignment="Center"
@@ -166,7 +166,8 @@
                         Margin="{StaticResource ViewerSettingsButtonMargin}"
                         Classes="viewer-window-button">
                     <Grid Classes="viewer-window-icon-host">
-                        <PathIcon Classes="settings-icon viewer-window-icon" />
+                        <PathIcon x:Name="SettingsIconControl"
+                                  Classes="viewer-window-icon" />
                     </Grid>
                 </Button>
 
@@ -267,7 +268,7 @@
                     <TextBlock VerticalAlignment="Center"
                                FontSize="16"
                                Foreground="{StaticResource ViewerMenuForegroundBrush}"
-                               Text="{StaticResource ViewerSavingStatusText}" />
+                               Text="{i18n:I18n {x:Static resources:PicaViewerLocalizationKeys.Saving}}" />
                 </StackPanel>
             </Border>
         </Border>

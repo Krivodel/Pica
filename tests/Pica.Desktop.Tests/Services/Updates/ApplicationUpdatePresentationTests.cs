@@ -26,7 +26,7 @@ public sealed class ApplicationUpdatePresentationTests
 
         presentation.ShowDownloadProgress(42);
 
-        presentation.Message.Should().Be(DesktopUiStrings.UpdateDownloading);
+        presentation.Message.Should().Be(DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateDownloading));
         presentation.IsProgressVisible.Should().BeTrue();
         presentation.IsProgressIndeterminate.Should().BeFalse();
         presentation.DownloadProgress.Should().Be(42);
@@ -41,7 +41,7 @@ public sealed class ApplicationUpdatePresentationTests
 
         presentation.ShowInstalling();
 
-        presentation.Message.Should().Be(DesktopUiStrings.UpdateInstalling);
+        presentation.Message.Should().Be(DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateInstalling));
         presentation.IsProgressVisible.Should().BeTrue();
         presentation.IsProgressIndeterminate.Should().BeTrue();
         presentation.AreActionsEnabled.Should().BeFalse();
@@ -56,7 +56,7 @@ public sealed class ApplicationUpdatePresentationTests
 
         presentation.ShowInstallFailure();
 
-        presentation.Message.Should().Be(DesktopUiStrings.UpdateInstallFailed);
+        presentation.Message.Should().Be(DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateInstallFailed));
         presentation.IsProgressVisible.Should().BeFalse();
         presentation.IsProgressIndeterminate.Should().BeFalse();
         presentation.AreActionsEnabled.Should().BeTrue();

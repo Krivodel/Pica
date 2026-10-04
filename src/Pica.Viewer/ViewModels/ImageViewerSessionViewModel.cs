@@ -3,6 +3,7 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using Krivodeling.Localization.Avalonia;
 using Pica.Protocol;
 using Pica.Viewer.Helpers;
 using Pica.Viewer.Services;
@@ -133,11 +134,13 @@ internal sealed partial class ImageViewerSessionViewModel :
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _session.PropertyChanged += OnSessionPropertyChanged;
+        LocalizationText.Instance.PropertyChanged += OnLocalizationChanged;
     }
 
     public void Dispose()
     {
         _session.PropertyChanged -= OnSessionPropertyChanged;
+        LocalizationText.Instance.PropertyChanged -= OnLocalizationChanged;
     }
 
     [RelayCommand]
@@ -307,6 +310,13 @@ internal sealed partial class ImageViewerSessionViewModel :
                 OnAnimationDurationChanged();
             }
         }
+    }
+
+    private void OnLocalizationChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(SelectedContentText));
+        OnPropertyChanged(nameof(ImageContentWidthReferenceText));
+        OnPropertyChanged(nameof(AnimationContentWidthReferenceText));
     }
 
     private void OnContentNavigationStateChanged()

@@ -1,11 +1,13 @@
-using Avalonia;
+using Microsoft.Extensions.Logging;
+
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
-
+using Avalonia;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.Logging;
+
+using Krivodeling.Localization.Avalonia;
 
 namespace Pica.Viewer.Controls;
 
@@ -99,6 +101,18 @@ internal sealed class ViewerCheckBoxSettingControl : ViewerSettingControl
             {
                 _panel.Children.Add(_dependentPanel);
             }
+        }
+    }
+
+    internal override void ApplyLocalization(string key)
+    {
+        if (CheckBox.Content is TextBlock text)
+        {
+            LocalizationBinding.Bind(text, TextBlock.TextProperty, key);
+        }
+        else
+        {
+            LocalizationBinding.Bind(CheckBox, ContentControl.ContentProperty, key);
         }
     }
 

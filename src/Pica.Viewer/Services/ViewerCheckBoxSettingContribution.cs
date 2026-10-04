@@ -48,7 +48,7 @@ public sealed class ViewerCheckBoxSettingContribution : ViewerSettingContributio
 
         return new ViewerCheckBoxSettingControl(Label, InitialValue, command,
             logger: _logger, getErrorMessage: _getErrorMessage, wrapContent: _wrapContent,
-            dependentSettings: DependentSettings.Select(setting => setting.CreateControl()).ToArray(),
+            dependentSettings: DependentSettings.Select(setting => setting.CreateLocalizedControl()).ToArray(),
             getCurrentValue: _getCurrentValue);
     }
 }

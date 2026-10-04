@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Localizations\*.json" />
+  </ItemGroup>
   <Import Project="..\Pica.Build.props" />
 
   <PropertyGroup>
@@ -43,6 +46,7 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Krivodeling.Localization.Avalonia" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="SkiaSharp" />

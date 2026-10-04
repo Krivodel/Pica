@@ -23,20 +23,20 @@ internal static class ImageContentNavigationFormatter
         {
             ImageContentGroupKind.StillImages =>
                 FormatSelectedContent(
-                    ViewerUiStrings.Image,
+                    ViewerLocalization.Get(PicaViewerLocalizationKeys.Image),
                     contentNumber,
                     contentCount,
                     null,
                     animationCount > 0
-                        ? $"{ViewerUiStrings.AnimationCount} {animationCount}"
+                        ? $"{ViewerLocalization.Get(PicaViewerLocalizationKeys.AnimationCount)} {animationCount}"
                         : null),
             ImageContentGroupKind.Animation =>
                 FormatSelectedContent(
-                    ViewerUiStrings.Animation,
+                    ViewerLocalization.Get(PicaViewerLocalizationKeys.Animation),
                     contentNumber,
                     contentCount,
                     imageCount > 0
-                        ? $"{ViewerUiStrings.ImageCount} {imageCount}"
+                        ? $"{ViewerLocalization.Get(PicaViewerLocalizationKeys.ImageCount)} {imageCount}"
                         : null,
                     null),
             _ => throw new ArgumentOutOfRangeException(
@@ -85,20 +85,20 @@ internal static class ImageContentNavigationFormatter
         {
             ImageContentGroupKind.StillImages =>
                 FormatSelectedContent(
-                    ViewerUiStrings.Image,
+                    ViewerLocalization.Get(PicaViewerLocalizationKeys.Image),
                     contentDigits,
                     contentDigits,
                     null,
                     animationCount > 0
-                        ? $"{ViewerUiStrings.AnimationCount} {animationCountDigits}"
+                        ? $"{ViewerLocalization.Get(PicaViewerLocalizationKeys.AnimationCount)} {animationCountDigits}"
                         : null),
             ImageContentGroupKind.Animation =>
                 FormatSelectedContent(
-                    ViewerUiStrings.Animation,
+                    ViewerLocalization.Get(PicaViewerLocalizationKeys.Animation),
                     contentDigits,
                     contentDigits,
                     imageCount > 0
-                        ? $"{ViewerUiStrings.ImageCount} {imageCountDigits}"
+                        ? $"{ViewerLocalization.Get(PicaViewerLocalizationKeys.ImageCount)} {imageCountDigits}"
                         : null,
                     null),
             _ => throw new ArgumentOutOfRangeException(

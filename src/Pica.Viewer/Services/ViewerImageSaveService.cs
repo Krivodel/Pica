@@ -189,7 +189,7 @@ internal sealed class ViewerImageSaveService
             FileTypeChoices = fileTypes,
             SuggestedFileType = fileTypes[0],
             SuggestedFileName = suggestedFileName,
-            Title = ViewerUiStrings.SaveAs
+            Title = ViewerLocalization.Get(PicaViewerLocalizationKeys.SaveAs)
         };
 
         return await _filePickerService

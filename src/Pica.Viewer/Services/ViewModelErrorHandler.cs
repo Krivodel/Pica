@@ -29,6 +29,6 @@ internal sealed class ViewModelErrorHandler : IViewModelErrorHandler
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        return ViewerUiStrings.OperationFailed;
+        return ViewerLocalization.Get(PicaViewerLocalizationKeys.OperationFailed);
     }
 }

@@ -50,6 +50,7 @@ internal sealed class PicaDesktopStateService : IPicaDesktopStateService
         ArgumentNullException.ThrowIfNull(state);
         await UpdateAsync(current =>
         {
+            current.LocalizationId = state.LocalizationId;
             current.BackgroundIdleTimeoutSeconds = state.BackgroundIdleTimeoutSeconds;
             current.IsClipboardShortcutEnabled = state.IsClipboardShortcutEnabled;
             current.IsFullscreenClipboardShortcutEnabled = state.IsFullscreenClipboardShortcutEnabled;

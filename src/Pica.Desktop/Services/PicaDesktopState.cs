@@ -2,6 +2,7 @@ namespace Pica.Desktop.Services;
 
 internal sealed class PicaDesktopState
 {
+    public string? LocalizationId { get; set; }
     public bool IsClipboardShortcutEnabled { get; set; }
     public bool IsFullscreenClipboardShortcutEnabled { get; set; }
     public PicaClipboardShortcutGesture ClipboardShortcut { get; set; } = PicaClipboardShortcutGesture.Default;

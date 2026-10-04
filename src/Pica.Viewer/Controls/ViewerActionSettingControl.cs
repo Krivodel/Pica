@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Input;
 
+using Krivodeling.Localization.Avalonia;
+
 namespace Pica.Viewer.Controls;
 
 internal sealed class ViewerActionSettingControl : ViewerSettingControl
@@ -29,6 +31,11 @@ internal sealed class ViewerActionSettingControl : ViewerSettingControl
         _panel.Children.Add(button);
         _panel.Children.Add(_error);
         _panel.DetachedFromVisualTree += (_, _) => _command.Cancel();
+    }
+
+    internal override void ApplyLocalization(string key)
+    {
+        LocalizationBinding.Bind(_panel.Children.OfType<Button>().Single(), ContentControl.ContentProperty, key);
     }
 
     private async Task ExecuteAsync(CancellationToken ct)

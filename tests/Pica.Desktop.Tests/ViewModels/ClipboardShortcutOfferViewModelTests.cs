@@ -58,7 +58,7 @@ public sealed class ClipboardShortcutOfferViewModelTests
         await command.ExecuteAsync(null);
 
         closed.Should().BeFalse();
-        viewModel.ErrorMessage.Should().Be(DesktopUiStrings.PreferenceChoiceFailed);
+        viewModel.ErrorMessage.Should().Be(DesktopLocalization.Get(PicaDesktopLocalizationKeys.PreferenceChoiceFailed));
         viewModel.IsLoading.Should().BeFalse();
         errors.LastException.Should().BeSameAs(exception);
     }

@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using Krivodeling.Localization.Avalonia;
 using Pica.Desktop.Resources;
 using Pica.Desktop.Services.FileAssociations;
 using Pica.Viewer.ViewModels;
@@ -12,14 +13,18 @@ namespace Pica.Desktop.ViewModels;
 internal sealed partial class FileAssociationsViewModel : ObservableObject
 {
     public ReadOnlyCollection<FileAssociationFormatViewModel> Formats { get; }
-    public string SelectionSummary => string.Format(DesktopUiStrings.FileAssociationsSelectionSummaryFormat,
+    public string SelectionSummary => string.Format(
+        DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsSelectionSummaryFormat),
         Formats.Count(format => format.IsSelected), Formats.Count);
     public bool HasErrorMessage => !string.IsNullOrWhiteSpace(ErrorMessage);
     public bool HasMatchingFormats => Formats.Any(format => format.MatchesFilter);
-    public string CloseButtonText { get; }
+    public string CloseButtonText => _closeButtonLocalizationKey is { } key
+        ? LocalizationText.Get(key) : _closeButtonText;
 
     public event EventHandler? CloseRequested;
 
+    private readonly string _closeButtonText;
+    private readonly string? _closeButtonLocalizationKey;
     private readonly IPicaFileAssociationService _service;
     private readonly IViewModelErrorHandler _errorHandler;
     [ObservableProperty]
@@ -36,13 +41,21 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
     private bool _isInitialized;
 
     public FileAssociationsViewModel(IPicaFileAssociationService service, IViewModelErrorHandler errorHandler,
-        string closeButtonText = DesktopUiStrings.FileAssociationsLater)
+        string? closeButtonText = null, string? closeButtonLocalizationKey = null)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _errorHandler = errorHandler ?? throw new ArgumentNullException(nameof(errorHandler));
-        CloseButtonText = closeButtonText ?? throw new ArgumentNullException(nameof(closeButtonText));
+        _closeButtonText = closeButtonText ?? DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsLater);
+        _closeButtonLocalizationKey = closeButtonLocalizationKey
+            ?? (closeButtonText is null ? PicaDesktopLocalizationKeys.FileAssociationsLater : null);
         Formats = Array.AsReadOnly(service.SupportedExtensions
             .Select(extension => new FileAssociationFormatViewModel(extension, OnSelectionChanged)).ToArray());
+    }
+
+    internal void RefreshLocalization()
+    {
+        OnPropertyChanged(nameof(SelectionSummary));
+        OnPropertyChanged(nameof(CloseButtonText));
     }
 
     internal void CancelPendingOperations()
@@ -161,7 +174,7 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
         catch (Exception ex)
         {
             _errorHandler.Log(ex, nameof(CloseAsync));
-            ErrorMessage = DesktopUiStrings.PreferenceChoiceFailed;
+            ErrorMessage = DesktopLocalization.Get(PicaDesktopLocalizationKeys.PreferenceChoiceFailed);
         }
         finally
         {
@@ -179,9 +192,9 @@ internal sealed partial class FileAssociationsViewModel : ObservableObject
         _errorHandler.Log(exception, operation);
         ErrorMessage = exception switch
         {
-            NotSupportedException => DesktopUiStrings.FileAssociationsUnsupported,
-            AggregateException => DesktopUiStrings.FileAssociationsRestoreFailed,
-            _ => DesktopUiStrings.FileAssociationsFailed
+            NotSupportedException => DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsUnsupported),
+            AggregateException => DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsRestoreFailed),
+            _ => DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsFailed)
         };
     }
 

@@ -2,6 +2,7 @@ using System.ComponentModel;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using Krivodeling.Localization.Avalonia;
 using Pica.Protocol;
 using Pica.Viewer.Helpers;
 using Pica.Viewer.Services;
@@ -65,6 +66,7 @@ internal sealed partial class ImageViewerInformationViewModel :
             _session.PropertyChanged -= OnSessionPropertyChanged;
             _presentation.Changed -= OnPresentationChanged;
             _settings.PropertyChanged -= OnSettingsPropertyChanged;
+            LocalizationText.Instance.PropertyChanged -= OnLocalizationChanged;
         }
 
         CancelMetadataLoad();
@@ -84,6 +86,7 @@ internal sealed partial class ImageViewerInformationViewModel :
         _session.PropertyChanged += OnSessionPropertyChanged;
         _presentation.Changed += OnPresentationChanged;
         _settings.PropertyChanged += OnSettingsPropertyChanged;
+        LocalizationText.Instance.PropertyChanged += OnLocalizationChanged;
         UpdateInformation(refreshMetadata: true);
     }
 
@@ -278,6 +281,11 @@ internal sealed partial class ImageViewerInformationViewModel :
         _metadataFilePath = null;
         _modificationDate = null;
         _hasLoadedMetadata = false;
+    }
+
+    private void OnLocalizationChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        UpdateInformation(refreshMetadata: false);
     }
 
     private void OnSessionPropertyChanged(

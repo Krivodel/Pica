@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 
+using Pica.Desktop.Resources;
 using Pica.Protocol;
 
 namespace Pica.Desktop.Views;
@@ -26,8 +27,8 @@ internal sealed class StartupErrorWindow : Window
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Text = $"Не удалось запустить {PicaProtocolConstants.ApplicationName}. "
-                    + "Переустанови приложение, собери версию для своей ОС или пожалуйся разрабу.",
+                Text = string.Format(DesktopLocalization.Get(PicaDesktopLocalizationKeys.StartupFailed),
+                    PicaProtocolConstants.ApplicationName),
                 TextAlignment = TextAlignment.Center,
                 TextWrapping = TextWrapping.Wrap
             }

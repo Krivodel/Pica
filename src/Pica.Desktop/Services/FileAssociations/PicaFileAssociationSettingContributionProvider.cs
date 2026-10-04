@@ -23,8 +23,10 @@ internal sealed class PicaFileAssociationSettingContributionProvider : IViewerSe
 
         return Task.FromResult<IReadOnlyList<ViewerSettingContribution>>(new ViewerSettingContribution[]
         {
-            new ViewerActionSettingContribution(DesktopUiStrings.FileAssociationsTitle, _dialog.ShowAsync,
-                _ => DesktopUiStrings.FileAssociationsFailed, _logger)
+            new ViewerActionSettingContribution(
+                DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsTitle), _dialog.ShowAsync,
+                _ => DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsFailed), _logger)
+            { LocalizationKey = PicaDesktopLocalizationKeys.FileAssociationsTitle }
         });
     }
 }

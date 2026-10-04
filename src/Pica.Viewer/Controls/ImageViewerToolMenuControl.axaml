@@ -1,5 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="https://codewf.com"
+             xmlns:resources="using:Pica.Viewer.Resources"
              xmlns:vm="using:Pica.Viewer.ViewModels"
              x:Class="Pica.Viewer.Controls.ImageViewerToolMenuControl"
              x:DataType="vm:ImageViewerToolMenuViewModel">
@@ -27,7 +29,7 @@
                                       IsVisible="{Binding Settings.IsCheckerboardBackgroundEnabled}" />
                         </Grid>
                         <TextBlock Classes="viewer-menu-text"
-                                   Text="{StaticResource ViewerCheckerboardBackgroundText}" />
+                                   Text="{i18n:I18n {x:Static resources:PicaViewerLocalizationKeys.CheckerboardBackground}}" />
                     </StackPanel>
                 </Button>
 
@@ -41,7 +43,7 @@
                                       IsVisible="{Binding Settings.IsFilteringEnabled}" />
                         </Grid>
                         <TextBlock Classes="viewer-menu-text"
-                                   Text="{StaticResource ViewerFilteringText}" />
+                                   Text="{i18n:I18n {x:Static resources:PicaViewerLocalizationKeys.Filtering}}" />
                     </StackPanel>
                 </Button>
 
@@ -51,7 +53,7 @@
                         <StackPanel Classes="viewer-menu-content">
                             <Grid Classes="viewer-menu-icon-host" />
                             <TextBlock Classes="viewer-menu-text"
-                                       Text="{StaticResource ViewerModeText}" />
+                                       Text="{i18n:I18n {x:Static resources:PicaViewerLocalizationKeys.Mode}}" />
                         </StackPanel>
                         <PathIcon x:Name="ModeSubmenuIcon"
                                   Grid.Column="1"
@@ -77,7 +79,7 @@
                                       IsVisible="{Binding Session.IsMainImageModeActive}" />
                         </Grid>
                         <TextBlock Classes="viewer-menu-text"
-                                   Text="{StaticResource ViewerMainModeText}" />
+                                   Text="{i18n:I18n {x:Static resources:PicaViewerLocalizationKeys.MainMode}}" />
                     </StackPanel>
                 </Button>
 
@@ -91,7 +93,7 @@
                                       IsVisible="{Binding Session.IsChannelModeActive}" />
                         </Grid>
                         <TextBlock Classes="viewer-menu-text"
-                                   Text="{StaticResource ViewerChannelsModeText}" />
+                                   Text="{i18n:I18n {x:Static resources:PicaViewerLocalizationKeys.ChannelsMode}}" />
                     </StackPanel>
                 </Button>
             </StackPanel>

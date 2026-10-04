@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using Pica.Desktop.Resources;
 using Pica.Viewer.Services;
 
 namespace Pica.Desktop.Services;
@@ -12,7 +13,7 @@ internal sealed class PicaBackgroundIdleSettingContributionProvider :
         PicaBackgroundIdleTimeoutSettings.Options
             .Select(option => new ViewerSettingChoice<int>(
                 option.TimeoutSeconds,
-                option.DisplayName))
+                DesktopLocalization.Get(option.LocalizationKey)) { LocalizationKey = option.LocalizationKey })
             .ToArray();
 
     private readonly IPicaDesktopStateService _stateService;
@@ -53,10 +54,10 @@ internal sealed class PicaBackgroundIdleSettingContributionProvider :
 
         ViewerSettingContribution contribution =
             new ViewerChoiceSettingContribution<int>(
-                "Оставаться в фоне после закрытия",
+                DesktopLocalization.Get(PicaDesktopLocalizationKeys.BackgroundIdle),
                 TimeoutChoices,
                 state.BackgroundIdleTimeoutSeconds,
-                ChangeBackgroundIdleTimeoutAsync);
+                ChangeBackgroundIdleTimeoutAsync) { LocalizationKey = PicaDesktopLocalizationKeys.BackgroundIdle };
 
         return new List<ViewerSettingContribution>
         {

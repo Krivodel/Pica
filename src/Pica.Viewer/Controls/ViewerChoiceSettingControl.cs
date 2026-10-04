@@ -1,7 +1,9 @@
+using Avalonia.Controls.Templates;
 using Avalonia.Controls;
 using Avalonia.Layout;
-
 using CommunityToolkit.Mvvm.Input;
+
+using Krivodeling.Localization.Avalonia;
 
 namespace Pica.Viewer.Controls;
 
@@ -33,6 +35,17 @@ internal sealed class ViewerChoiceSettingControl<TValue> : ViewerSettingControl
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = options,
+            ItemTemplate = new FuncDataTemplate<ViewerSettingOption<TValue>>((option, _) =>
+            {
+                TextBlock caption = new() { Text = option?.DisplayName };
+
+                if (option?.LocalizationKey is { } key)
+                {
+                    LocalizationBinding.Bind(caption, TextBlock.TextProperty, key);
+                }
+
+                return caption;
+            }),
             SelectedItem = options.First(
                 option => EqualityComparer<TValue>.Default.Equals(option.Value, initialValue))
         };

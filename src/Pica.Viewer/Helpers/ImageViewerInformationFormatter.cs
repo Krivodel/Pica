@@ -45,7 +45,7 @@ internal static class ImageViewerInformationFormatter
 
         if (selectedChannel is not null)
         {
-            parts.Add($"{ViewerUiStrings.Channel} {selectedChannel.Code}");
+            parts.Add($"{ViewerLocalization.Get(PicaViewerLocalizationKeys.Channel)} {selectedChannel.Code}");
         }
 
         return string.Join(PartSeparator, parts);

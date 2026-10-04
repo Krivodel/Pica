@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 
 using Velopack.Windows;
 
+using Pica.Desktop.Resources;
 using Pica.Desktop.Services.Background;
 
 namespace Pica.Desktop.Services;
@@ -253,7 +254,7 @@ internal sealed class PicaClipboardShortcutRegistration
             shortcut.Target = _executablePath;
             shortcut.Arguments = arguments;
             shortcut.WorkingDirectory = Path.GetDirectoryName(_executablePath);
-            shortcut.Description = "Pica — глобальная вставка из буфера";
+            shortcut.Description = DesktopLocalization.Get(PicaDesktopLocalizationKeys.ShortcutDescription);
             shortcut.IconPath = _executablePath;
             shortcut.HotKey = hotKey;
             shortcut.Save(path);

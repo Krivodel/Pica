@@ -1,12 +1,15 @@
 using Microsoft.Extensions.Logging;
 
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
+using Avalonia;
 using CommunityToolkit.Mvvm.Input;
+
+using Krivodeling.Localization.Avalonia;
+using Pica.Viewer.Resources;
 
 namespace Pica.Viewer.Controls;
 
@@ -20,8 +23,6 @@ internal sealed class ViewerRecordedSettingControl<TValue> : ViewerSettingContro
     internal override Task Completion => _recordingCompletion;
 
     private const double RowSpacing = 8d;
-    private const string ChangeButtonText = "Изменить";
-    private const string RecordingButtonText = "Нажми сочетание клавиш";
     private readonly StackPanel _panel;
     private readonly Func<nint, CancellationToken, Task<TValue>> _recordAsync;
     private readonly Func<TValue, string> _format;
@@ -58,7 +59,8 @@ internal sealed class ViewerRecordedSettingControl<TValue> : ViewerSettingContro
                 ct, _recording?.Token ?? CancellationToken.None);
             await applyAsync(value, applyCancellation.Token);
         });
-        RecordButton = new Button { Content = ChangeButtonText };
+        RecordButton = new Button();
+        LocalizationBinding.Bind(RecordButton, ContentControl.ContentProperty, PicaViewerLocalizationKeys.Change);
         ValueText = new TextBlock
         {
             Text = format(initialValue),
@@ -92,7 +94,7 @@ internal sealed class ViewerRecordedSettingControl<TValue> : ViewerSettingContro
         _recordingCompletion = completion.Task;
         _recording = recording;
         _owner?.SetValue(ViewerSettingRecording.IsActiveProperty, true);
-        RecordButton.Content = RecordingButtonText;
+        LocalizationBinding.Bind(RecordButton, ContentControl.ContentProperty, PicaViewerLocalizationKeys.RecordShortcut);
         _error.ClearError();
 
         try
@@ -117,7 +119,7 @@ internal sealed class ViewerRecordedSettingControl<TValue> : ViewerSettingContro
             _owner?.ClearValue(ViewerSettingRecording.IsActiveProperty);
             _recording = null;
             _isApplying = false;
-            RecordButton.Content = ChangeButtonText;
+            LocalizationBinding.Bind(RecordButton, ContentControl.ContentProperty, PicaViewerLocalizationKeys.Change);
             RecordButton.IsEnabled = true;
             completion.TrySetResult();
             RefreshValue();

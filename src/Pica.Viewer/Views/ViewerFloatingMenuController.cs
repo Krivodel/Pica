@@ -1,9 +1,12 @@
-using Avalonia;
+using System.ComponentModel;
+
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia;
 
+using Krivodeling.Localization.Avalonia;
 using Pica.Protocol;
 using Pica.Viewer.Services;
 using Pica.Viewer.ViewModels;
@@ -98,6 +101,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
                 SubmenuHideDelayMilliseconds)
         };
         _submenuHideTimer.Tick += OnSubmenuHideTimerTick;
+        LocalizationText.Instance.PropertyChanged += OnLocalizationChanged;
     }
 
     public void Dispose()
@@ -108,6 +112,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
         _modeMenuAnimator.Dispose();
         _submenuHideTimer.Stop();
         _submenuHideTimer.Tick -= OnSubmenuHideTimerTick;
+        LocalizationText.Instance.PropertyChanged -= OnLocalizationChanged;
     }
 
     internal void ShowContext(Point position)
@@ -120,12 +125,7 @@ internal sealed class ViewerFloatingMenuController : IDisposable
         HideTool();
         HideOpenWithSubmenu();
 
-        PicaImageItem? currentItem = _imagePresentation.CurrentItem;
-        _view.UpdateCurrentImageActionLabels(action => currentItem is null
-            ? action.DisplayName
-            : _actionDispatcher.GetCurrentImageActionDisplayName(
-                action,
-                currentItem));
+        UpdateCurrentImageActionLabels();
 
         _view.ViewerContextMenu.IsVisible = true;
         _view.ViewerContextMenu.Measure(
@@ -266,6 +266,22 @@ internal sealed class ViewerFloatingMenuController : IDisposable
 
         CancelSubmenuHide();
         ShowModeSubmenu(anchor);
+    }
+
+    private void UpdateCurrentImageActionLabels()
+    {
+        PicaImageItem? currentItem = _imagePresentation.CurrentItem;
+        _view.UpdateCurrentImageActionLabels(action => currentItem is null
+            ? action.DisplayName
+            : _actionDispatcher.GetCurrentImageActionDisplayName(
+                action,
+                currentItem));
+
+    }
+
+    private void OnLocalizationChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        UpdateCurrentImageActionLabels();
     }
 
     private async Task LoadOpenWithApplicationsAsync(

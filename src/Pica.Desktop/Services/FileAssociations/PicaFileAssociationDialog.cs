@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 
+using Krivodeling.Localization.Avalonia;
 using Pica.Desktop.Resources;
 using Pica.Desktop.ViewModels;
 using Pica.Desktop.Views;
@@ -28,7 +29,7 @@ internal sealed class PicaFileAssociationDialog : IPicaStartupPrompt
     {
         ArgumentNullException.ThrowIfNull(owner);
 
-        return ShowAsync(owner, DesktopUiStrings.Cancel, ct);
+        return ShowAsync(owner, PicaDesktopLocalizationKeys.Cancel, ct);
     }
 
     public async Task ShowIfNeededAsync(Window owner, CancellationToken ct)
@@ -38,13 +39,13 @@ internal sealed class PicaFileAssociationDialog : IPicaStartupPrompt
 
         if (!state.HasSeenFileAssociationsPrompt && owner.IsVisible)
         {
-            await ShowAsync(owner, DesktopUiStrings.FileAssociationsLater, ct);
+            await ShowAsync(owner, PicaDesktopLocalizationKeys.FileAssociationsLater, ct);
         }
     }
 
-    private async Task ShowAsync(Window owner, string closeButtonText, CancellationToken ct)
+    private async Task ShowAsync(Window owner, string closeButtonKey, CancellationToken ct)
     {
-        Task operation = ShowCoreAsync(owner, closeButtonText, ct);
+        Task operation = ShowCoreAsync(owner, closeButtonKey, ct);
         _operation = operation;
 
         try
@@ -57,10 +58,11 @@ internal sealed class PicaFileAssociationDialog : IPicaStartupPrompt
         }
     }
 
-    private async Task ShowCoreAsync(Window owner, string closeButtonText, CancellationToken ct)
+    private async Task ShowCoreAsync(Window owner, string closeButtonKey, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        FileAssociationsViewModel viewModel = new(_service, _errorHandler, closeButtonText);
+        FileAssociationsViewModel viewModel = new(_service, _errorHandler,
+            LocalizationText.Get(closeButtonKey), closeButtonKey);
         FileAssociationsWindow window = new(viewModel);
 
         Task dialog = DesktopDialogPresenter.ShowAsync(window, owner, ct);

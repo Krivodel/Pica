@@ -1,7 +1,9 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia;
 
+using Krivodeling.Localization.Avalonia;
+using Pica.Viewer.Resources;
 using Pica.Viewer.Services;
 
 namespace Pica.Viewer.Controls;
@@ -42,18 +44,19 @@ public sealed class ViewerSettingsContentControl : ContentControl
 
         if (includeTitle)
         {
-            content.Children.Add(new TextBlock
+            TextBlock title = new()
             {
                 FontSize = 17d,
-                FontWeight = FontWeight.SemiBold,
-                Text = "Настройки"
-            });
+                FontWeight = FontWeight.SemiBold
+            };
+            LocalizationBinding.Bind(title, TextBlock.TextProperty, PicaViewerLocalizationKeys.Settings);
+            content.Children.Add(title);
         }
 
         foreach (ViewerSettingControl setting in settings)
         {
             Control control = setting.Label is { } label
-                ? CreateLabeledControl(label, setting.Control)
+                ? CreateLabeledControl(label, setting.Control, setting.LabelLocalizationKey)
                 : setting.Control;
             content.Children.Add(control);
         }
@@ -103,13 +106,20 @@ public sealed class ViewerSettingsContentControl : ContentControl
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        return settings.Select(setting => setting.CreateControl()).ToArray();
+        return settings.Select(setting => setting.CreateLocalizedControl()).ToArray();
     }
 
-    private static StackPanel CreateLabeledControl(string label, Control control)
+    private static StackPanel CreateLabeledControl(string label, Control control, string? localizationKey)
     {
         StackPanel container = new() { Spacing = ControlSpacing };
-        container.Children.Add(new TextBlock { Text = label });
+        TextBlock text = new() { Text = label };
+
+        if (localizationKey is not null)
+        {
+            LocalizationBinding.Bind(text, TextBlock.TextProperty, localizationKey);
+        }
+
+        container.Children.Add(text);
         container.Children.Add(control);
 
         return container;

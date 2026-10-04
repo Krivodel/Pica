@@ -3,6 +3,7 @@ using System.Security.Principal;
 
 using Microsoft.Win32;
 
+using Pica.Desktop.Resources;
 using Pica.Protocol;
 
 namespace Pica.Desktop.Services.FileAssociations;
@@ -178,14 +179,14 @@ internal sealed class WindowsFileAssociationStore : IPicaFileAssociationStore
 
         string command = $"\"{_executablePath}\" \"%1\"";
         using RegistryKey program = _currentUser.CreateSubKey(ProgramPath);
-        program.SetValue("", "Изображение Pica");
+        program.SetValue("", DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationImage));
         using RegistryKey icon = program.CreateSubKey("DefaultIcon");
         icon.SetValue("", $"\"{_executablePath}\",0");
         using RegistryKey open = program.CreateSubKey(@"shell\open\command");
         open.SetValue("", command);
         using RegistryKey capabilities = _currentUser.CreateSubKey(CapabilitiesPath);
         capabilities.SetValue("ApplicationName", PicaProtocolConstants.ApplicationName);
-        capabilities.SetValue("ApplicationDescription", "Просмотр изображений в Pica");
+        capabilities.SetValue("ApplicationDescription", DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationDescription));
         capabilities.SetValue("ApplicationIcon", $"\"{_executablePath}\",0");
         using RegistryKey associations = capabilities.CreateSubKey("FileAssociations");
 

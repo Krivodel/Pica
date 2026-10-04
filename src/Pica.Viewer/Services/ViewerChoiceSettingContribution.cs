@@ -51,7 +51,7 @@ public sealed class ViewerChoiceSettingContribution<TValue> :
         _options = copiedChoices
             .Select(choice => new ViewerSettingOption<TValue>(
                 choice.Value,
-                choice.DisplayName))
+                choice.DisplayName) { LocalizationKey = choice.LocalizationKey })
             .ToArray();
     }
 

@@ -1,5 +1,6 @@
 <suki:SukiWindow xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="https://codewf.com"
                  xmlns:resources="using:Pica.Desktop.Resources"
                  xmlns:suki="using:SukiUI.Controls"
                  xmlns:vm="using:Pica.Desktop.ViewModels"
@@ -13,7 +14,7 @@
                  CanMinimize="False"
                  ShowBottomBorder="False"
                  WindowStartupLocation="CenterOwner"
-                 Title="{x:Static resources:DesktopUiStrings.FileAssociationsTitle}">
+                 Title="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.FileAssociationsTitle}}">
     <suki:SukiWindow.Styles>
         <StyleInclude Source="/Resources/FileAssociationsStyles.axaml" />
         <StyleInclude Source="avares://Pica.Viewer/Resources/ViewerErrorStyles.axaml" />
@@ -28,14 +29,14 @@
           RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
         <StackPanel Classes="association-section">
             <TextBlock Classes="association-heading"
-                       Text="Открывать изображения в Pica" />
+                       Text="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.FileAssociationsHeading}}" />
             <TextBlock TextWrapping="Wrap"
-                       Text="{x:Static resources:DesktopUiStrings.FileAssociationsDescription}" />
+                       Text="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.FileAssociationsDescription}}" />
         </StackPanel>
 
         <TextBox Grid.Row="1"
                  Margin="0,16,0,12"
-                 PlaceholderText="{x:Static resources:DesktopUiStrings.FileAssociationsSearch}"
+                 PlaceholderText="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.FileAssociationsSearch}}"
                  Text="{Binding FilterText, Mode=TwoWay}" />
 
         <Grid Grid.Row="2"
@@ -46,10 +47,10 @@
             <Button Grid.Column="1"
                     Margin="0,0,8,0"
                     Command="{Binding SelectAllCommand}"
-                    Content="{x:Static resources:DesktopUiStrings.FileAssociationsSelectAll}" />
+                    Content="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.FileAssociationsSelectAll}}" />
             <Button Grid.Column="2"
                     Command="{Binding ClearSelectionCommand}"
-                    Content="{x:Static resources:DesktopUiStrings.FileAssociationsClear}" />
+                    Content="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.FileAssociationsClear}}" />
         </Grid>
 
         <Grid Grid.Row="3">
@@ -74,7 +75,7 @@
             <TextBlock HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        IsVisible="{Binding !HasMatchingFormats}"
-                       Text="{x:Static resources:DesktopUiStrings.FileAssociationsEmpty}" />
+                       Text="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.FileAssociationsEmpty}}" />
         </Grid>
 
         <StackPanel Grid.Row="4"
@@ -99,7 +100,7 @@
                     Classes="Flat"
                     IsDefault="True"
                     Command="{Binding ApplyCommand}"
-                    Content="{x:Static resources:DesktopUiStrings.FileAssociationsApply}" />
+                    Content="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.FileAssociationsApply}}" />
         </StackPanel>
     </Grid>
 </suki:SukiWindow>

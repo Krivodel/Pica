@@ -54,9 +54,9 @@ public sealed class PicaClipboardShortcutDialogTests
                 Task showing = dialog.ShowIfNeededAsync(owner, CancellationToken.None);
                 ClipboardShortcutOfferWindow window = await WaitForDialogAsync(owner);
                 ClipboardShortcutOfferViewModel viewModel = GetViewModel(window);
-                window.Title.Should().Be(DesktopUiStrings.ClipboardShortcutTitle);
+                window.Title.Should().Be(DesktopLocalization.Get(PicaDesktopLocalizationKeys.ClipboardShortcutTitle));
                 window.GetVisualDescendants().OfType<TextBlock>().Should().Contain(text =>
-                    text.Text == DesktopUiStrings.ClipboardShortcutDescription);
+                    text.Text == DesktopLocalization.Get(PicaDesktopLocalizationKeys.ClipboardShortcutDescription));
 
                 switch (choice)
                 {

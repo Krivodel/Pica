@@ -1,4 +1,5 @@
 using Pica.Viewer.Controls;
+using Pica.Viewer.Resources;
 using Pica.Viewer.Services;
 using Pica.Viewer.ViewModels;
 
@@ -18,78 +19,81 @@ internal static class ViewerSettingsControlFactory
         List<ViewerSettingControl> settingControls =
         [
             new ViewerChoiceSettingControl<int>(
-                "Скорость перемещения",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.MovementSpeed),
                 ViewerSettingChoices.SpeedOptions,
                 settings.MovementSpeed,
-                settings.ChangeMovementSpeedCommand),
+                settings.ChangeMovementSpeedCommand).WithLocalization(PicaViewerLocalizationKeys.MovementSpeed),
             new ViewerCheckBoxSettingControl(
-                "Инерция перемещения",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.PanningInertia),
                 settings.IsPanningInertiaEnabled,
-                settings.ChangePanningInertiaCommand),
+                settings.ChangePanningInertiaCommand).WithLocalization(PicaViewerLocalizationKeys.PanningInertia),
             new ViewerChoiceSettingControl<int>(
-                "Скорость масштабирования",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.ZoomSpeed),
                 ViewerSettingChoices.SpeedOptions,
                 settings.ZoomSpeed,
-                settings.ChangeZoomSpeedCommand),
+                settings.ChangeZoomSpeedCommand).WithLocalization(PicaViewerLocalizationKeys.ZoomSpeed),
             new ViewerCheckBoxSettingControl(
-                "Свободное отдаление",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.FreeZoomOut),
                 settings.AllowFreeZoomOut,
-                settings.ChangeAllowFreeZoomOutCommand),
+                settings.ChangeAllowFreeZoomOutCommand).WithLocalization(PicaViewerLocalizationKeys.FreeZoomOut),
             new ViewerCheckBoxSettingControl(
-                "Сохранять вид при перелистывании",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.PreserveView),
                 settings.PreserveZoomAndPositionOnNavigation,
-                settings.ChangePreserveZoomAndPositionOnNavigationCommand),
+                settings.ChangePreserveZoomAndPositionOnNavigationCommand).WithLocalization(PicaViewerLocalizationKeys.PreserveView),
             new ViewerChoiceSettingControl<WindowResizeBehavior>(
-                "Изменение размера окна",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.ResizeBehavior),
                 ViewerSettingChoices.ResizeBehaviorOptions,
                 settings.ResizeBehavior,
-                settings.ChangeResizeBehaviorCommand),
+                settings.ChangeResizeBehaviorCommand).WithLocalization(PicaViewerLocalizationKeys.ResizeBehavior),
             new ViewerCheckBoxSettingControl(
-                "Разворачивать двойным щелчком",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.ExpandOnDoubleClick),
                 settings.ExpandOnDoubleClick,
-                settings.ChangeExpandOnDoubleClickCommand),
+                settings.ChangeExpandOnDoubleClickCommand).WithLocalization(PicaViewerLocalizationKeys.ExpandOnDoubleClick),
             new ViewerCheckBoxSettingControl(
-                "Автоматически скрывать заголовок окна",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.AutoHideTitleBar),
                 settings.AutoHideWindowTitleBar,
                 settings.ChangeAutoHideWindowTitleBarCommand,
-                wrapContent: true),
+                wrapContent: true).WithLocalization(PicaViewerLocalizationKeys.AutoHideTitleBar),
             new ViewerCheckBoxSettingControl(
-                "Запоминать положение и размер окна",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.RememberWindowPlacement),
                 settings.RememberWindowPlacement,
-                settings.ChangeRememberWindowPlacementCommand)
+                settings.ChangeRememberWindowPlacementCommand).WithLocalization(PicaViewerLocalizationKeys.RememberWindowPlacement)
         ];
 
+        settingControls.InsertRange(0, settingContributions
+            .Where(contribution => contribution.Placement == ViewerSettingPlacement.Header)
+            .Select(contribution => contribution.CreateLocalizedControl()));
         settingControls.AddRange(settingContributions
             .Where(contribution => contribution.Placement == ViewerSettingPlacement.Inline)
-            .Select(contribution => contribution.CreateControl()));
+            .Select(contribution => contribution.CreateLocalizedControl()));
         settingControls.AddRange(
         new List<ViewerSettingControl>
         {
             new ViewerCheckBoxSettingControl(
-                "Быстрая загрузка",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.FastLoading),
                 settings.IsFastLoadingEnabled,
-                settings.ChangeFastLoadingCommand),
+                settings.ChangeFastLoadingCommand).WithLocalization(PicaViewerLocalizationKeys.FastLoading),
             new ViewerCheckBoxSettingControl(
-                "Показывать название",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.ShowImageName),
                 settings.ShowImageName,
                 settings.ChangeShowImageNameCommand,
-                topSpacing: ImageInformationSettingsTopSpacing),
+                topSpacing: ImageInformationSettingsTopSpacing).WithLocalization(PicaViewerLocalizationKeys.ShowImageName),
             new ViewerCheckBoxSettingControl(
-                "Показывать формат",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.ShowImageFormat),
                 settings.ShowImageFormat,
-                settings.ChangeShowImageFormatCommand),
+                settings.ChangeShowImageFormatCommand).WithLocalization(PicaViewerLocalizationKeys.ShowImageFormat),
             new ViewerCheckBoxSettingControl(
-                "Показывать дату изменения",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.ShowModificationDate),
                 settings.ShowImageModificationDate,
-                settings.ChangeShowImageModificationDateCommand),
+                settings.ChangeShowImageModificationDateCommand).WithLocalization(PicaViewerLocalizationKeys.ShowModificationDate),
             new ViewerCheckBoxSettingControl(
-                "Показывать разрешение",
+                ViewerLocalization.Get(PicaViewerLocalizationKeys.ShowResolution),
                 settings.ShowImageResolution,
-                settings.ChangeShowImageResolutionCommand)
+                settings.ChangeShowImageResolutionCommand).WithLocalization(PicaViewerLocalizationKeys.ShowResolution)
         });
         settingControls.AddRange(settingContributions
             .Where(contribution => contribution.Placement == ViewerSettingPlacement.Footer)
-            .Select(contribution => contribution.CreateControl()));
+            .Select(contribution => contribution.CreateLocalizedControl()));
 
         return settingControls;
     }

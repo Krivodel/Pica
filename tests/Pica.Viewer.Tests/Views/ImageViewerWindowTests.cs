@@ -2,33 +2,34 @@ using System.Runtime.CompilerServices;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Avalonia;
 using Avalonia.Animation;
-using Avalonia.Controls;
 using Avalonia.Controls.Chrome;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.LogicalTree;
-using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia;
 using FluentAssertions;
 using SkiaSharp;
 using Xunit;
 
+using Krivodeling.Localization.Avalonia;
 using Pica.Protocol;
-using Pica.Viewer.Controls;
 using Pica.Tests.Common;
+using Pica.Viewer.Controls;
 using Pica.Viewer.Resources;
 using Pica.Viewer.Services;
-using Pica.Viewer.Tests;
 using Pica.Viewer.Tests.TestDoubles;
+using Pica.Viewer.Tests;
 using Pica.Viewer.ViewModels;
 using Pica.Viewer.Views;
 
@@ -53,6 +54,167 @@ public sealed class ImageViewerWindowTests
             .UseHeadless(new AvaloniaHeadlessPlatformOptions());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SettingsIcons_WithoutApplicationStyles_KeepTheirSizeAcrossWindowModes(bool autoHide)
+    {
+        await DispatchAsync(() =>
+        {
+            const double TitleBarSettingsIconSize = 16d;
+            const double FullscreenSettingsIconSize = 22d;
+            ImageViewerState state = CreateWindowedState();
+            state.AutoHideWindowTitleBar = autoHide;
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), state,
+                new RecordingImageChannelBitmapLoader());
+            ImageViewerView view = window.Content.Should().BeOfType<ImageViewerView>().Subject;
+
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                Button settingsButton = window.RightWindowTitleBarControls.Single().Should().BeOfType<Button>().Subject;
+                PathIcon titleBarIcon = settingsButton.Content.Should().BeOfType<PathIcon>().Subject;
+
+                Geometry settingsGeometry = titleBarIcon.Data.Should().BeAssignableTo<Geometry>().Subject;
+                settingsGeometry.Bounds.Width.Should().BeGreaterThan(0d);
+                titleBarIcon.Bounds.Size.Should().Be(new Size(TitleBarSettingsIconSize, TitleBarSettingsIconSize));
+
+                window.WindowState = WindowState.FullScreen;
+                window.UpdateLayout();
+                PathIcon fullscreenIcon = view.FullscreenSettingsButton.GetVisualDescendants().OfType<PathIcon>().Single();
+
+                fullscreenIcon.Data.Should().BeSameAs(titleBarIcon.Data);
+                fullscreenIcon.Bounds.Size.Should().Be(new Size(FullscreenSettingsIconSize, FullscreenSettingsIconSize));
+
+                window.WindowState = WindowState.Normal;
+                window.UpdateLayout();
+
+                titleBarIcon.Bounds.Size.Should().Be(new Size(TitleBarSettingsIconSize, TitleBarSettingsIconSize));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ChangeHostLanguage_WithTwoOpenViewers_UpdatesLabelsWithoutChangingGeometry()
+    {
+        await DispatchAsync(() =>
+        {
+            using PicaTemporaryDirectory directory = new();
+            using LocalizationService localization = new(new DirectoryLocalizationFileStore(directory.DirectoryPath),
+                ViewerLocalization.Catalog, NullLogger<LocalizationService>.Instance);
+            string original = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru"
+                ? LocalizationConstants.RussianId : LocalizationConstants.EnglishId;
+            localization.Select(LocalizationConstants.RussianId);
+            ViewerLanguageSettingContribution language = new("Language", localization, (id, _) =>
+            {
+                localization.Select(id);
+                return Task.CompletedTask;
+            }, new RecordingViewModelErrorHandler(), PicaViewerLocalizationKeys.Settings)
+            {
+                Placement = ViewerSettingPlacement.Header
+            };
+            ViewerSettingContribution[] contributions = [language];
+            ImageViewerWindow first = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader(), settingContributions: contributions);
+            ImageViewerWindow second = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader(), settingContributions: contributions);
+
+            try
+            {
+                first.Show();
+                second.Show();
+                first.UpdateLayout();
+                second.UpdateLayout();
+                Size firstSize = first.Bounds.Size;
+                Size secondSize = second.Bounds.Size;
+                TextBlock firstMessage = first.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(text => text.Text == "Нет изображений");
+                TextBlock secondMessage = second.GetVisualDescendants().OfType<TextBlock>()
+                    .Single(text => text.Text == "Нет изображений");
+                CheckBox firstAutoHide = first.GetVisualDescendants().OfType<CheckBox>()
+                    .Single(box => box.Content is TextBlock text && text.Text == "Автоматически скрывать заголовок окна");
+                bool? originalAutoHide = firstAutoHide.IsChecked;
+                ViewerSettingsContentControl settings = first.GetVisualDescendants()
+                    .OfType<ViewerSettingsContentControl>().Single();
+                StackPanel settingsContent = settings.Content.Should().BeOfType<StackPanel>().Subject;
+                StackPanel languageSection = settingsContent.Children[1].Should().BeOfType<StackPanel>().Subject;
+                languageSection.Children[0].Should().BeOfType<TextBlock>().Which.Text.Should().Be("Language");
+                StackPanel movementSection = settingsContent.Children[2].Should().BeOfType<StackPanel>().Subject;
+                TextBlock movementLabel = movementSection.Children[0].Should().BeOfType<TextBlock>().Subject;
+                movementLabel.Text.Should().Be("Скорость перемещения");
+
+                localization.Select(LocalizationConstants.EnglishId);
+                Dispatcher.UIThread.RunJobs();
+                first.UpdateLayout();
+                second.UpdateLayout();
+
+                firstMessage.Text.Should().Be("No images");
+                secondMessage.Text.Should().Be("No images");
+                firstAutoHide.Content.Should().BeOfType<TextBlock>().Which.Text.Should().Be("Automatically hide the window title bar");
+                movementLabel.Text.Should().Be("Movement speed");
+                firstAutoHide.IsChecked.Should().Be(originalAutoHide);
+                first.Bounds.Size.Should().Be(firstSize);
+                second.Bounds.Size.Should().Be(secondSize);
+                Lang.Avalonia.I18nManager.Instance.Culture?.Name.Should().Be("en-US");
+            }
+            finally
+            {
+                first.Close();
+                second.Close();
+                localization.Select(original);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(Key.V, RawInputModifiers.Control, PhysicalKey.V)]
+    [InlineData(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab)]
+    public async Task EditSettingsText_WithViewerShortcuts_DoesNotTriggerImageCommands(
+        Key key, RawInputModifiers modifiers, PhysicalKey physicalKey)
+    {
+        await DispatchAsync(() =>
+        {
+            int clipboardReads = 0;
+            DelegateClipboardImageReader reader = new()
+            {
+                Read = _ =>
+                {
+                    clipboardReads++;
+                    return Task.FromResult<IReadOnlyList<ClipboardImageInput>>(Array.Empty<ClipboardImageInput>());
+                }
+            };
+            ImageViewerWindow window = CreateWindow(CreateEmptyRequest(), CreateWindowedState(),
+                new RecordingImageChannelBitmapLoader(), clipboardReader: reader);
+            ImageViewerView view = window.Content.Should().BeOfType<ImageViewerView>().Subject;
+            ImageViewerSessionViewModel session = view.DataContext.Should().BeOfType<ImageViewerSessionViewModel>().Subject;
+            TextBox search = new();
+            view.SettingsPanel.Child = search;
+
+            try
+            {
+                window.Show();
+                view.FullscreenSettingsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.CaptureRenderedFrame();
+                search.Focus().Should().BeTrue();
+
+                window.KeyPress(key, modifiers, physicalKey, null);
+                Dispatcher.UIThread.RunJobs();
+
+                clipboardReads.Should().Be(0);
+                session.IsMainImageModeActive.Should().BeTrue();
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
     [Fact]
     public async Task Show_WithEmptySession_DisplaysCenteredMessageWithoutInterceptingInput()
     {
@@ -69,7 +231,7 @@ public sealed class ImageViewerWindowTests
                 window.UpdateLayout();
 
                 TextBlock message = view.GetVisualDescendants().OfType<TextBlock>()
-                    .Single(text => text.Text == ViewerUiStrings.NoImages);
+                    .Single(text => text.Text == ViewerLocalization.Get(PicaViewerLocalizationKeys.NoImages));
                 message.IsVisible.Should().BeTrue();
                 message.IsHitTestVisible.Should().BeFalse();
                 Point messageCenter = message.TranslatePoint(
@@ -105,7 +267,7 @@ public sealed class ImageViewerWindowTests
             {
                 window.Show();
                 TextBlock message = view.GetVisualDescendants().OfType<TextBlock>()
-                    .Single(text => text.Text == ViewerUiStrings.NoImages);
+                    .Single(text => text.Text == ViewerLocalization.Get(PicaViewerLocalizationKeys.NoImages));
                 message.IsVisible.Should().BeTrue();
 
                 await window.PasteFromClipboardAsync(timeout.Token);
@@ -137,7 +299,7 @@ public sealed class ImageViewerWindowTests
             try
             {
                 TextBlock message = window.GetVisualDescendants().OfType<TextBlock>()
-                    .Single(text => text.Text == ViewerUiStrings.NoImages);
+                    .Single(text => text.Text == ViewerLocalization.Get(PicaViewerLocalizationKeys.NoImages));
 
                 message.IsVisible.Should().BeFalse();
             }
@@ -2904,7 +3066,8 @@ public sealed class ImageViewerWindowTests
         IImageChannelBitmapLoader channelBitmapLoader,
         IPlatformFileActions? platformFileActions = null,
         RecordingViewerActionDispatcher? actionDispatcher = null,
-        IClipboardImageReader? clipboardReader = null)
+        IClipboardImageReader? clipboardReader = null,
+        IReadOnlyList<ViewerSettingContribution>? settingContributions = null)
     {
         ImageFormatRegistry formatRegistry = new();
 
@@ -2920,7 +3083,8 @@ public sealed class ImageViewerWindowTests
                 MultiFrameImageDecoderTestFactory.Create()),
             platformFileActions,
             actionDispatcher,
-            clipboardReader);
+            clipboardReader,
+            settingContributions);
     }
 
     private static ImageViewerWindow CreateWindow(
@@ -2931,7 +3095,8 @@ public sealed class ImageViewerWindowTests
         IFullResolutionImageLoader fullResolutionLoader,
         IPlatformFileActions? platformFileActions = null,
         RecordingViewerActionDispatcher? actionDispatcher = null,
-        IClipboardImageReader? clipboardReader = null)
+        IClipboardImageReader? clipboardReader = null,
+        IReadOnlyList<ViewerSettingContribution>? settingContributions = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(state);
@@ -2953,7 +3118,7 @@ public sealed class ImageViewerWindowTests
             request,
             actionDispatcher ?? new RecordingViewerActionDispatcher(),
             state,
-            Array.Empty<ViewerSettingContribution>());
+            settingContributions ?? Array.Empty<ViewerSettingContribution>());
     }
 
     private static IImageViewerWindowFactory CreateWindowFactory(

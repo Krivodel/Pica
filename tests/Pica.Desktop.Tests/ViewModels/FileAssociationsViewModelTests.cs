@@ -63,7 +63,7 @@ public sealed class FileAssociationsViewModelTests
             await viewModel.LoadCommand.ExecuteAsync(null);
         }
 
-        viewModel.ErrorMessage.Should().Be(DesktopUiStrings.FileAssociationsFailed);
+        viewModel.ErrorMessage.Should().Be(DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsFailed));
         closed.Should().BeFalse();
         viewModel.HasErrorMessage.Should().BeTrue();
         viewModel.IsLoading.Should().BeFalse();
@@ -80,7 +80,7 @@ public sealed class FileAssociationsViewModelTests
 
         await viewModel.ApplyCommand.ExecuteAsync(null);
 
-        viewModel.ErrorMessage.Should().Be(DesktopUiStrings.FileAssociationsRestoreFailed);
+        viewModel.ErrorMessage.Should().Be(DesktopLocalization.Get(PicaDesktopLocalizationKeys.FileAssociationsRestoreFailed));
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public sealed class FileAssociationsViewModelTests
         await viewModel.CloseCommand.ExecuteAsync(null);
 
         closed.Should().BeFalse();
-        viewModel.ErrorMessage.Should().Be(DesktopUiStrings.PreferenceChoiceFailed);
+        viewModel.ErrorMessage.Should().Be(DesktopLocalization.Get(PicaDesktopLocalizationKeys.PreferenceChoiceFailed));
         viewModel.CloseCommand.CanExecute(null).Should().BeTrue();
     }
 

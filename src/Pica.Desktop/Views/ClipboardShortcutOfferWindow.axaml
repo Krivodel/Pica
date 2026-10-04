@@ -1,5 +1,6 @@
 <suki:SukiWindow xmlns="https://github.com/avaloniaui"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:i18n="https://codewf.com"
                  xmlns:resources="using:Pica.Desktop.Resources"
                  xmlns:suki="using:SukiUI.Controls"
                  xmlns:vm="using:Pica.Desktop.ViewModels"
@@ -12,7 +13,7 @@
                  CanResize="False"
                  ShowBottomBorder="False"
                  WindowStartupLocation="CenterOwner"
-                 Title="{x:Static resources:DesktopUiStrings.ClipboardShortcutTitle}">
+                 Title="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.ClipboardShortcutTitle}}">
     <suki:SukiWindow.Styles>
         <StyleInclude Source="avares://Pica.Viewer/Resources/ViewerErrorStyles.axaml" />
     </suki:SukiWindow.Styles>
@@ -27,7 +28,7 @@
         <StackPanel Margin="24"
                     Spacing="20">
             <TextBlock TextWrapping="Wrap"
-                       Text="{x:Static resources:DesktopUiStrings.ClipboardShortcutDescription}" />
+                       Text="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.ClipboardShortcutDescription}}" />
             <ContentControl x:Name="SettingsHost"
                             IsEnabled="{Binding !IsLoading}" />
             <ProgressBar IsVisible="{Binding IsLoading}"
@@ -40,10 +41,10 @@
                         Orientation="Horizontal"
                         Spacing="8">
                 <Button Command="{Binding DeclineCommand}"
-                        Content="{x:Static resources:DesktopUiStrings.NotNow}" />
+                        Content="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.NotNow}}" />
                 <Button Classes="Flat"
                         Command="{Binding EnableCommand}"
-                        Content="{x:Static resources:DesktopUiStrings.ClipboardShortcutEnable}" />
+                        Content="{i18n:I18n {x:Static resources:PicaDesktopLocalizationKeys.ClipboardShortcutEnable}}" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

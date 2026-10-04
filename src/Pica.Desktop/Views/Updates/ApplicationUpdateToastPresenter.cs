@@ -147,12 +147,12 @@ internal sealed class ApplicationUpdateToastPresenter : IDisposable
         StackPanel content = CreateContent();
         ISukiToast toast = CreateToastBuilder(content)
             .WithActionButton(
-                DesktopUiStrings.UpdateLater,
+                DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateLater),
                 OnLaterRequested,
                 true,
                 SukiButtonStyles.Basic)
             .WithActionButton(
-                DesktopUiStrings.UpdateInstall,
+                DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateInstall),
                 OnUpdateRequested,
                 true)
             .Queue();
@@ -173,7 +173,7 @@ internal sealed class ApplicationUpdateToastPresenter : IDisposable
     {
         return _manager
             .CreateToast()
-            .WithTitle(DesktopUiStrings.UpdateTitle)
+            .WithTitle(DesktopLocalization.Get(PicaDesktopLocalizationKeys.UpdateTitle))
             .WithContent(content)
             .OfType(NotificationType.Information);
     }

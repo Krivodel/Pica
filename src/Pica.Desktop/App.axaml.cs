@@ -1,10 +1,11 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 using Pica.Desktop.Services;
 using Pica.Desktop.Services.Background;
@@ -118,10 +119,22 @@ public sealed partial class App : Application
         LogForwardingFailure(forwardingException);
         PicaApplicationLifecycle lifecycle =
             GetRequiredService<PicaApplicationLifecycle>();
-        _ = lifecycle.StartAsync(
-            desktopLifetime,
-            _launchContext,
-            CancellationToken.None);
+        _ = StartLocalizedApplicationAsync(lifecycle, desktopLifetime);
+    }
+
+    private async Task StartLocalizedApplicationAsync(PicaApplicationLifecycle lifecycle,
+        IClassicDesktopStyleApplicationLifetime desktopLifetime)
+    {
+        try
+        {
+            await GetRequiredService<PicaLocalizationService>().InitializeAsync(CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            _logger?.LogWarning(exception, "Pica could not restore the saved language; using the system default");
+        }
+
+        await lifecycle.StartAsync(desktopLifetime, _launchContext, CancellationToken.None);
     }
 
     private async Task ForwardBackgroundActivationAsync(

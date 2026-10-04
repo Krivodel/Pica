@@ -1,7 +1,10 @@
+using System.ComponentModel;
+
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using SukiUI.Controls;
 
+using Krivodeling.Localization.Avalonia;
 using Pica.Desktop.ViewModels;
 
 namespace Pica.Desktop.Views;
@@ -16,6 +19,7 @@ internal sealed partial class FileAssociationsWindow : SukiWindow
         AvaloniaXamlLoader.Load(this);
         DataContext = viewModel;
         viewModel.CloseRequested += OnCloseRequested;
+        LocalizationText.Instance.PropertyChanged += OnLocalizationChanged;
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -27,7 +31,13 @@ internal sealed partial class FileAssociationsWindow : SukiWindow
     protected override void OnClosed(EventArgs e)
     {
         _viewModel.CloseRequested -= OnCloseRequested;
+        LocalizationText.Instance.PropertyChanged -= OnLocalizationChanged;
         base.OnClosed(e);
+    }
+
+    private void OnLocalizationChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        _viewModel.RefreshLocalization();
     }
 
     private void OnCloseRequested(object? sender, EventArgs e)
