@@ -74,6 +74,21 @@ If the application does not yet use Fluent and SukiUI, add them to `App.axaml`:
 </Application>
 ```
 
+## Localization in an embedded viewer
+
+The viewer uses `Krivodeling.Localization.Avalonia` and updates its language together with the host application. Include its assembly in the host's localization catalog:
+
+```csharp
+using Krivodeling.Localization.Avalonia;
+using Pica.Viewer.Resources;
+
+BuiltInLocalizationCatalog catalog = BuiltInLocalizationCatalog.FromAssemblies(
+    typeof(App).Assembly,
+    typeof(ViewerLocalization).Assembly);
+```
+
+Set `LocalizationKey` on custom settings and choices so their labels also update when the language changes.
+
 ## Example
 
 ```csharp

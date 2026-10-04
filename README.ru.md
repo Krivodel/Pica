@@ -74,6 +74,21 @@ dotnet add package Pica.Viewer
 </Application>
 ```
 
+## Локализация встроенного просмотрщика
+
+Просмотрщик использует `Krivodeling.Localization.Avalonia` и обновляет язык вместе с приложением-хостом. Добавь его сборку в каталог локализации хоста:
+
+```csharp
+using Krivodeling.Localization.Avalonia;
+using Pica.Viewer.Resources;
+
+BuiltInLocalizationCatalog catalog = BuiltInLocalizationCatalog.FromAssemblies(
+    typeof(App).Assembly,
+    typeof(ViewerLocalization).Assembly);
+```
+
+Для своих настроек и вариантов выбора укажи `LocalizationKey`, чтобы их подписи тоже обновлялись при смене языка.
+
 ## Пример
 
 ```csharp
