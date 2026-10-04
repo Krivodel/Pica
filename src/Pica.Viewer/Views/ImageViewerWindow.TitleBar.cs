@@ -78,6 +78,13 @@ public sealed partial class ImageViewerWindow : SukiWindow
         _titleBarPinButton = e.NameScope.Find<Button>("PART_PinButton")
             ?? throw new InvalidOperationException(
                 "The Suki window pin button template part is missing.");
+        Button fullScreenButton = e.NameScope.Find<Button>("PART_FullScreenButton")
+            ?? throw new InvalidOperationException(
+                "The Suki window full screen button template part is missing.");
+
+        PlaceTitleBarButtonBefore(_titleBarMinimizeButton, fullScreenButton);
+        PlaceTitleBarButtonBefore(_titleBarPinButton, _titleBarMinimizeButton);
+
         _titleBarCloseButton.IsEnabled = !_isSaving;
         _titleBarMinimizeButton.IsEnabled = !_isSaving;
         _titleBarPinButton.IsEnabled = !_isSaving;
@@ -107,6 +114,23 @@ public sealed partial class ImageViewerWindow : SukiWindow
         PointerEntered += OnTitleBarPointerMoved;
         PointerExited += OnTitleBarPointerExited;
         Win32Properties.AddWndProcHookCallback(this, OnTitleBarWindowMessage);
+    }
+
+    private static void PlaceTitleBarButtonBefore(Button firstButton, Button secondButton)
+    {
+        if ((firstButton.Parent is not Panel buttonPanel)
+            || (secondButton.Parent != buttonPanel))
+        {
+            return;
+        }
+
+        int firstIndex = buttonPanel.Children.IndexOf(firstButton);
+        int secondIndex = buttonPanel.Children.IndexOf(secondButton);
+
+        if (firstIndex > secondIndex)
+        {
+            buttonPanel.Children.Move(firstIndex, secondIndex);
+        }
     }
 
     private void UpdateTitleBarVisibility(bool animate)

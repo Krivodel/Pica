@@ -1022,6 +1022,10 @@ public sealed class ImageViewerWindowTests
                     new Point(settingsButton.Bounds.Width / 2d, settingsButton.Bounds.Height / 2d), window)
                     ?? throw new InvalidOperationException("The settings button must be attached to the window.");
                 Button pinButton = titleBarButtons.Single(button => button.Name == "PART_PinButton");
+                Button minimizeButton = titleBarButtons.Single(button => button.Name == "PART_MinimizeButton");
+                Button fullScreenButton = titleBarButtons.Single(button => button.Name == "PART_FullScreenButton");
+                pinButton.Bounds.Right.Should().BeApproximately(minimizeButton.Bounds.Left, 0.01d);
+                minimizeButton.Bounds.Right.Should().BeApproximately(fullScreenButton.Bounds.Left, 0.01d);
                 Point pinCenter = pinButton.TranslatePoint(
                     new Point(pinButton.Bounds.Width / 2d, pinButton.Bounds.Height / 2d), window)
                     ?? throw new InvalidOperationException("The pin button must be attached to the window.");
