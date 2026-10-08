@@ -18,12 +18,16 @@ internal sealed class PngPlatformClipboardImageWriter : IPlatformClipboardImageW
         _pngFormat = DataFormat.CreateBytesPlatformFormat(formatIdentifier);
     }
 
-    public async Task SetImageAsync(PreparedClipboardImage image, CancellationToken ct)
+    public async Task SetImageAsync(PreparedBitmapPixels image, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(image);
+        byte[] pngContent = image is PreparedClipboardImage encodedImage
+            ? encodedImage.PngContent
+            : await Task.Run(() => PngImageEncoder.EncodePixels(image, ct), ct)
+                .ConfigureAwait(false);
 
         await _clipboardDataWriter
-            .SetBytesAsync(_pngFormat, image.PngContent, ct)
+            .SetBytesAsync(_pngFormat, pngContent, ct)
             .ConfigureAwait(false);
     }
 

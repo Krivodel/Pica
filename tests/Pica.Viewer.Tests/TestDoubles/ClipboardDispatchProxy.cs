@@ -1,5 +1,6 @@
 using System.Reflection;
 
+using Avalonia.Input;
 using Avalonia.Threading;
 
 namespace Pica.Viewer.Tests.TestDoubles;
@@ -17,7 +18,6 @@ internal class ClipboardDispatchProxy : DispatchProxy
         MethodInfo? targetMethod,
         object?[]? args)
     {
-        _ = args;
         MethodInfo method = targetMethod
             ?? throw new ArgumentNullException(nameof(targetMethod));
         RecordingClipboard owner = _owner
@@ -34,6 +34,9 @@ internal class ClipboardDispatchProxy : DispatchProxy
                 "SetDataAsync",
                 StringComparison.Ordinal))
         {
+            owner.Data = args is [IAsyncDataTransfer dataTransfer]
+                ? dataTransfer
+                : throw new ArgumentException("The clipboard call must contain a data transfer.", nameof(args));
             owner.RecordSetData(Dispatcher.UIThread.CheckAccess());
 
             return Task.CompletedTask;

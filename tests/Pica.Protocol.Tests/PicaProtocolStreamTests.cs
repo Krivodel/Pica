@@ -18,8 +18,10 @@ public sealed class PicaProtocolStreamTests
         request.ActionPayloadDirectory.Should().BeNull();
     }
 
-    [Fact]
-    public async Task WriteAsync_WithViewerRequest_RoundTripsMessage()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WriteAsync_WithViewerRequest_RoundTripsMessage(bool isTemporary)
     {
         PicaViewerRequest request = new(
             new List<PicaImageItem>
@@ -29,6 +31,9 @@ public sealed class PicaProtocolStreamTests
                     @"C:\Images\image.png",
                     "image.png",
                     @"C:\Images\Thumbnails\image.png")
+                {
+                    IsTemporary = isTemporary
+                }
             },
             ItemId,
             new List<PicaActionDefinition>

@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.Headless;
 using FluentAssertions;
 using Xunit;
 
@@ -17,9 +16,7 @@ public sealed class ViewerImageCommandServiceTests
 
     public static AppBuilder BuildAvaloniaApp()
     {
-        return AppBuilder
-            .Configure<Application>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions());
+        return SkiaViewerTestSession.BuildAvaloniaApp();
     }
 
     [Fact]
@@ -35,7 +32,42 @@ public sealed class ViewerImageCommandServiceTests
                 await context.CommandService.CopyCurrentAsync(CancellationToken.None);
 
                 context.ClipboardWriter.PreparedImageCount.Should().Be(1);
+                context.ClipboardWriter.LastPreparedImage.Should().BeOfType<PreparedClipboardImage>();
                 context.ClipboardWriter.FileCount.Should().Be(0);
+            });
+    }
+
+    [Fact]
+    public async Task CopyCurrentAsync_WithTemporaryFile_CopiesIndependentImageWithoutFileReference()
+    {
+        await HeadlessTestSessionDispatcher.DispatchAsync(
+            typeof(ViewerImageCommandServiceTests), SessionLock, async () =>
+            {
+                PicaImageItem item = new(
+                    Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                    "temporary.webp",
+                    "reference.webp")
+                {
+                    IsTemporary = true
+                };
+                RecordingViewerClipboardWriter writer;
+
+                using (ViewerImageCommandTestContext context =
+                    await ViewerImageCommandTestContext.CreateAsync(sourceItem: item))
+                {
+                    context.Session.SelectMainImageModeCommand.Execute(null);
+                    writer = context.ClipboardWriter;
+
+                    await context.CommandService.CopyCurrentAsync(CancellationToken.None);
+                }
+
+                PreparedBitmapPixels image = writer.LastPreparedImage
+                    ?? throw new InvalidOperationException("The temporary image was not copied.");
+                writer.PreparedImageCount.Should().Be(1);
+                writer.FileCount.Should().Be(0);
+                writer.FileWithImageCount.Should().Be(0);
+                image.Should().NotBeOfType<PreparedClipboardImage>();
+                image.BgraPixels.Should().Equal(BgraBitmapTestData.Pixels);
             });
     }
 

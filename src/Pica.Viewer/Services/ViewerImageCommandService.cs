@@ -80,14 +80,15 @@ internal sealed class ViewerImageCommandService :
 
         if (channel is null)
         {
-            if (!_presentation.IsCurrentImageFileBacked)
+            if (item.IsTemporary || !_presentation.IsCurrentImageFileBacked)
             {
-                PreparedClipboardImage memoryClipboardImage =
-                    await _clipboardImagePreparer.PrepareImageAsync(
-                        bitmapLease.Bitmap,
-                        ct).ConfigureAwait(false);
+                PreparedBitmapPixels clipboardImage = item.IsTemporary
+                    ? await _clipboardImagePreparer.PrepareBitmapAsync(
+                        bitmapLease.Bitmap, ct).ConfigureAwait(false)
+                    : await _clipboardImagePreparer.PrepareImageAsync(
+                        bitmapLease.Bitmap, ct).ConfigureAwait(false);
                 await _imageOperations.CopyPreparedImageAsync(
-                    memoryClipboardImage,
+                    clipboardImage,
                     ct).ConfigureAwait(false);
                 return;
             }

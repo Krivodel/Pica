@@ -48,17 +48,18 @@ internal sealed class ViewerImageCommandTestContext : IDisposable
 
     internal static async Task<ViewerImageCommandTestContext> CreateAsync(
         IStorageProvider? storageProvider = null,
-        bool isFileBacked = true)
+        bool isFileBacked = true,
+        PicaImageItem? sourceItem = null)
     {
         Guid itemId =
             Guid.Parse("11111111-1111-1111-1111-111111111111");
-        PicaImageItem item = new(
+        PicaImageItem item = sourceItem ?? new PicaImageItem(
             itemId,
             "image.png",
             "image.png");
         PicaViewerRequest request = new(
             new PicaImageItem[] { item },
-            itemId);
+            item.Id);
         ImageViewerSession sessionState = new(request, true);
         ImageViewerSessionViewModel session = new(sessionState);
         RecordingImageChannelBitmapLoader channelLoader = new();

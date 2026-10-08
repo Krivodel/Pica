@@ -23,7 +23,7 @@ internal sealed class NullViewerClipboardWriter : IViewerClipboardWriter
     }
 
     public Task SetPreparedImageAsync(
-        PreparedClipboardImage image,
+        PreparedBitmapPixels image,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(image);

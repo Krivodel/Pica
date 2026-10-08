@@ -37,7 +37,7 @@ internal sealed class ViewerImageOperations
     }
 
     internal async Task CopyPreparedImageAsync(
-        PreparedClipboardImage image,
+        PreparedBitmapPixels image,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(image);

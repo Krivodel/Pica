@@ -26,7 +26,7 @@ internal sealed class WindowsPlatformClipboardImageWriter : IPlatformClipboardIm
         _platformContext = platformContext ?? throw new ArgumentNullException(nameof(platformContext));
     }
 
-    public async Task SetImageAsync(PreparedClipboardImage image, CancellationToken ct)
+    public async Task SetImageAsync(PreparedBitmapPixels image, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(image);
         byte[] dibContent = WindowsDibV5Builder.Build(image);
@@ -35,12 +35,15 @@ internal sealed class WindowsPlatformClipboardImageWriter : IPlatformClipboardIm
             () =>
             {
                 WindowsClipboardAccess.SetBytes(WindowsClipboardAccess.DibV5Format, dibContent);
-                WindowsClipboardAccess.SetBytes(
-                    WindowsClipboardAccess.RegisterFormat(PicaClipboardFormats.WindowsPng),
-                    image.PngContent);
-                WindowsClipboardAccess.SetBytes(
-                    WindowsClipboardAccess.RegisterFormat(PicaClipboardFormats.PngMime),
-                    image.PngContent);
+                if (image is PreparedClipboardImage encodedImage)
+                {
+                    WindowsClipboardAccess.SetBytes(
+                        WindowsClipboardAccess.RegisterFormat(PicaClipboardFormats.WindowsPng),
+                        encodedImage.PngContent);
+                    WindowsClipboardAccess.SetBytes(
+                        WindowsClipboardAccess.RegisterFormat(PicaClipboardFormats.PngMime),
+                        encodedImage.PngContent);
+                }
             },
             ct).ConfigureAwait(false);
     }

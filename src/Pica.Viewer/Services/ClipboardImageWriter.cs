@@ -26,7 +26,7 @@ internal sealed class ClipboardImageWriter : IViewerClipboardWriter
     }
 
     async Task IViewerClipboardWriter.SetPreparedImageAsync(
-        PreparedClipboardImage image,
+        PreparedBitmapPixels image,
         CancellationToken ct)
     {
         await _platformImageWriter

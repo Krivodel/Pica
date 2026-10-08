@@ -10,7 +10,7 @@ internal sealed class RecordingViewerClipboardWriter : IViewerClipboardWriter
     internal int PreparedImageCount { get; private set; }
     internal int FileCount { get; private set; }
     internal int FileWithImageCount { get; private set; }
-    internal PreparedClipboardImage? LastPreparedImage { get; private set; }
+    internal PreparedBitmapPixels? LastPreparedImage { get; private set; }
     internal IStorageFile? LastFileWithImage { get; private set; }
 
     public Task FlushAsync(CancellationToken ct)
@@ -31,7 +31,7 @@ internal sealed class RecordingViewerClipboardWriter : IViewerClipboardWriter
     }
 
     public Task SetPreparedImageAsync(
-        PreparedClipboardImage image,
+        PreparedBitmapPixels image,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(image);
